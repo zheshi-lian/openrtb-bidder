@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>广告主控制台</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:30px;background:#f5f6f8;color:#222}
+ h2{font-size:18px} input,textarea,select{width:100%;padding:6px;margin:4px 0 10px;box-sizing:border-box}
+ .row{display:flex;gap:10px}.row>div{flex:1} button{padding:8px 16px;cursor:pointer;background:#4F8EF7;color:#fff;border:0;border-radius:6px}
+ table{width:100%;border-collapse:collapse;margin-top:14px;background:#fff} td,th{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left}
+ .hint{font-size:12px;color:#666}</style></head>
+<body>
+  <h2>广告主控制台（创建 campaign + 看预算消耗）</h2>
+  <div class="row">
+    <div><label>活动名称</label><input id="name" value="新客-工具类App"></div>
+    <div><label>广告主</label><input id="adv" value="MyBrand"></div>
+  </div>
+  <div class="row">
+    <div><label>预算(元)</label><input id="budget" type="number" value="2000"></div>
+    <div><label>目标CPM(元)</label><input id="cpm" type="number" value="7"></div>
+  </div>
+  <div class="row">
+    <div><label>国家(留空=不限)</label><input id="country" value=""></div>
+    <div><label>应用品类(留空=不限)</label><input id="cat" value="tools"></div>
+  </div>
+  <label>意图标签(逗号分隔, 用于意图Agent匹配提升eCPM)</label>
+  <input id="tags" value="tools,utility,app,install">
+  <label>落地页</label><input id="url" value="https://example.com">
+  <label>创意HTML</label><textarea id="creative" rows="3">&lt;div style="padding:10px;background:#9b59b6;color:#fff;border-radius:6px"&gt;下载即领福利&lt;/div&gt;</textarea>
+  <button onclick="createCampaign()">创建 Campaign</button>
+  <div class="hint" id="msg"></div>
+
+  <h2 style="margin-top:24px">已有 Campaign</h2>
+  <table id="tbl"><thead><tr><th>ID</th><th>名称</th><th>广告主</th><th>剩余预算(元)</th><th>目标CPM</th><th>国家</th><th>品类</th><th>意图标签</th><th>LLM意图画像</th><th>审核状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+  <div class="hint" id="llmhint"></div>
+  <script>
+    function createCampaign(){
+      const body={ name:name.value, advertiser:adv.value, budget_cny:+budget.value,
+        country:country.value, app_category:cat.value, target_cpm_cny:+cpm.value,
+        intent_tags:tags.value, landing_url:url.value, creative_html:creative.value };
+      fetch('/api/campaign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(r=>r.json()).then(d=>{ msg.textContent='创建结果: '+JSON.stringify(d); load(); });
+    }
+    function reExtract(id, btn){
+      btn.disabled=true; btn.textContent='抽取中…';
+      fetch('/api/intent-extract/'+id,{method:'POST'}).then(r=>r.json()).then(d=>{
+        btn.textContent='已重抽'; load();
+      }).catch(()=>{ btn.textContent='失败'; });
+    }
+    function approve(id, btn){
+      btn.disabled=true;
+      fetch('/api/campaign/'+id+'/approve',{method:'PUT'}).then(r=>r.json()).then(d=>{
+        btn.textContent='已通过'; load();
+      }).catch(()=>{ btn.disabled=false; });
+    }
+    async function load(){
+      const meta = await fetch('/api/intent-match',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json()).catch(()=>({}));
+      llmhint.textContent = '意图Agent LLM：' + (meta.llm_enabled ? '已接入真实LLM，出价按意图相关性上浮→eCPM更高' : '未配置Key(启发式回落)');
+      const list = await fetch('/api/campaigns').then(r=>r.json());
+      const tb=document.querySelector('#tbl tbody'); tb.innerHTML='';
+      list.forEach(c=>{ const tr=document.createElement('tr');
+        const prof = c.intent_summary ? `[${c.intent_source==='llm'?'LLM':'手动'}] ${c.intent_summary}` : '—';
+        const rv = c.review_status || 'approved';
+        const rvCell = rv==='approved' ? '<span style="color:#16a085">已通过</span>' : (rv==='rejected' ? '<span style="color:#e74c3c">已拒绝</span>' : '<span style="color:#e67e22">待审核</span>');
+        const rvBtn = rv==='approved' ? '' : `<button onclick="approve(${c.id},this)">通过审核</button>`;
+        tr.innerHTML=`<td>${c.id}</td><td>${c.name}</td><td>${c.advertiser}</td><td>${c.budget_cny.toFixed(2)}</td><td>${c.target_cpm_cny.toFixed(2)}</td><td>${c.country||'*'}</td><td>${c.app_category||'*'}</td><td>${c.intent_tags}</td><td>${prof}</td><td>${rvCell}</td><td><button onclick="reExtract(${c.id},this)">LLM重抽</button>${rvBtn}</td>`;
+        tb.appendChild(tr); });
+    }
+    load();
+  </script>
+</body></html>

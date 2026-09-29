@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>组织需求位 · eCPM' 价值竞价演示（协同办公场景版）</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0f1420;color:#e8edf7}
+  header{padding:20px 28px;background:linear-gradient(90deg,#16233b,#1d2c4d);border-bottom:1px solid #26365c}
+  h1{margin:0;font-size:19px;font-weight:600}
+  .sub{margin-top:5px;font-size:12.5px;color:#8fa3c8}
+  main{max-width:1240px;margin:0 auto;padding:20px}
+  .card{background:#151c2e;border:1px solid #25304d;border-radius:10px;padding:16px 18px;margin-bottom:16px}
+  h2{font-size:14px;margin:0 0 12px;color:#cddaf2;display:flex;align-items:center;gap:8px}
+  h2 b{background:#4F8EF7;color:#fff;width:19px;height:19px;border-radius:50%;font-size:11px;display:inline-flex;align-items:center;justify-content:center;font-weight:600}
+  .scen{display:flex;flex-wrap:wrap;gap:8px}
+  .scen button{background:#1c2440;border:1px solid #2c3c66;color:#a9bde4;padding:7px 13px;border-radius:16px;cursor:pointer;font-size:12.5px}
+  .scen button.on{background:#4F8EF7;border-color:#4F8EF7;color:#fff}
+  .scen button:hover{border-color:#4F8EF7}
+  .painbox{margin-top:11px;background:#131a2b;border-left:3px solid #e67e22;border-radius:7px;padding:11px 14px}
+  .painbox .t{font-size:12px;color:#e67e22;font-weight:600;margin-bottom:5px}
+  .painbox .p{font-size:12.5px;color:#b8c6e2;line-height:1.7}
+  .painbox .next{margin-top:7px;font-size:12.5px;color:#7fe0a8}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+  .sku{background:#131a2b;border:1px solid #25304d;border-radius:9px;padding:12px 13px}
+  .sku.hit{border-color:#2f6d4d;background:linear-gradient(180deg,#16281f,#131a2b)}
+  .sku .top{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  .sku .vend{font-size:11px;color:#7d90b8}
+  .sku .nm{font-size:14px;font-weight:600}
+  .sku .pain{font-size:11.5px;color:#e8a86a;margin:8px 0 6px;line-height:1.55}
+  .sku .hl{font-size:12px;color:#b8c6e2;line-height:1.65}
+  .sku .act{display:inline-block;margin-top:8px;background:#2b3a63;color:#dce6fb;font-size:11.5px;padding:4px 10px;border-radius:12px}
+  .sku.hit .act{background:#1f8a52;color:#fff}
+  .sku .val{font-size:11.5px;color:#7fe0a8;margin-top:7px}
+  .sku .knobs{margin-top:9px;padding-top:8px;border-top:1px dashed #25304d;font-size:11px;color:#7d90b8;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+  .sku .knobs input[type=number]{width:58px}
+  .sku .knobs input[type=range]{width:60px;accent-color:#4F8EF7}
+  .sku .knobs select{width:60px}
+  input[type=number],select{background:#0f1626;border:1px solid #2c3c66;color:#e8edf7;border-radius:5px;padding:3px 5px;font-size:11.5px}
+  .st{font-size:11px;color:#9fb4dc}
+  .btns{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
+  .btns button{padding:8px 15px;border:0;border-radius:6px;cursor:pointer;font-size:12.5px;background:#2b3a63;color:#dce6fb}
+  .btns button.pri{background:#4F8EF7;color:#fff}
+  .btns button.warn{background:#e67e22;color:#fff}
+  .btns button:hover{filter:brightness(1.12)}
+  .winner{background:linear-gradient(120deg,#183a2a,#16281f);border:1px solid #2f6d4d;border-radius:10px;padding:15px 17px}
+  .winner .tag{background:#27ae60;color:#fff;font-size:11px;padding:3px 9px;border-radius:11px}
+  .winner .nm{font-size:17px;font-weight:600;margin-top:9px}
+  .winner .vend{font-size:11.5px;color:#8fd8b0}
+  .winner .pain{font-size:12.5px;color:#e8a86a;margin-top:9px;line-height:1.65}
+  .winner .hl{font-size:12.5px;color:#cddaf2;margin-top:7px;line-height:1.7}
+  .winner .row{margin-top:9px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .winner .act{background:#27ae60;color:#fff;font-size:12px;padding:5px 13px;border-radius:14px}
+  .winner .sc{margin-left:auto;font-size:11.5px;color:#9fb4dc}
+  .alt{background:#131a2b;border:1px solid #25304d;border-radius:8px;padding:10px 12px;font-size:12px;color:#b8c6e2;line-height:1.6}
+  .alt .nm{font-weight:600;color:#e8edf7}
+  .altgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:9px;margin-top:10px}
+  .bar-row{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+  .bar-row .lb{width:180px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar-row .track{flex:1;background:#1b2438;border-radius:4px;height:17px;overflow:hidden}
+  .bar-row .fill{height:100%;background:linear-gradient(90deg,#3b6fd4,#4F8EF7);border-radius:4px;transition:width .5s}
+  .bar-row.top .fill{background:linear-gradient(90deg,#1f8a52,#2ecc71)}
+  .bar-row .val{width:150px;text-align:right;font-size:11px;color:#9fb4dc;font-family:ui-monospace,monospace}
+  .note{font-size:11.5px;color:#7d90b8;line-height:1.7}
+  table{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px}
+  th{text-align:left;color:#8fa3c8;font-weight:500;padding:5px 7px;border-bottom:1px solid #263352;font-size:11px}
+  td{padding:5px 7px;border-bottom:1px solid #1d2740}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}.bar-row .lb{width:120px}.bar-row .val{width:110px}}
+</style></head>
+<body>
+<header>
+  <h1>组织需求位 · eCPM' 价值竞价演示（协同办公场景版）</h1>
+  <div class="sub">工作流闭合后的「下一步建议位」——多家 to B 服务商带着各自<b style="color:#7fe0a8">解决的痛点与产品亮点</b>来竞这个位；排序由 eCPM' = 效果预测 × LTV预测 × 出价 × 服务承诺 决定（BP_v7 §2.6）</div>
+</header>
+<main>
+  <div class="card">
+    <h2><b>1</b>此刻组织卡在哪一步（选择工作流触发器）</h2>
+    <div class="scen" id="scen"></div>
+    <div class="painbox">
+      <div class="t">触发器 · <span id="pbT"></span></div>
+      <div class="p" id="pbP"></div>
+      <div class="next" id="pbN"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><b>2</b>多家服务商竞争这个位（供给单位 = 可交付服务包 SKU · §2.2）</h2>
+    <div class="note" style="margin-bottom:10px">每家带着「我解决你的什么痛点 + 我的核心亮点 + 一键动作」来竞价。改动出价或三层评测分（L1能力 30% / L2效果 50% / L3口碑 20%）可实时看结果变化。</div>
+    <div class="grid" id="skus"></div>
+    <div class="btns">
+      <button class="pri" onclick="doRank()">竞价拍卖（eCPM' 排序）</button>
+      <button class="warn" onclick="doFeedback()">模拟 40 次商机归因回流（看谁被数据验证）</button>
+      <button onclick="doReset()">重置为冷启动状态</button>
+      <button onclick="loadState()">刷新学习状态</button>
+    </div>
+    <div class="note" id="hint" style="margin-top:9px">提示：先点「竞价拍卖」看冷启动推荐；再点「模拟回流」看真实效果好但评测一般的产品如何被数据推上来。</div>
+  </div>
+
+  <div class="card">
+    <h2><b>3</b>组织在这个位上看到什么（推荐首选 + 其他可选）</h2>
+    <div id="result"><div class="note">尚未竞价。</div></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>eCPM' 排序（机制内部：为什么是它）</h2>
+      <div id="bars"><div class="note">尚未竞价。</div></div>
+    </div>
+    <div class="card">
+      <h2>冷启动学习状态（贝叶斯 α 衰减）</h2>
+      <div id="learn"><div class="note">尚未入库评测。</div></div>
+      <div class="note" style="margin-top:10px">新服务商入库时 n=0、α≈1，排序几乎完全由<b>评测分</b>决定 → 第一天就有质量信号；随 T+30 商机回流 n 增加，α 衰减，<b>真实效果接管</b>。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="note">说明：本页厂商/产品名与数据均为<b>演示示例</b>，用于展示 eCPM' 竞价机制在协同办公场景下的排序逻辑，不代表实际合作关系或真实报价。</div>
+  </div>
+</main>
+
+<script>
+const SLOT = { ctr: 0.12, leadRate: 0.10 }; // 检索位验收线（§3.4）
+
+// ── 协同办公场景库：每个触发器 = 工作流闭合后的空档 → 下一步真实痛点 → 多家 ISV 产品来竞 ──
+const SCEN = {
+  live: {
+    label:'直播 / 培训结束页',
+    trigger:'企业直播或线上培训刚刚结束',
+    pain:'直播讲完就散了——谁听了、听了多久、学到什么全是黑盒；组织者要手动导出名单、用 Excel 拼考试、线下发证书；培训与岗位能力、绩效、晋升完全脱节。老板问「这次培训带来什么」，培训负责人答不上来。',
+    next:'空档期的下一步：把一次性直播沉淀为可复用课程 / 必修合规任务 / 能力档案',
+    skus:[
+      {skuId:'kx-learning', vendor:'学习数字化服务商(示例)', name:'AI 学习地图', bidType:'CPA', bid:210, l1:.88,l2:.86,l3:.82, ltvFactor:1.15, svcFactor:1.10, trueRate:.30,
+        pain:'命中痛点：直播结束即断层，效果无法沉淀与衡量',
+        hl:'核心亮点：从直播内容<b>AI 自动生成题库与必修课</b>；学时自动合规归档；学习结果与岗位能力模型联动，直接回答「培训带来什么」',
+        act:'一键转必修课', val:'培训组织工时↓70%　学习合规率↑至 98%'},
+      {skuId:'yxt-course', vendor:'企业培训机构(示例)', name:'体系化课程库', bidType:'CPA', bid:190, l1:.82,l2:.74,l3:.78, ltvFactor:1.05, svcFactor:1.00, trueRate:.18,
+        pain:'命中痛点：内部没人做课，课程供给不足、好坏参差',
+        hl:'核心亮点：9000+ 成熟课程即插即用，混合式学习项目模板，讲师与面授资源管理',
+        act:'一键升级为学习项目', val:'课程上线周期 30天→3天'},
+      {skuId:'survey', vendor:'调研工具商(示例)', name:'培训满意度调研', bidType:'CPC', bid:22, l1:.80,l2:.60,l3:.66, ltvFactor:1.00, svcFactor:1.00, trueRate:.12,
+        pain:'命中痛点：讲完不知道学员评价，改进没依据',
+        hl:'核心亮点：直播后自动推送问卷，结果与 NPS 实时看板，历史对比',
+        act:'一键发满意度调研', val:'回收率↑至 85%'},
+      {skuId:'cert', vendor:'电子证书服务商(示例)', name:'学时证书', bidType:'CPA', bid:150, l1:.78,l2:.55,l3:.62, ltvFactor:1.00, svcFactor:1.05, trueRate:.08,
+        pain:'命中痛点：学时够了却发不出可被信任的凭证',
+        hl:'核心亮点：学时达标自动发放证书、在线验真、档案自动归集',
+        act:'一键发证', val:'证书发放 2天→5分钟'},
+      {skuId:'live-brand', vendor:'品牌服务商(示例)', name:'品类品牌曝光', bidType:'CPM', bid:1100, l1:.50,l2:.00,l3:.00, ltvFactor:1.00, svcFactor:1.00, trueRate:.00,
+        pain:'未命中此刻痛点（组织要的是「把培训沉淀下来」，不是被看到）',
+        hl:'仅为曝光，不解决本次问题', act:'无下一步动作', val:'—'}
+    ]},
+
+  attendance: {
+    label:'考勤核算完成',
+    trigger:'本月考勤周期关闭、出勤数据已核算',
+    pain:'考勤只是一堆打卡记录——排班还在靠 Excel、跨天夜班和加班规则算不清、计件产量还记在纸上、算薪时要把这些数据重新导一遍，搬运一次就错一次。HR 和车间主任月末通宵对数，员工第二天就来问工资是不是算错了。',
+    next:'空档期的下一步：把考勤结果直接变成排班 / 计件 / 薪酬，一次都不用重录',
+    skus:[
+      {skuId:'paiban', vendor:'劳动力管理服务商(示例)', name:'智能排班', bidType:'CPA', bid:250, l1:.90,l2:.90,l3:.82, ltvFactor:1.25, svcFactor:1.15, trueRate:.30,
+        pain:'命中痛点：班次靠 Excel 排，缺员、超时、夜班合规全靠人盯',
+        hl:'核心亮点：<b>基于出勤与订单量自动生成排班</b>，自动避让缺员与连续超劳；跨天班、轮班、法定工时规则内置；移动端一键换班',
+        act:'一键生成下月排班', val:'排班耗时↓80%　超时合规风险↓90%'},
+      {skuId:'jijian', vendor:'计件工资服务商(示例)', name:'计件工资核算', bidType:'CPA', bid:270, l1:.86,l2:.86,l3:.80, ltvFactor:1.20, svcFactor:1.05, trueRate:.38,
+        pain:'命中痛点：产量记在纸上，工价靠口算，工资质疑不断',
+        hl:'核心亮点：<b>工序工价在线上报</b>，产量实时汇总，计时计件混算自动合并，工人可自助核对明细',
+        act:'一键核算计件工资', val:'计件核算 3天→2小时　工资争议↓70%'},
+      {skuId:'xinchou', vendor:'薪酬服务商(示例)', name:'薪酬社保核算', bidType:'CPA', bid:210, l1:.88,l2:.72,l3:.80, ltvFactor:1.25, svcFactor:1.15, trueRate:.22,
+        pain:'命中痛点：算薪要重新导数据，个税社保多地多法人容易出错',
+        hl:'核心亮点：出勤/计件<b>直连算薪无需重录</b>，个税社保一体、多法人多账套，工资条一键推送',
+        act:'一键算薪发工资条', val:'算薪周期↓60%　发薪差错≈0'},
+      {skuId:'att-brand', vendor:'品牌服务商(示例)', name:'HR 品类曝光', bidType:'CPM', bid:1000, l1:.55,l2:.05,l3:.05, ltvFactor:1.00, svcFactor:1.00, trueRate:.01,
+        pain:'未命中此刻痛点（组织卡在「数据搬运与重算」，不是选型认知）',
+        hl:'仅为曝光，不解决本次问题', act:'无下一步动作', val:'—'}
+    ]},
+
+  expense: {
+    label:'报销完成',
+    trigger:'员工报销单已审批并付款',
+    pain:'钱付完了，但「这笔钱属于哪个项目/部门、预算还剩多少、进项发票是否齐全」没人说得清。月底财务还在对账到半夜，业务部门想看项目毛利要等业务月度结账，管理决策永远慢一步。',
+    next:'空档期的下一步：把零散报销归结到预算、成本与项目账上',
+    skus:[
+      {skuId:'feikong', vendor:'费控服务商(示例)', name:'费控与预算管控', bidType:'CPA', bid:220, l1:.86,l2:.82,l3:.80, ltvFactor:1.15, svcFactor:1.10, trueRate:.26,
+        pain:'命中痛点：报销只看合规性，预算超没超、钱花得值不值没人管',
+        hl:'核心亮点：<b>报销即扣预算</b>，项目/部门维度实时可用余额，超标自动预警；差旅/采购/对公一体管控',
+        act:'一键生成费用分析', val:'预算超支↓65%　月结 5天→1天'},
+      {skuId:'fapiao', vendor:'发票服务商(示例)', name:'进项发票合规', bidType:'CPA', bid:200, l1:.84,l2:.76,l3:.74, ltvFactor:1.05, svcFactor:1.05, trueRate:.22,
+        pain:'命中痛点：发票散、真伪难辨、月底才发现缺票',
+        hl:'核心亮点：票据自动识别验真查重、缺票提醒、进项一键认证',
+        act:'一键进项认证', val:'票据处理效率↑8倍'},
+      {skuId:'yecai', vendor:'财务服务商(示例)', name:'业财一体记账', bidType:'CPA', bid:210, l1:.82,l2:.70,l3:.72, ltvFactor:1.20, svcFactor:1.00, trueRate:.15,
+        pain:'命中痛点：业务数据和财务账是两套，项目毛利算不出来',
+        hl:'核心亮点：报销/合同/收付款<b>自动生成凭证</b>，按项目与部门出损益',
+        act:'一键生成项目损益', val:'月度结账↓70%'},
+      {skuId:'exp-brand', vendor:'品牌服务商(示例)', name:'财务品类曝光', bidType:'CPM', bid:950, l1:.50,l2:.00,l3:.00, ltvFactor:1.00, svcFactor:1.00, trueRate:.00,
+        pain:'未命中此刻痛点', hl:'仅为曝光', act:'无下一步动作', val:'—'}
+    ]},
+
+  purchase: {
+    label:'采购审批完成',
+    trigger:'采购申请已审批通过',
+    pain:'审批通过只代表「可以买」，接下来「找哪家买更划算、合同怎么签、货到没到、票对不对、钱什么时候付」全靠经办人线下催。一个采购员管二十单，进度全在微信里，谁也说不清现在卡在哪。',
+    next:'空档期的下一步：把一张批文推到「比价→签约→收货→付款」的完整链路',
+    skus:[
+      {skuId:'xunyuan', vendor:'工业品服务商(示例)', name:'寻源与比价', bidType:'CPA', bid:230, l1:.86,l2:.80,l3:.78, ltvFactor:1.10, svcFactor:1.05, trueRate:.24,
+        pain:'命中痛点：批文下来了但不知道向谁买、价格合不合理',
+        hl:'核心亮点：<b>按物料自动匹配合格供应商并在线比价</b>，历史成交价透明，竞价留痕可审计',
+        act:'一键发起比价', val:'采购成本↓8–15%　询价周期↓70%'},
+      {skuId:'hetong', vendor:'电子签服务商(示例)', name:'合同与电子签章', bidType:'CPA', bid:200, l1:.88,l2:.82,l3:.84, ltvFactor:1.05, svcFactor:1.15, trueRate:.22,
+        pain:'命中痛点：合同来回打印盖章邮寄，一份合同走一周',
+        hl:'核心亮点：审批结果<b>自动生成合同草稿</b>，在线审批+电子签章，与订单自动关联',
+        act:'一键生成并签署合同', val:'合同周期 7天→4小时'},
+      {skuId:'shouhuo', vendor:'采购管理服务商(示例)', name:'收货与三单匹配', bidType:'CPA', bid:190, l1:.80,l2:.74,l3:.72, ltvFactor:1.10, svcFactor:1.00, trueRate:.18,
+        pain:'命中痛点：货到了系统不知道，付款时订单/收货/发票对不上',
+        hl:'核心亮点：扫码收货、订单收货单发票<b>三单自动匹配</b>，差异自动挂起',
+        act:'一键三单核验', val:'付款差错↓90%'},
+      {skuId:'pur-brand', vendor:'品牌服务商(示例)', name:'供应链品类曝光', bidType:'CPM', bid:1050, l1:.50,l2:.00,l3:.00, ltvFactor:1.00, svcFactor:1.00, trueRate:.00,
+        pain:'未命中此刻痛点', hl:'仅为曝光', act:'无下一步动作', val:'—'}
+    ]},
+
+  hiring: {
+    label:'招聘需求审批',
+    trigger:'用人编制(HC)已审批通过',
+    pain:'HC 批下来了，但 JD 没人写、简历散在邮箱里、面试排期靠嘴约、背调靠托人打听。HR 一半时间在做信息搬运工，用人部门天天催「人什么时候到」，一个月过去 Offer 还没发出去。',
+    next:'空档期的下一步：从一个批了的编制，直接跑通「JD→简历→面试→背调→Offer」',
+    skus:[
+      {skuId:'ats', vendor:'招聘系统服务商(示例)', name:'招聘全流程管理(ATS)', bidType:'CPA', bid:250, l1:.88,l2:.84,l3:.80, ltvFactor:1.20, svcFactor:1.10, trueRate:.30,
+        pain:'命中痛点：简历散、流程断、用人部门看不到进度',
+        hl:'核心亮点：审批通过的编制<b>自动生成 JD 并多渠道发布</b>，简历自动归库去重，面试安排与面试官日历打通，Offer 审批流贯通',
+        act:'一键发布JD并启动招聘', val:'招聘周期↓35%　简历处理效率↑5倍'},
+      {skuId:'beidiao', vendor:'背调服务商(示例)', name:'入职背景调查', bidType:'CPA', bid:180, l1:.82,l2:.76,l3:.70, ltvFactor:1.00, svcFactor:1.05, trueRate:.20,
+        pain:'命中痛点：背调靠打听，风险后置到入职后才发现',
+        hl:'核心亮点：候选人授权即发起，学历履历核验，风险项分级提示',
+        act:'一键发起背调', val:'背调 5天→1天　用工风险↓'},
+      {skuId:'offer', vendor:'电子签服务商(示例)', name:'电子 Offer 与入职', bidType:'CPA', bid:170, l1:.84,l2:.72,l3:.74, ltvFactor:1.05, svcFactor:1.10, trueRate:.18,
+        pain:'命中痛点：Offer 邮件来回改，入职材料纸质收集',
+        hl:'核心亮点：Offer 在线审批与电子签，入职材料线上预填，自动生成员工档案',
+        act:'一键发电子Offer', val:'Offer 到岗周期↓40%'},
+      {skuId:'hr-brand', vendor:'品牌服务商(示例)', name:'雇主品牌曝光', bidType:'CPM', bid:900, l1:.55,l2:.05,l3:.10, ltvFactor:1.00, svcFactor:1.00, trueRate:.01,
+        pain:'未命中此刻痛点（此刻缺的是「把人招进来」，不是曝光认知）',
+        hl:'仅为曝光', act:'无下一步动作', val:'—'}
+    ]},
+
+  contract: {
+    label:'合同签署完成',
+    trigger:'销售合同已完成双方签署',
+    pain:'签完只是开始——收款节点谁盯、发票什么时候开、交付进度客户看不到、到期续约全靠记性。回款逾期才发现没人跟进，交付扯皮时拿不出过程证据，客户续约时合同早被遗忘。',
+    next:'空档期的下一步：把一个签好的合同变成「回款计划 + 交付履约 + 到期续约」的自动运转',
+    skus:[
+      {skuId:'crm', vendor:'CRM服务商(示例)', name:'回款与续约管理', bidType:'CPA', bid:240, l1:.88,l2:.84,l3:.82, ltvFactor:1.25, svcFactor:1.10, trueRate:.28,
+        pain:'命中痛点：签完没人盯回款，到期续约才发现客户早流失',
+        hl:'核心亮点：合同<b>自动生成回款计划与开票排期</b>，节点自动提醒，到期前续约任务自动派给负责人',
+        act:'一键生成回款计划', val:'回款逾期↓50%　续约及时率↑'},
+      {skuId:'lv2', vendor:'交付服务商(示例)', name:'履约与验收管理', bidType:'CPA', bid:210, l1:.84,l2:.78,l3:.76, ltvFactor:1.10, svcFactor:1.10, trueRate:.22,
+        pain:'命中痛点：交付进度说不清，验收扯皮没证据',
+        hl:'核心亮点：交付里程碑与验收单线上留痕，客户可自助查看进度，变更留痕',
+        act:'一键创建交付计划', val:'交付纠纷↓60%'},
+      {skuId:'archive2', vendor:'合同管理服务商(示例)', name:'合同归档与调阅', bidType:'CPA', bid:160, l1:.82,l2:.68,l3:.70, ltvFactor:1.00, svcFactor:1.00, trueRate:.14,
+        pain:'命中痛点：合同散落在各自电脑里，要用的时候找不到',
+        hl:'核心亮点：合同统一归档、要素结构化提取、权限内一键调阅',
+        act:'一键归档', val:'合同查找 30分钟→10秒'},
+      {skuId:'con-brand', vendor:'品牌服务商(示例)', name:'法务品类曝光', bidType:'CPM', bid:850, l1:.50,l2:.00,l3:.00, ltvFactor:1.00, svcFactor:1.00, trueRate:.00,
+        pain:'未命中此刻痛点', hl:'仅为曝光', act:'无下一步动作', val:'—'}
+    ]}
+};
+
+let cur='live';
+const SLOTS={ctr:.12,leadRate:.10};
+const api=async(p,b)=>(await fetch(p,{method:b?'POST':'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):null})).json();
+
+function renderScen(){
+  const box=document.getElementById('scen');box.innerHTML='';
+  Object.entries(SCEN).forEach(([k,s])=>{
+    const b=document.createElement('button');b.textContent=s.label;b.className=k===cur?'on':'';
+    b.onclick=()=>{cur=k;renderScen();renderSkus();};box.appendChild(b);
+  });
+  const s=SCEN[cur];
+  document.getElementById('pbT').textContent=s.trigger;
+  document.getElementById('pbP').textContent=s.pain;
+  document.getElementById('pbN').textContent='→ '+s.next;
+}
+
+function renderSkus(){
+  const box=document.getElementById('skus');box.innerHTML='';
+  SCEN[cur].skus.forEach((s,i)=>{
+    const d=document.createElement('div');d.className='sku';d.id='sku_'+i;
+    d.innerHTML=`<div class="top"><span class="vend">${s.vendor}</span><span class="nm">${s.name}</span></div>
+      <div class="pain">${s.pain}</div>
+      <div class="hl">${s.hl}</div>
+      <div><span class="act">${s.act}</span></div>
+      <div class="val">✓ ${s.val}</div>
+      <div class="knobs">
+        计价<select data-i="${i}" data-k="bidType">${['CPA','CPC','CPM'].map(t=>`<option ${t===s.bidType?'selected':''}>${t}</option>`).join('')}</select>
+        出价<input type="number" data-i="${i}" data-k="bid" value="${s.bid}">
+        L1<input type="range" min="0" max="1" step="0.05" data-i="${i}" data-k="l1" value="${s.l1}"><span id="v_${i}_l1">${s.l1.toFixed(2)}</span>
+        L2<input type="range" min="0" max="1" step="0.05" data-i="${i}" data-k="l2" value="${s.l2}"><span id="v_${i}_l2">${s.l2.toFixed(2)}</span>
+        L3<input type="range" min="0" max="1" step="0.05" data-i="${i}" data-k="l3" value="${s.l3}"><span id="v_${i}_l3">${s.l3.toFixed(2)}</span>
+        <span class="st" id="st_${i}"></span>
+      </div>`;
+    box.appendChild(d);
+  });
+  box.addEventListener('input',onEdit);box.addEventListener('change',onEdit);
+}
+function onEdit(e){
+  const t=e.target,i=t.dataset.i,k=t.dataset.k;if(k==null)return;
+  const s=SCEN[cur].skus[i];
+  s[k]=(t.type==='range'||t.type==='number')?parseFloat(t.value):t.value;
+  if(['l1','l2','l3'].includes(k))document.getElementById('v_'+i+'_'+k).textContent=s[k].toFixed(2);
+}
+const payload=()=>SCEN[cur].skus.map(s=>({skuId:s.skuId,name:s.name,bidType:s.bidType,bid:s.bid,
+  ltvFactor:s.ltvFactor,svcFactor:s.svcFactor,vendor:s.vendor,pain:s.pain,hl:s.hl,act:s.act,val:s.val}));
+
+async function ensureEvals(){
+  await Promise.all(SCEN[cur].skus.map(s=>api('/api/ecpm/eval',{skuId:s.skuId,name:s.name,l1:s.l1,l2:s.l2,l3:s.l3})));
+}
+
+async function doRank(){
+  await ensureEvals();
+  const d=await api('/api/ecpm/rank',{demand:{trigger:cur},candidates:payload(),slot:SLOTS,opts:{deterministic:true}});
+  drawResult(d);await loadState();
+  hint('✓ 竞价完成。「推荐首选」是当前最能解决该痛点的一家；其余为同场景其他可选。注意只见Branded曝光的 SKU 会掉到末位——质量度机制在起作用。');
+}
+
+function drawResult(d){
+  const w=d.winner;
+  let html=`<div class="winner">
+    <div><span class="tag">推荐首选</span><span class="sc">eCPM' = ${w.ecpmPrime}　效果预测 ${w.pEffect}</span></div>
+    <div class="nm">${w.name}</div><div class="vend">${w.vendor}　·　出价 ${w.bid} ${w.bidType}</div>
+    <div class="pain">${w.pain}</div>
+    <div class="hl">${w.hl}</div>
+    <div class="row"><span class="act">${w.act}</span><span class="val" style="color:#7fe0a8">✓ ${w.val}</span></div>
+  </div>
+  <div style="margin:14px 0 6px;font-size:12.5px;color:#cddaf2">其他可选（同场景竞争者 ${d.ranked.length-1} 家）</div>
+  <div class="altgrid">`;
+  d.ranked.filter(r=>r.skuId!==w.skuId).forEach(r=>{
+    html+=`<div class="alt"><div class="nm">${r.name}</div><div style="color:#7d90b8;font-size:11px">${r.vendor}</div>
+      <div style="margin-top:5px">${r.hl}</div>
+      <div style="margin-top:5px;color:#7fe0a8">${r.act} · ${r.val}</div>
+      <div style="margin-top:5px;color:#9fb4dc;font-size:11px">eCPM' ${r.ecpmPrime} · 效果预测 ${r.pEffect}</div></div>`;
+  });
+  document.getElementById('result').innerHTML=html+'</div>';
+
+  const max=d.ranked[0].ecpmPrime||1;
+  let bars='';
+  d.ranked.forEach((r,i)=>{
+    bars+=`<div class="bar-row ${i===0?'top':''}"><span class="lb">${i+1}. ${r.name}</span>
+      <span class="track"><span class="fill" style="width:${Math.max(2,r.ecpmPrime/max*100)}%"></span></span>
+      <span class="val">${r.ecpmPrime} = ${r.pEffect}×${r.ltvFactor}×${r.unifiedEcpm}×${r.svcFactor}</span></div>`;
+  });
+  document.getElementById('bars').innerHTML=bars+'<div class="note" style="margin-top:9px">每个柱右侧为 eCPM\' 因子拆解：<b>效果预测 × LTV预测 × 出价折算 × SLA</b>。只见曝光的品牌型 SKU 因评测 L2效果=0，eCPM\' 趋零，必然排不上——这就是"质量度"在保护体验（§2.6）。</div>';
+}
+
+async function doFeedback(){
+  const N=40;
+  for(const s of SCEN[cur].skus){
+    for(let k=0;k<N;k++)await api('/api/ecpm/feedback',{skuId:s.skuId,converted:Math.random()<s.trueRate});
+  }
+  hint(`✓ 已回流 ${N} 次/家商机判定。真实交付效果好（trueRate 高）的产品排名上升，效果差的下降——行为数据正在接管评测先验。`);
+  await loadState();await doRank();
+}
+
+async function doReset(){
+  await api('/api/ecpm/reset',{});
+  hint('✓ 已回到冷启动状态（n=0）。现在点「竞价拍卖」看评测分主导的推荐；再点「模拟回流」看真实效果好者如何被数据推上来。');
+  await loadState();
+}
+
+async function loadState(){
+  const ev=await api('/api/ecpm/evals');const m={};ev.forEach(e=>m[e.skuId]=e);
+  SCEN[cur].skus.forEach((s,i)=>{
+    const e=m[s.skuId];const el=document.getElementById('st_'+i);
+    if(el)el.textContent=e?`评测分 ${e.evalScore} · n=${e.nSamples} · α=${e.alpha}`:'';
+  });
+  let t='<table><thead><tr><th>产品</th><th>评测分</th><th>n</th><th>α</th><th>主导信号</th></tr></thead><tbody>';
+  const rows=SCEN[cur].skus.map(s=>m[s.skuId]).filter(Boolean);
+  if(!rows.length){document.getElementById('learn').innerHTML='<div class="note">该场景尚未入库评测，点「竞价拍卖」将自动入库。</div>';return;}
+  rows.forEach(e=>{
+    const z=e.alpha>=.7?'评测分(先验)':e.alpha>.3?'混合':'行为数据';
+    t+=`<tr><td>${e.name}</td><td>${e.evalScore}</td><td>${e.nSamples}</td><td>${e.alpha}</td><td>${z}</td></tr>`;
+  });
+  document.getElementById('learn').innerHTML=t+'</tbody></table>';
+}
+function hint(t){document.getElementById('hint').textContent=t;}
+renderScen();renderSkus();loadState();
+</script>
+</body></html>

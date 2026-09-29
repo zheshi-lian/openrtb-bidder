@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>竞价效果演示 - Prebid.js 真实接入 (zhuque DSP)</title>
+<script
+  src="https://cdn.jsdelivr.net/npm/prebid.js@10/dist/prebid.min.js"
+  onerror="window.__prebidFailed=true"></script>
+<style>
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 40px; background: #f5f6f8; color: #222; }
+  h2 { font-size: 18px; }
+  .slot { width: 300px; height: 250px; border: 2px dashed #bbb; display: flex; align-items: center;
+          justify-content: center; color: #999; background: #fff; overflow: hidden; border-radius: 8px; }
+  .meta { font-size: 12px; color: #666; margin-top: 10px; white-space: pre-wrap; line-height: 1.6; }
+  button { margin-top: 12px; padding: 6px 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+  <h2>广告位演示（Prebid.js 真实接入 → zhuque bidder）</h2>
+  <div id="slot" class="slot">加载中…</div>
+  <div id="meta" class="meta"></div>
+  <button onclick="requestAd()">重新竞价</button>
+
+  <script>
+    var PREBID_BIDDER = 'zhuque';
+
+    // ===== 路径 A：Prebid.js 真实接入（运行时注册自定义 bidder adapter）=====
+    window.pbjs = window.pbjs || {};
+    window.pbjs.que = window.pbjs.que || [];
+    window.pbjs.que.push(function () {
+      if (window.__prebidFailed) return; // 加载失败则跳过，走回退路径
+      window.pbjs.registerBidAdapter(function zhuqueAdapter() {
+        return {
+          callBids: function (bidderRequest, addBidResponse, done) {
+            var openRTB = {
+              id: bidderRequest.auctionId || ('auction-' + Date.now()),
+              imp: bidderRequest.bids.map(function (b) {
+                return {
+                  id: b.bidId,
+                  banner: {
+                    w: (b.sizes && b.sizes[0] && b.sizes[0][0]) || 300,
+                    h: (b.sizes && b.sizes[0] && b.sizes[0][1]) || 250
+                  },
+                  ext: { adUnitCode: b.adUnitCode }
+                };
+              }),
+              site: { domain: location.hostname },
+              device: { ua: navigator.userAgent, ip: '127.0.0.1' },
+              at: 2, tmax: 200
+            };
+            fetch('/openrtb2/bid', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(openRTB)
+            })
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                var seat = data.seatbid && data.seatbid[0];
+                bidderRequest.bids.forEach(function (bidRequest) {
+                  var rtb = seat && seat.bid &&
+                    seat.bid.filter(function (x) { return x.impid === bidRequest.bidId; })[0];
+                  if (rtb) {
+                    addBidResponse(bidRequest.adUnitCode, {
+                      bidId: bidRequest.bidId,
+                      requestId: bidRequest.bidId,
+                      adId: bidRequest.bidId,
+                      bidder: bidRequest.bidder,
+                      bidderCode: bidRequest.bidder,
+                      adUnitId: bidRequest.adUnitId,
+                      adUnitCode: bidRequest.adUnitCode,
+                      auctionId: bidderRequest.auctionId,
+                      mediaTypes: bidRequest.mediaTypes || { banner: {} },
+                      sizes: bidRequest.sizes || [[300, 250]],
+                      cpm: rtb.price / 1e6,
+                      currency: 'CNY',
+                      width: rtb.w || 300,
+                      height: rtb.h || 250,
+                      ttl: 600,
+                      netRevenue: false,
+                      creativeId: rtb.crid || 'zhuque',
+                      ad: rtb.adm,
+                      campaignId: rtb.cid,
+                      priceMicros: rtb.price,
+                      getSize: function () { return this.width + 'x' + this.height; }
+                    });
+                  }
+                });
+                done();
+              })
+              .catch(function () { done(); });
+          }
+        };
+      }, PREBID_BIDDER);
+    });
+
+    // 公共：渲染胜出广告 + 赢价回收 + 报表
+    function renderAndWin(bid, via) {
+      var slot = document.getElementById('slot');
+      var meta = document.getElementById('meta');
+      slot.className = 'slot';
+      slot.innerHTML = bid.ad;
+      notifyWin(bid);
+      meta.textContent =
+        (via === 'prebid' ? 'Prebid.js 竞价 + 渲染成功 ✅' : '直连回退：OpenRTB 竞价 + 渲染成功 ✅') + '\n' +
+        'bidder: ' + PREBID_BIDDER + '\n' +
+        'cpm: ' + (bid.cpm != null ? bid.cpm.toFixed(4) : (bid.priceMicros / 1e6).toFixed(4)) + ' 元 (CNY)\n' +
+        'creativeId: ' + bid.creativeId + '   campaignId: ' + bid.campaignId + '\n' +
+        'priceMicros: ' + bid.priceMicros + '\n' +
+        '已触发赢价回收 /notify → 预算扣减';
+      refreshReport();
+    }
+
+    function notifyWin(bid) {
+      fetch('/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cid: bid.campaignId, crid: bid.creativeId,
+          impid: bid.bidId, price: bid.priceMicros, win: true
+        })
+      });
+    }
+
+    function refreshReport() {
+      fetch('/report').then(function (r) { return r.json(); }).then(function (d) {
+        var meta = document.getElementById('meta');
+        meta.textContent += '\n\n— 竞价闭环报表 —\n' +
+          'campaign: #' + d.campaign.id + ' ' + d.campaign.name + '\n' +
+          '剩余日预算: ' + d.campaign.budget + ' (分)\n' +
+          '累计赢价次数: ' + d.wins + '   累计消耗: ' + d.spent_cny.toFixed(4) + ' 元';
+      });
+    }
+
+    // 路径 B 回退：直连 bidder 发 OpenRTB 请求
+    function directBid() {
+      var req = {
+        id: 'req-' + Date.now(),
+        imp: [{ id: 'imp1', banner: { w: 300, h: 250 }, bidfloor: 1.0 }],
+        site: { domain: location.hostname },
+        device: { ua: navigator.userAgent, os: 'unknown', ip: '127.0.0.1' },
+        at: 2, tmax: 200
+      };
+      fetch('/openrtb2/bid', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req)
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var rtb = data.seatbid && data.seatbid[0] && data.seatbid[0].bid && data.seatbid[0].bid[0];
+          if (rtb) {
+            renderAndWin({
+              ad: rtb.adm, cpm: rtb.price / 1e6, creativeId: rtb.crid,
+              campaignId: rtb.cid, bidId: rtb.id, priceMicros: rtb.price
+            }, 'direct');
+          } else {
+            document.getElementById('slot').textContent = '暂无广告';
+          }
+        })
+        .catch(function (e) { document.getElementById('slot').textContent = '请求失败: ' + e.message; });
+    }
+
+    // 入口：优先 Prebid.js，失败回退直连
+    function requestAd() {
+      document.getElementById('slot').className = 'slot';
+      document.getElementById('slot').textContent = '竞价中…';
+      if (window.pbjs && window.pbjs.que && !window.__prebidFailed) {
+        window.pbjs.que.push(function () {
+          window.pbjs.requestBids({
+            adUnits: [{
+              code: 'div-1',
+              mediaTypes: { banner: { sizes: [[300, 250]] } },
+              bids: [{ bidder: PREBID_BIDDER, params: {} }]
+            }],
+            bidsBackHandler: function () {
+              var resp = window.pbjs.getBidResponses()['div-1'];
+              var bids = resp && resp.bids;
+              if (bids && bids.length) renderAndWin(bids[0], 'prebid');
+              else directBid(); // 拍卖无果也回退
+            }
+          });
+        });
+      } else {
+        directBid();
+      }
+    }
+
+    requestAd();
+  </script>
+</body>
+</html>

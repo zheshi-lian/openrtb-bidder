@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>ADX 控制台 · 广告主 / 媒体看板</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Microsoft YaHei',system-ui,sans-serif;background:#0b1220;color:#e5e7eb}
+  header{padding:16px 22px;border-bottom:1px solid #1f2937;display:flex;justify-content:space-between;align-items:center}
+  h1{font-size:18px;margin:0}
+  header .sub{color:#94a3b8;font-size:12px;margin-top:4px}
+  .kpis{display:flex;gap:12px;padding:16px 22px;flex-wrap:wrap}
+  .kpi{flex:1;min-width:150px;background:#111827;border:1px solid #1f2937;border-radius:10px;padding:12px}
+  .kpi .lab{font-size:12px;color:#94a3b8}
+  .kpi .val{font-size:20px;font-weight:700;margin-top:6px;color:#fbbf24}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:8px 10px;border-bottom:1px solid #1f2937;text-align:left}
+  th{color:#94a3b8;font-weight:600}
+  .box{background:#111827;border:1px solid #1f2937;border-radius:10px;margin:0 22px 18px;padding:14px}
+  .box h3{margin:0 0 10px;font-size:14px}
+  button{background:#f59e0b;color:#111827;border:0;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer}
+  input{padding:5px 8px;border-radius:6px;border:1px solid #374151;background:#0b1220;color:#e5e7eb;width:80px;font-size:12px}
+  .tag{font-size:11px;padding:2px 6px;border-radius:4px;background:#065f46;color:#d1fae5}
+  .tag.off{background:#7f1d1d;color:#fee2e2}
+  .muted{color:#64748b}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>ADX 控制台</h1>
+    <div class="sub" id="ts">加载中…（每 5 秒自动刷新）</div>
+  </div>
+  <div class="sub" id="live">—</div>
+</header>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="box">
+  <h3>广告主 / 广告计划</h3>
+  <table id="advTable"><thead><tr><th>ID</th><th>计划</th><th>广告主</th><th>类目</th><th>状态</th><th>余额(元)</th><th>已消耗(元)</th><th>曝光</th><th>点击</th><th>转化</th><th>充值</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="box">
+  <h3>媒体方（供给）</h3>
+  <table id="pubTable"><thead><tr><th>域名</th><th>名称</th><th>类目</th><th>地区</th><th>分成比例</th><th class="muted">实时</th></tr></thead><tbody></tbody></table>
+  <p class="muted" style="font-size:12px">实时列来自内存账本（重启归零）；历史数据请看上方计划表。</p>
+</div>
+
+<div class="box">
+  <h3>激励视频奖励审计</h3>
+  <div id="rwBox" class="muted">加载中…</div>
+</div>
+
+<script>
+  var BASE = location.origin;
+  function yuan(micros) { return (Number(micros || 0) / 1e6).toFixed(2); }
+  function kpi(lab, val) { return '<div class="kpi"><div class="lab">' + lab + '</div><div class="val">' + val + '</div></div>'; }
+
+  function load() {
+    return fetch(BASE + '/api/console/overview').then(r => r.json()).then(d => {
+      var p = d.platform || {};
+      document.getElementById('kpis').innerHTML =
+        kpi('今日曝光', p.todayImpressions) + kpi('今日消耗(元)', yuan(p.todayGrossMicros)) +
+        kpi('累计曝光', p.impressions) + kpi('累计消耗(元)', yuan(p.grossMicros)) +
+        kpi('点击', p.clicks) + kpi('转化', p.conversions) +
+        kpi('平台毛利(元)', yuan((p.ssp && p.ssp.grossMicros || 0) - (p.ssp && p.ssp.payoutMicros || 0)));
+      document.getElementById('ts').textContent = '更新时间 ' + new Date().toLocaleTimeString() + '（每 5 秒刷新）';
+      document.getElementById('live').textContent = 'SSP 赢价 ' + (p.ssp ? p.ssp.wins : 0) + ' 次';
+
+      var tb = document.querySelector('#advTable tbody');
+      tb.innerHTML = (d.advertisers || []).map(function (c) {
+        return '<tr><td>' + c.id + '</td><td>' + c.name + '</td><td>' + c.advertiser + '</td><td>' + (c.app_category || '-') +
+          '</td><td><span class="tag' + (String(c.review_status) === 'approved' ? '' : ' off') + '">' + c.review_status + '</span></td>' +
+          '<td>' + yuan(c.balance_micros) + '</td><td>' + yuan(c.spend_micros) + '</td><td>' + c.impressions + '</td><td>' + c.clicks +
+          '</td><td>' + c.conversions + '</td>' +
+          '<td><input id="amt' + c.id + '" value="100"><button onclick="topup(' + c.id + ')">充值</button></td></tr>';
+      }).join('');
+
+      var pb = document.querySelector('#pubTable tbody');
+      pb.innerHTML = (d.publisherList || []).map(function (u) {
+        var L = (p.publishers && p.publishers[u.domain]) || null;
+        return '<tr><td>' + u.domain + '</td><td>' + u.name + '</td><td>' + (u.cat || '-') + '</td><td>' + (u.geo || '-') +
+          '</td><td>' + Math.round((u.payout_rate || 0) * 100) + '%</td><td class="muted">' +
+          (L ? ('赢价 ' + L.wins + ' / 点击 ' + L.clicks + ' / 转化 ' + L.conversions) : '暂无') + '</td></tr>';
+      }).join('');
+
+      var r = d.reward || {};
+      document.getElementById('rwBox').innerHTML = '激励发放成功 <b>' + r.granted + '</b> 次 · 被拒绝 <b>' + r.rejected +
+        '</b> 次 · 总请求 <b>' + r.total + '</b>（拒绝原因可在 reward_log 表查看，演示页「反作弊验证」面板可复现）';
+    }).catch(function (e) {
+      document.getElementById('ts').textContent = '加载失败：' + e.message;
+    });
+  }
+
+  function topup(id) {
+    var v = Number(document.getElementById('amt' + id).value);
+    if (!v || v <= 0) return alert('请输入充值金额（元）');
+    fetch(BASE + '/api/campaign/' + id + '/topup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount_cny: v, note: 'console' })
+    }).then(r => r.json()).then(function (d) {
+      if (d.ok) load(); else alert('充值失败：' + (d.error || 'unknown'));
+    });
+  }
+
+  load();
+  setInterval(load, 5000);
+</script>
+</body>
+</html>

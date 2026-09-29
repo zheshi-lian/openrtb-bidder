@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>媒体方入驻与广告位</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:30px;background:#f5f6f8;color:#222}
+ h2{font-size:18px} input,textarea{width:100%;padding:6px;margin:4px 0 10px;box-sizing:border-box}
+ .row{display:flex;gap:10px}.row>div{flex:1} button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px}
+ table{width:100%;border-collapse:collapse;margin-top:14px;background:#fff} td,th{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left}
+ .hint{font-size:12px;color:#666} pre{background:#222;color:#0f0;padding:10px;border-radius:6px;overflow:auto;font-size:12px} code{background:#eee;padding:1px 5px;border-radius:4px}</style></head>
+<body>
+  <h2>媒体方入驻（供给侧）</h2>
+  <div class="row">
+    <div><label>广告位域名(domain)</label><input id="domain" value="mygame.example.com"></div>
+    <div><label>媒体名称</label><input id="pname" value="MyGame Studio"></div>
+  </div>
+  <div class="row">
+    <div><label>联系(邮箱/Telegram)</label><input id="contact" value=""></div>
+    <div><label>分成率(0.1~0.95)</label><input id="rate" type="number" step="0.01" value="0.70"></div>
+  </div>
+  <label>落地页 URL（用于合规供给爬虫自动补全 cat/geo/关键词 → 提升 eCPM；仅爬你自己的站）</label>
+  <input id="site_url" value="https://mygame.example.com">
+  <button onclick="reg()">入驻并获取广告位代码</button>
+  <div class="hint" id="msg"></div>
+
+  <h2 style="margin-top:24px">① 把这段代码贴到你的页面（广告位标签）</h2>
+  <pre id="snippet">&lt;div class="ad-slot" data-floor="1.0" data-cat="puzzle" data-geo="US"&gt;&lt;/div&gt;
+&lt;script src="https://你的SSP域名/pub_sdk.js"&gt;&lt;/script&gt;</pre>
+  <p class="hint">data-floor=底价(元) · data-cat=APP品类(用于意图匹配→更高eCPM) · data-geo=国家(如US) · data-kw=额外关键词(逗号分隔)</p>
+
+  <h2 style="margin-top:24px">② 已入驻媒体方</h2>
+  <table id="tbl"><thead><tr><th>域名</th><th>名称</th><th>分成率</th><th>类目/地区</th><th>联系</th><th>操作</th></tr></thead><tbody></tbody></table>
+
+  <h2 style="margin-top:24px">③ 我的收益报表（实时）</h2>
+  <pre id="report">点击"刷新报表"</pre>
+  <button onclick="loadReport()" style="background:#4F8EF7">刷新报表</button>
+
+  <script>
+    function reg(){
+      const body={ domain:domain.value, name:pname.value, contact:contact.value, payout_rate:+rate.value, site_url:site_url.value };
+      fetch('/api/publisher',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(r=>r.json()).then(d=>{ msg.textContent='入驻结果: '+JSON.stringify(d); loadPubs(); });
+    }
+    function crawl(d, btn){
+      btn.disabled=true; btn.textContent='爬取中…';
+      fetch('/api/publisher/'+encodeURIComponent(d)+'/crawl',{method:'POST'}).then(r=>r.json())
+        .then(d=>{ btn.textContent='已补全'; loadPubs(); }).catch(()=>{ btn.textContent='失败'; });
+    }
+    function loadPubs(){ fetch('/api/publishers').then(r=>r.json()).then(list=>{
+      const tb=document.querySelector('#tbl tbody'); tb.innerHTML='';
+      list.forEach(p=>{ const tr=document.createElement('tr');
+        const cg = `${p.cat||'*'} / ${p.geo||'*'}` + (p.keywords?` (${p.keywords})`:'');
+        tr.innerHTML=`<td>${p.domain}</td><td>${p.name}</td><td>${p.payout_rate}</td><td>${cg}</td><td>${p.contact||'-'}</td><td>${p.site_url?`<button onclick="crawl('${p.domain}',this)">合规爬取补全</button>`:'-'}</td>`;
+        tb.appendChild(tr); }); }); }
+    function loadReport(){ fetch('/ssp/report').then(r=>r.json()).then(d=>{ report.textContent=JSON.stringify(d,null,2); }); }
+    loadPubs();
+  </script>
+</body></html>

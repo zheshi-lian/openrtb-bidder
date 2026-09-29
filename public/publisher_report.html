@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>媒体方收益报表</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:30px;background:#f5f6f8;color:#222}
+ h2{font-size:18px} table{width:100%;border-collapse:collapse;margin-top:14px;background:#fff}
+ td,th{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left}
+ .card{background:#fff;padding:14px;border-radius:8px;margin:10px 0;box-shadow:0 1px 3px #0001}
+ button{padding:6px 14px;cursor:pointer}</style></head>
+<body>
+  <h2>媒体方(Publisher)收益报表 —— 来自 SSP 账本</h2>
+  <div class="card" id="global"></div>
+  <h2>分媒体方明细</h2>
+  <table id="tbl"><thead><tr><th>媒体(domain)</th><th>胜出次数</th><th>SSP收入(元)</th><th>媒体分成(元)</th><th>SSP毛利(元)</th></tr></thead><tbody></tbody></table>
+  <button onclick="load()">刷新</button>
+  <script>
+    function load(){
+      fetch('/ssp/report').then(r=>r.json()).then(d=>{
+        const s=d.ssp, m=s.ssp_margin_cny;
+        document.getElementById('global').innerHTML=
+          `全局：胜出 ${s.wins} 次 ｜ SSP向需求方实收 <b>${s.gross_cny.toFixed(4)}</b> 元 ｜ 给媒体分成 <b>${s.payout_cny.toFixed(4)}</b> 元 ｜ <b>SSP毛利 ${s.ssp_margin_cny.toFixed(4)}</b> 元（毛利率 ${(s.margin_rate*100).toFixed(1)}%）`;
+        const tb=document.querySelector('#tbl tbody'); tb.innerHTML='';
+        (d.publishers||[]).forEach(p=>{ const tr=document.createElement('tr');
+          tr.innerHTML=`<td>${p.publisher}</td><td>${p.wins}</td><td>${p.gross_cny.toFixed(4)}</td><td>${p.payout_cny.toFixed(4)}</td><td>${(p.gross_cny-p.payout_cny).toFixed(4)}</td>`;
+          tb.appendChild(tr); });
+      });
+    }
+    load(); setInterval(load, 3000);
+  </script>
+</body></html>
