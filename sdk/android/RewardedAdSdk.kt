@@ -49,7 +49,12 @@ object RewardedAdSdk {
         val duration: String,
         val tracking: Map<String, String>,   // impression/start/firstQuartile/midpoint/thirdQuartile/complete
         val rawVast: String,
-        val appServerRewardUrl: String
+        val appServerRewardUrl: String,
+        val format: String = "rewarded",   // rewarded/interstitial/splash/native/icon/push/banner
+        val admType: String = "vast4",     // vast4/html/native_json/push
+        val rawAdm: String = "",           // 原始创意（HTML/JSON），供 WebView 或 App 自渲染
+        val nativeJson: String? = null,    // admType=native_json 时的结构化字段
+        val pushJson: String? = null       // admType=push 时的推送内容（由推送系统下发）
     )
 
     interface LoadCallback { fun onLoaded(ad: Ad); fun onFailed(reason: String) }
@@ -77,18 +82,25 @@ object RewardedAdSdk {
                 val bids = res.optJSONArray("seatbid")?.optJSONObject(0)?.optJSONArray("bid")
                 val bid = bids?.optJSONObject(0) ?: run { fail(cb, "NO_FILL"); return@execute }
                 val adm = bid.optString("adm", "")
-                val vast = parseVast(adm)
-                if (vast == null || vast.mediaUrl.isBlank()) { fail(cb, "BAD_VAST"); return@execute }
                 val ext = bid.optJSONObject("ext")
+                val fmt = ext?.optString("ad_format") ?: "rewarded"
+                val admType = ext?.optString("adm_type") ?: "vast4"
+                val vast = parseVast(adm)
+                if (fmt == "rewarded" && (vast == null || vast.mediaUrl.isBlank())) { fail(cb, "BAD_VAST"); return@execute }
                 val ad = Ad(
                     impid = impid,
                     cid = ext?.optString("cid", "") ?: "",
                     priceMicros = bid.optLong("price"),
-                    mediaUrl = vast.mediaUrl,
-                    duration = vast.duration,
-                    tracking = vast.tracking,
+                    mediaUrl = vast?.mediaUrl ?: "",
+                    duration = vast?.duration ?: "",
+                    tracking = vast?.tracking ?: emptyMap(),
                     rawVast = adm,
-                    appServerRewardUrl = cfg.appServerRewardUrl
+                    appServerRewardUrl = cfg.appServerRewardUrl,
+                    format = fmt,
+                    admType = admType,
+                    rawAdm = adm,
+                    nativeJson = if (admType == "native_json") adm else null,
+                    pushJson = ext?.optJSONObject("push")?.toString()
                 )
                 main.post { cb.onLoaded(ad) }
             } catch (e: Exception) {
@@ -205,6 +217,23 @@ object RewardedAdSdk {
     private fun fireGet(urlStr: String) {
         val conn = URL(urlStr).openConnection() as HttpURLConnection
         try { conn.requestMethod = "GET"; conn.responseCode } finally { conn.disconnect() }
+    }
+
+    // ---------- 多形态分发：按 ADX 返回的 ad_format 选择渲染方式 ----------
+    /** 通用入口：rewarded 用 VideoView；HTML 类（插屏/开屏/icon/banner）用 WebView；native/push 不由此渲染 */
+    fun showAny(webView: android.webkit.WebView, videoView: VideoView, ad: Ad, cb: RewardCallback) {
+        when (ad.format) {
+            "rewarded" -> show(videoView, ad, cb)
+            "native"   -> cb.onDenied("NATIVE_RENDER_BY_APP")      // 用 ad.nativeJson 自行渲染，样式由 App 决定
+            "push"     -> cb.onDenied("PUSH_DELIVERED_BY_SERVER")  // 由媒体推送系统下发，不经 SDK 渲染
+            else       -> showHtml(webView, ad)                    // interstitial / splash / icon / banner
+        }
+    }
+
+    private fun showHtml(webView: android.webkit.WebView, ad: Ad) {
+        val html = if (ad.rawAdm.isNotBlank()) ad.rawAdm else ad.rawVast
+        webView.settings.javaScriptEnabled = true
+        webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
     }
 
     private fun fail(cb: LoadCallback, reason: String) { main.post { cb.onFailed(reason) } }

@@ -55,6 +55,74 @@ const RW_TTL_MS = 5 * 60 * 1000;   // 令牌有效期 5 分钟
 const RW_MIN_RATIO = 0.95;         // 完播阈值：观看时长占比 ≥95%
 const RW_MAX_RATIO = 1.5;          // 观看时长不可能超过视频时长的 1.5 倍（防伪造时长）
 
+// ===== 多广告形态：插屏 / 开屏 / 原生 / icon / push =====
+const AD_FORMATS = ['banner', 'rewarded', 'interstitial', 'splash', 'native', 'icon', 'push'];
+const ICON_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">' +
+  '<rect width="120" height="120" rx="24" fill="#2563eb"/>' +
+  '<text x="60" y="74" font-size="42" text-anchor="middle" fill="#fff">AD</text></svg>');
+
+function buildNative(o) {
+  return {
+    title: o.title || '原生广告标题',
+    body: o.body || '原生广告描述，样式完全由 App 自行渲染',
+    icon: ICON_SVG, image: ICON_SVG, cta: '立即下载',
+    clickUrl: `${PUBLIC_BASE}/ssp/click?cid=${o.cid}&imp=${o.impid}&pub=${encodeURIComponent(o.publisher || '')}`,
+    impTrackers: [`${PUBLIC_BASE}/vast/track?impid=${o.impid}&cid=${o.cid}&event=impression`],
+    ad_format: 'native'
+  };
+}
+function buildPush(o) {
+  return {
+    title: o.title || '推送广告标题',
+    body: o.body || '推送广告正文，由媒体推送系统下发（不经 SDK 渲染）',
+    icon: ICON_SVG,
+    clickUrl: `${PUBLIC_BASE}/ssp/click?cid=${o.cid}&imp=${o.impid}&pub=${encodeURIComponent(o.publisher || '')}`,
+    impUrl: `${PUBLIC_BASE}/vast/track?impid=${o.impid}&cid=${o.cid}&event=impression`,
+    ad_format: 'push'
+  };
+}
+function buildInterstitialHtml(o) {
+  return `<div style="position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:99999;font-family:'Microsoft YaHei',sans-serif">
+  <div style="width:300px;background:#fff;border-radius:12px;overflow:hidden;position:relative">
+    <button onclick="this.parentNode.parentNode.remove()" style="position:absolute;right:8px;top:8px;border:0;background:#e5e7eb;border-radius:50%;width:28px;height:28px;cursor:pointer">×</button>
+    <img src="${ICON_SVG}" style="width:100%;height:170px;object-fit:cover;background:#eef2ff" alt="ad">
+    <div style="padding:12px">
+      <div style="font-size:15px;font-weight:700">${o.title || '插屏广告'}</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px">全屏展示，可关闭</div>
+      <a href="${PUBLIC_BASE}/ssp/click?cid=${o.cid}&imp=${o.impid}" target="_blank" style="display:block;margin-top:10px;background:#2563eb;color:#fff;text-align:center;padding:9px;border-radius:8px;text-decoration:none;font-size:14px">立即下载</a>
+    </div>
+  </div>
+</div>`;
+}
+function buildSplashHtml(o) {
+  return `<div onclick="this.remove()" style="position:fixed;left:0;top:0;right:0;bottom:0;background:#0f172a;color:#fff;font-family:'Microsoft YaHei',sans-serif;z-index:99999;cursor:pointer">
+  <div style="position:absolute;right:16px;top:16px;background:rgba(255,255,255,.2);border-radius:16px;padding:6px 12px;font-size:12px">点击跳过</div>
+  <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <img src="${ICON_SVG}" style="width:120px;height:120px;border-radius:24px" alt="icon">
+    <div style="font-size:18px;font-weight:700;margin-top:16px">${o.title || '开屏广告'}</div>
+  </div>
+</div>`;
+}
+function buildIconHtml(o) {
+  return `<a href="${PUBLIC_BASE}/ssp/click?cid=${o.cid}&imp=${o.impid}" target="_blank" style="display:inline-block;width:120px;text-align:center;text-decoration:none;color:#111;font-family:'Microsoft YaHei',sans-serif">
+  <img src="${ICON_SVG}" style="width:120px;height:120px;border-radius:24px;display:block" alt="icon">
+  <div style="font-size:12px;margin-top:4px">${o.title || 'icon广告'}</div>
+</a>`;
+}
+/** 按 imp.ext.ad_type 生成对应形态创意；返回 null 表示沿用 campaign 自带 creative_html */
+function buildFormatAd(format, o) {
+  switch (String(format || 'banner').toLowerCase()) {
+    case 'rewarded':     return { adm: buildVast(o), admType: 'vast4' };
+    case 'interstitial': return { adm: buildInterstitialHtml(o), admType: 'html' };
+    case 'splash':       return { adm: buildSplashHtml(o), admType: 'html' };
+    case 'icon':         return { adm: buildIconHtml(o), admType: 'html' };
+    case 'native':       return { adm: JSON.stringify(buildNative(o)), admType: 'native_json' };
+    case 'push':         return { adm: '', admType: 'push', push: buildPush(o) };
+    default:             return null;
+  }
+}
+
 // ===== S2S 服务端回调：客户端不可信，媒体服务端签名回调才是结算权威 =====
 // 生产请设 S2S_ENFORCE=1：届时客户端 /ssp/reward 只登记为「待确认」，不计入结算。
 const S2S_ENFORCE = process.env.S2S_ENFORCE === '1';
@@ -313,8 +381,8 @@ app.post('/ssp/bid', async (req, res) => {
   const winBid = { ...best.bid, price: winMicros };
   const bestCid = best.bid.cid || (best.bid.ext && best.bid.ext.cid);
   // 激励视频：服务端签发一次性签名令牌，前端 SDK 只能上报、无法自证完播
-  const isRewarded = imp.ext && (imp.ext.ad_type === 'rewarded' || imp.ext.reward);
-  if (isRewarded) {
+  const fmt = String((imp.ext && imp.ext.ad_type) || ((imp.ext && imp.ext.reward) ? 'rewarded' : '') || 'banner');
+  if (fmt === 'rewarded') {
     const rw = rwIssue(best.bid.impid, bestCid, publisher);
     // 行业标准：视频广告返回 VAST 4.0 XML；imp.ext.protocol='html' 时可退回 HTML 创意
     const useVast = imp.ext.protocol !== 'html';
@@ -327,9 +395,21 @@ app.post('/ssp/bid', async (req, res) => {
     }
     winBid.ext = Object.assign({}, best.bid.ext, {
       rw, rw_min_ratio: RW_MIN_RATIO, rw_ttl_ms: RW_TTL_MS,
-      ad_type: 'rewarded', adm_type: useVast ? 'vast4' : 'html'
+      ad_type: 'rewarded', ad_format: 'rewarded', adm_type: useVast ? 'vast4' : 'html'
     });
     await pool.query('INSERT IGNORE INTO rw_token (imp_id,campaign_id,publisher) VALUES (?,?,?)', [rw.impid, rw.cid, publisher]).catch(() => {});
+  } else if (fmt !== 'banner') {
+    // 其它形态：插屏 / 开屏 / 原生 / icon / push（banner 沿用 campaign 自带 creative_html）
+    const fa = buildFormatAd(fmt, {
+      impid: best.bid.impid, cid: bestCid, publisher,
+      title: bestCid ? ('ADX-' + bestCid) : 'ad',
+      body: '由 ADX 下发的 ' + fmt + ' 广告',
+      mediaUrl: RW_MEDIA, duration: RW_DURATION
+    });
+    if (fa) {
+      winBid.adm = fa.adm;
+      winBid.ext = Object.assign({}, best.bid.ext, { ad_format: fmt, adm_type: fa.admType, push: fa.push || null });
+    }
   }
   res.json({ id: br.id, cur: 'CNY', seatbid: [{ seat: best.partner.name, bid: [winBid] }] });
 });

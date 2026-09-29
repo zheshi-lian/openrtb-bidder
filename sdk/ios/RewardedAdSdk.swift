@@ -1,6 +1,7 @@
 import Foundation
 import AVKit
 import UIKit
+import WebKit
 
 /// RewardedAdSdk —— 激励视频原生 SDK（iOS 原型）
 ///
@@ -38,10 +39,15 @@ public final class RewardedAdSdk {
         public let impid: String
         public let cid: String
         public let priceMicros: Int64
-        public let mediaUrl: URL
+        public let mediaUrl: URL?               // 仅视频形态(rewarded)有
         public let duration: String
         public let tracking: [String: String]   // impression/start/firstQuartile/midpoint/thirdQuartile/complete
         public let appServerRewardUrl: String
+        public let format: String               // rewarded/interstitial/splash/native/icon/push/banner
+        public let admType: String              // vast4/html/native_json/push
+        public let rawAdm: String
+        public let nativeJson: String?          // admType=native_json 时的结构化字段
+        public let pushJson: String?            // admType=push 时的推送内容
     }
 
     public static let shared = RewardedAdSdk()
@@ -74,18 +80,28 @@ public final class RewardedAdSdk {
                   let adm = bid["adm"] as? String else {
                 return completion(.failure(NSError(domain: "sdk", code: -2, userInfo: [NSLocalizedDescriptionKey: "NO_FILL"])))
             }
-            guard let vast = VastParser.parse(adm), let media = URL(string: vast.mediaUrl) else {
+            let ext = bid["ext"] as? [String: Any]
+            let fmt = (ext?["ad_format"] as? String) ?? "rewarded"
+            let admType = (ext?["adm_type"] as? String) ?? "vast4"
+            let vast = VastParser.parse(adm)
+            if fmt == "rewarded" && (vast == nil || URL(string: vast!.mediaUrl) == nil) {
                 return completion(.failure(NSError(domain: "sdk", code: -3, userInfo: [NSLocalizedDescriptionKey: "BAD_VAST"])))
             }
-            let ext = bid["ext"] as? [String: Any]
             let ad = Ad(
                 impid: impid,
                 cid: (ext?["cid"] as? String) ?? "",
                 priceMicros: (bid["price"] as? NSNumber)?.int64Value ?? 0,
-                mediaUrl: media,
-                duration: vast.duration,
-                tracking: vast.tracking,
-                appServerRewardUrl: cfg.appServerRewardUrl
+                mediaUrl: vast.flatMap { URL(string: $0.mediaUrl) },
+                duration: vast?.duration ?? "",
+                tracking: vast?.tracking ?? [:],
+                appServerRewardUrl: cfg.appServerRewardUrl,
+                format: fmt,
+                admType: admType,
+                rawAdm: adm,
+                nativeJson: admType == "native_json" ? adm : nil,
+                pushJson: (ext?["push"] as? [String: Any])
+                    .flatMap { try? JSONSerialization.data(withJSONObject: $0) }
+                    .flatMap { String(data: $0, encoding: .utf8) }
             )
             completion(.success(ad))
         }.resume()
@@ -102,7 +118,8 @@ public final class RewardedAdSdk {
         }
         track("impression")
 
-        let player = AVPlayer(url: ad.mediaUrl)
+        guard let mediaUrl = ad.mediaUrl else { cb(false, "NO_MEDIA"); return }
+        let player = AVPlayer(url: mediaUrl)
         let pvc = AVPlayerViewController()
         pvc.player = player
         vc.present(pvc, animated: true) {
@@ -152,6 +169,22 @@ public final class RewardedAdSdk {
             let ok = (json["ok"] as? Bool) ?? false
             cb(ok, ok ? ((json["reward"] as? String) ?? "") : ((json["reason"] as? String) ?? "SERVER_DENIED"))
         }.resume()
+    }
+
+    // ---------- 多形态分发：按 ADX 返回的 format 选择渲染方式 ----------
+    /// rewarded 用 AVPlayer；HTML 类（插屏/开屏/icon/banner）用 WKWebView；native/push 不由此渲染
+    public func showAny(from vc: UIViewController, webView: WKWebView, ad: Ad,
+                        cb: @escaping (_ granted: Bool, _ rewardOrReason: String) -> Void) {
+        switch ad.format {
+        case "rewarded":
+            show(from: vc, ad: ad, cb: cb)
+        case "native":
+            cb(false, "NATIVE_RENDER_BY_APP")      // 用 ad.nativeJson 自行渲染，样式由 App 决定
+        case "push":
+            cb(false, "PUSH_DELIVERED_BY_SERVER")  // 由媒体推送系统下发，不经 SDK 渲染
+        default:
+            webView.loadHTMLString(ad.rawAdm, baseURL: nil)  // interstitial / splash / icon / banner
+        }
     }
 }
 
