@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>自助开户 · LinkOS ADX</title>
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1000px 500px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+  .wrap{max-width:720px;margin:0 auto;padding:50px 20px 80px}
+  h1{font-size:28px;margin:0 0 6px}
+  .sub{color:var(--mut);margin:0 0 26px;font-size:14px}
+  .tabs{display:flex;gap:8px;margin-bottom:22px}
+  .tabs button{flex:1;padding:12px;border:1px solid #26355c;background:#101a33;color:var(--fg);border-radius:9px;cursor:pointer;font-size:14px;font-weight:700}
+  .tabs button.on{background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a;border-color:transparent}
+  .card{background:var(--card);border:1px solid #26355c;border-radius:14px;padding:24px}
+  label{display:block;font-size:12px;color:var(--mut);margin:14px 0 5px}
+  input,select{width:100%;padding:10px 12px;border:1px solid #2f4170;background:#0d1730;color:var(--fg);border-radius:8px}
+  input:focus{outline:none;border-color:var(--acc2)}
+  .hint{font-size:12px;color:var(--mut);margin-top:6px}
+  .btn{margin-top:18px;width:100%;padding:13px;border:0;border-radius:9px;background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a;font-weight:700;font-size:15px;cursor:pointer}
+  .msg{margin-top:14px;font-size:13px;min-height:20px;color:var(--mut)}
+  .ok{color:var(--ok);font-weight:700}
+  .key{font-family:ui-monospace,Consolas,monospace;background:#0d1730;border:1px solid #223358;padding:10px;border-radius:8px;word-break:break-all;font-size:13px;margin-top:12px;display:none}
+  pre{background:#0d1730;color:#7ee787;padding:12px;border-radius:8px;overflow:auto;font-size:12.5px;margin-top:12px;white-space:pre-wrap;word-break:break-all}
+  .hide{display:none}
+  a{color:var(--acc2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>自助开户</h1>
+  <p class="sub">全部自助，无需销售。媒体侧立即拿到 <code>api_key</code> 与广告位代码；需求侧提交后进入审核（未过审 + 未充值前不产生任何扣费）。计费见 <a href="/pricing.html">定价</a>。</p>
+  <div class="tabs">
+    <button id="tab-pub" onclick="show('pub')">媒体侧 · 供给流量</button>
+    <button id="tab-adv" onclick="show('adv')">需求侧 · 买量</button>
+  </div>
+
+  <div class="card" id="pub">
+    <label>广告位域名</label>
+    <input id="p-domain" placeholder="mygame.example.com">
+    <div class="hint">将成为 <code>ads.txt</code> 中的一行，也是结算归属单位。</div>
+    <label>媒体名称</label>
+    <input id="p-name" placeholder="MyGame Studio">
+    <label>联系（邮箱 / Telegram）</label>
+    <input id="p-contact" placeholder="you@mygame.com">
+    <label>落地页 URL（合规爬取自动补全品类/地域 → 抬升 eCPM）</label>
+    <input id="p-site" placeholder="https://mygame.example.com">
+    <button class="btn" onclick="regPub()">入驻并获取广告位代码</button>
+    <div class="msg" id="p-msg"></div>
+    <div class="key" id="p-key"></div>
+    <div class="key" id="p-account" style="margin-top:8px"></div>
+    <pre id="p-snippet" style="display:none"></pre>
+  </div>
+
+  <div class="card hide" id="adv">
+    <label>广告主名称 / 主体</label>
+    <input id="a-name" placeholder="我的游戏 / 我的工具 App">
+    <label>联系邮箱（必填）</label>
+    <input id="a-email" placeholder="you@company.com">
+    <label>品类（意图匹配，选填）</label>
+    <select id="a-cat">
+      <option value="">不限 / 待定</option>
+      <option>puzzle</option><option>casual</option><option>tools</option>
+      <option>game</option><option>social</option><option>ecommerce</option><option>finance</option>
+    </select>
+    <label>目标 CPM（元 / 千次，默认 6）</label>
+    <input id="a-cpm" type="number" value="6" min="0.5" step="0.5">
+    <label>落地页 / 深链（选填）</label>
+    <input id="a-landing" placeholder="https://…">
+    <button class="btn" onclick="regAdv()">提交开户申请</button>
+    <div class="msg" id="a-msg"></div>
+    <div class="key" id="a-account" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+  function show(which){
+    document.getElementById('pub').classList.toggle('hide', which!=='pub');
+    document.getElementById('adv').classList.toggle('hide', which!=='adv');
+    document.getElementById('tab-pub').classList.toggle('on', which==='pub');
+    document.getElementById('tab-adv').classList.toggle('on', which==='adv');
+  }
+  function initTab(){ show((location.hash||'').indexOf('adv')>-1?'adv':'pub'); }
+  async function regPub(){
+    var m=document.getElementById('p-msg'); m.className='msg'; m.textContent='提交中…';
+    try{
+      var r=await fetch('/api/publisher',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        domain:p_domain.value.trim(), name:p_name.value.trim(), contact:p_contact.value.trim(), site_url:p_site.value.trim() })});
+      var d=await r.json();
+      if(d.api_key){
+        var k=document.getElementById('p-key'); k.style.display='block';
+        k.textContent='api_key: '+d.api_key+'   ·   分成率 '+(d.payout_rate!=null?d.payout_rate:'70%');
+        var sn=document.getElementById('p-snippet'); sn.style.display='block';
+        sn.textContent='<div class="ad-slot" data-floor="1.0" data-cat="" data-geo=""></div>\n<script src="https://dellai.xyz/pub_sdk.js"><\/script>';
+        // 后端首次入驻会同步开通媒体登录账号（用户名=域名）并返回一次性密码。必须在这里展示，
+        //   否则自动生成的密码被前端静默丢弃 → 媒体永远拿不到登录凭据、无法登录后台（原断点）。
+        var acc=document.getElementById('p-account');
+        if(d.account && d.account.password){
+          acc.style.display='block';
+          acc.textContent='媒体后台登录：用户名 '+d.account.username+'  ·  密码 '+d.account.password+'（请立刻保存，之后不再显示。SDK 用 api_key，后台登录用账号）';
+        } else if(d.account){
+          acc.style.display='block';
+          acc.textContent='媒体后台登录：用户名 '+d.account.username+'（密码为首次入驻时设定的值；未保存请联系管理员重置）';
+        } else { acc.style.display='none'; }
+        m.className='msg ok'; m.innerHTML='媒体入驻成功 ✓  SDK 用上方 api_key 嵌入广告位；后台用账号在 <a href="/publisher_report.html">媒体收益</a> 看报表。';
+      } else { m.textContent='结果: '+JSON.stringify(d); }
+    }catch(e){ m.textContent='请求失败: '+e.message; }
+  }
+  async function regAdv(){
+    var m=document.getElementById('a-msg'); m.className='msg'; m.textContent='提交中…';
+    try{
+      var r=await fetch('/api/public/advertiser-open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        name:a_name.value.trim(), email:a_email.value.trim(), cat:a_cat.value,
+        targetCpm:a_cpm.value||'6', landing:a_landing.value.trim() })});
+      var d=await r.json();
+      if(d.ok){
+        m.className='msg ok'; m.innerHTML='已提交开户申请 ✓  计划 #'+d.campaign_id+'（待审）。<br>'+d.msg;
+        // 后端已同步开通登录账号（作用域=邮箱）。这里必须展示凭据，否则需求方提交后拿不到账号、
+        //   无法登录查看审核状态 → 需求侧漏斗断点（home.html STEP02 与 nav.js 都指向本页）。
+        var acc=document.getElementById('a-account');
+        if(d.account && d.account.password){
+          acc.style.display='block';
+          acc.textContent='登录账号已开通：用户名 '+d.account.username+'  ·  密码 '+d.account.password+'（请立刻保存，之后不再显示。审核通过后用它登录广告主后台建计划）';
+        } else if(d.account){
+          acc.style.display='block';
+          acc.textContent='登录用户名 '+d.account.username+' 已被占用，请改用「广告主自助开户」页创建你的账号';
+        } else { acc.style.display='none'; }
+      }
+      else { m.textContent='结果: '+(d.error||JSON.stringify(d)); }
+    }catch(e){ m.textContent='请求失败: '+e.message; }
+  }
+  initTab();
+</script>
+<script src="/nav.js"></script>
+</body>
+</html>
+

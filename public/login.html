@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>统一登录 · ADX 三方后台</title>
+<style>
+  :root{--bg:#0b1220;--card:#131f38;--card2:#0d1730;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24;--danger:#f87171}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 600px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif;padding:16px}
+  .card{width:100%;max-width:420px;background:var(--card);border:1px solid #26355c;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:26px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .logo{flex:none;width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#04122a;font-size:17px}
+  h1{margin:0;font-size:18px}
+  p.sub{margin:5px 0 16px;color:var(--mut);font-size:12.5px}
+  .roles{display:flex;gap:4px;background:var(--card2);border:1px solid #26355c;border-radius:9px;padding:4px;margin-bottom:6px}
+  .roles button{flex:1;padding:9px 2px;border:0;background:transparent;color:var(--mut);border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:700}
+  .roles button.on{background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a}
+  label{display:block;font-size:12px;color:var(--mut);margin:11px 0 5px}
+  .field{position:relative}
+  input{width:100%;padding:11px 12px;border:1px solid #2f4170;border-radius:8px;background:var(--card2);color:var(--fg);font-size:14px}
+  input:focus{outline:none;border-color:var(--acc2);box-shadow:0 0 0 3px rgba(34,211,238,.14)}
+  .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--mut);cursor:pointer;font-size:14px;padding:4px 7px;border-radius:5px;line-height:1}
+  .eye:hover{color:var(--fg)}
+  .hint{font-size:11.5px;color:var(--mut);margin-top:5px;min-height:14px}
+  .row{display:flex;justify-content:space-between;align-items:center;margin:13px 0 2px;font-size:12.5px;color:var(--mut)}
+  .cbx{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;margin:0}
+  .cbx input{width:auto;margin:0}
+  .go{width:100%;padding:12px;margin-top:14px;border:0;border-radius:9px;background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a;font-weight:700;font-size:15px;cursor:pointer}
+  .go:hover{filter:brightness(1.08)}
+  .go:disabled{opacity:.55;cursor:not-allowed}
+  .msg{margin-top:12px;font-size:13px;min-height:19px;color:var(--danger);line-height:1.5}
+  .msg.ok{color:var(--ok)}.msg.info{color:var(--acc2)}
+  .demos{margin-top:16px;font-size:12px;color:var(--mut);background:var(--card2);border:1px solid #26355c;border-radius:9px;padding:11px}
+  .demos button{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+  .d{padding:5px 9px;border:1px solid #2f4170;background:#131f38;color:var(--fg);border-radius:6px;cursor:pointer;font-size:11.5px}
+  .d:hover{border-color:var(--acc2);color:#7dd3fc}
+  .adv{margin-top:12px;border-top:1px solid #26355c;padding-top:11px}
+  details{margin-top:2px}
+  summary{cursor:pointer;color:var(--mut);font-size:12px;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  a{color:var(--acc2);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">
+    <div class="logo">L</div>
+    <div>
+      <h1>LinkOS ADX 登录</h1>
+      <p class="sub">管理员 / 广告主 / 媒体 三套后台共用一套账号，登录后只看自己作用域的数据。</p>
+    </div>
+  </div>
+
+  <div class="roles" id="roles">
+    <button type="button" data-r="admin" class="on">管理员</button>
+    <button type="button" data-r="advertiser">广告主</button>
+    <button type="button" data-r="publisher">媒体</button>
+  </div>
+
+  <label for="u">用户名</label>
+  <input id="u" placeholder="管理员用户名" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <div class="hint" id="uh"></div>
+
+  <label for="p">密码</label>
+  <div class="field">
+    <input id="p" type="password" placeholder="登录密码" autocomplete="current-password">
+    <button class="eye" id="eye" type="button" title="显示 / 隐藏密码" aria-label="切换密码可见性">👁</button>
+  </div>
+  <div class="hint" id="ph"></div>
+
+  <div class="row">
+    <label class="cbx"><input type="checkbox" id="rem"> 记住我 7 天</label>
+    <a href="#" id="forgot">忘记密码？</a>
+  </div>
+
+  <button class="go" id="go" type="button" onclick="doLogin()">登 录</button>
+  <div class="msg" id="m"></div>
+
+  <div class="demos">
+    演示账号（点击一键填充）
+    <div>
+      <button class="d" type="button" onclick="fill('admin','admin123')">管理员 admin / admin123</button>
+      <button class="d" type="button" onclick="fill('demobrand','demo123')">广告主 demobrand / demo123</button>
+      <button class="d" type="button" onclick="fill('demomedia','demo123')">媒体 demomedia / demo123</button>
+    </div>
+    <div style="margin-top:9px">
+      <a href="/advertiser_signup.html">广告主自助开户</a> · <a href="/register.html#publisher">媒体入驻</a> · <a href="/register.html#advertiser">需求侧申请</a>
+    </div>
+  </div>
+
+  <div class="adv">
+    <details>
+      <summary>旧版管理员静态令牌登录（兼容旧脚本 / API 集成）</summary>
+      <div style="padding-top:10px">
+        <input id="t" placeholder="留空=用上方账号密码；填入令牌=用旧版 ADMIN_TOKEN" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+    </details>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const DEMOS={admin:'admin',advertiser:'demobrand',publisher:'demomedia'};
+let role=localStorage.getItem('login_role_hint')||'admin';
+function setRole(r){
+  role=r; localStorage.setItem('login_role_hint',r);
+  [...$('roles').children].forEach(b=>b.classList.toggle('on',b.dataset.r===r));
+  $('u').placeholder = r==='admin'?'管理员用户名':(r==='advertiser'?'广告主用户名（如 demobrand）':'媒体用户名（域名，如 edurobot.cn）');
+  $('uh').textContent = r==='admin'?'全量后台 / 控制台 / 结算' : (r==='advertiser'?'登录后只看自己广告主的计划与数据' :'登录后只看自己域名的流量与收益');
+}
+[...$('roles').children].forEach(b=>b.onclick=()=>setRole(b.dataset.r));
+$('eye').onclick=()=>{const p=$('p');p.type=p.type==='password'?'text':'password';};
+function fill(u,p){
+  const roleOf = u===DEMOS.admin?'admin':(u===DEMOS.advertiser?'advertiser':(u===DEMOS.publisher?'publisher':''));
+  $('u').value=u;$('p').value=p;$('m').textContent='';
+  if(roleOf) setRole(roleOf);
+}
+// 跳转目标：只允许同源相对路径。修掉原 next 未校验（open redirect）与读旧 sessionStorage 角色导致跳错后台的缺陷
+function safeNext(){
+  const n=new URLSearchParams(location.search).get('next');
+  if(n && n.charAt(0)==='/' && n.charAt(1)!=='/' && n.indexOf('\\')<0) return n;
+  return null;
+}
+function defaultHome(type){
+  if(type==='advertiser') return '/advertiser.html';
+  if(type==='publisher') return '/publisher_report.html';
+  return '/console.html';
+}
+function load(k){return localStorage.getItem(k)||sessionStorage.getItem(k)||'';}
+function wipe(){['auth_token','auth_role','auth_scope','auth_user'].forEach(k=>{localStorage.removeItem(k);sessionStorage.removeItem(k);});}
+function saveSession(k,v,rem){(rem?localStorage:sessionStorage).setItem(k,v);}
+// 已登录则直接给入口，不再要求重复输密码
+function alreadyIn(){
+  const t=load('auth_token'); if(!t) return;
+  const m=$('m'); m.className='msg info';
+  m.innerHTML='已登录为 <b>'+(load('auth_user')||'?')+'</b>（'+(load('auth_role')||'')+'）· <a href="'+defaultHome(load('auth_role'))+'">进入后台</a> · <a href="#" id="sw">切换账号</a>';
+  const sw=$('sw'); if(sw) sw.onclick=e=>{e.preventDefault();wipe();location.reload();};
+}
+async function doLogin(){
+  const m=$('m'),btn=$('go'); m.className='msg';
+  const token=$('t').value.trim();
+  if(token){
+    btn.disabled=true;btn.textContent='验证中…';
+    try{
+      const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok&&j.ok){loginAs(token,'admin','*','admin',$('rem').checked);return;}
+      m.textContent='令牌无效';
+    }catch(e){m.textContent='请求失败：'+e.message;}
+    btn.disabled=false;btn.textContent='登 录';return;
+  }
+  const u=$('u').value.trim(),p=$('p').value,rem=$('rem').checked;
+  if(!u||!p){m.textContent='请填写用户名与密码';$('u').focus();return;}
+  btn.disabled=true;btn.textContent='登录中…';m.textContent='';
+  try{
+    const r=await fetch('/api/account/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.token){loginAs(j.token,j.type,j.scope,j.username||u,rem);return;}
+    if(r.status===429){m.textContent='尝试次数过多，请 '+Math.ceil((j.wait||900)/60)+' 分钟后再试';btn.disabled=true;return;}
+    m.textContent=j.error||'用户名或密码错误';
+  }catch(e){m.textContent='网络错误：'+e.message;}
+  btn.disabled=false;btn.textContent='登 录';
+}
+function loginAs(token,type,scope,user,rem){
+  saveSession('auth_token',token,rem);saveSession('auth_role',type,rem);saveSession('auth_scope',scope,rem);saveSession('auth_user',user,rem);
+  fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}).catch(()=>{});
+  const m=$('m');m.className='msg ok';
+  m.textContent='登录成功（'+(type==='admin'?'管理员':type==='advertiser'?'广告主':'媒体')+'），正在进入后台…';
+  setTimeout(()=>{location.href=safeNext()||defaultHome(type);},450);
+}
+$('forgot').onclick=e=>{
+  e.preventDefault();
+  const u=$('u').value.trim();
+  if(!u){$('m').className='msg';$('m').textContent='请先输入用户名，再点“忘记密码”';$('u').focus();return;}
+  $('m').className='msg info';
+  $('m').textContent='账号由平台方开通或自助注册；密码遗失请联系管理员在控制台重置（当前暂无自助邮件找回）。';
+};
+// 输入体验：大写锁定提示 + 密码强度 + Enter 快速跳转
+$('p').addEventListener('input',()=>{const v=$('p').value;delete $('ph').dataset.caps;$('ph').textContent=v?(v.length<6?'密码至少 6 位':(v.length<10?'强度：一般':'强度：良好')):'';});
+$('p').addEventListener('keyup',e=>{if(e.getModifierState&&e.getModifierState('CapsLock')){$('ph').textContent='⚠ 大写锁定已开启';$('ph').dataset.caps='1';}});
+$('u').addEventListener('keydown',e=>{if(e.key==='Enter')$('p').focus();});
+$('p').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+setRole(role);
+alreadyIn();
+if(!load('auth_token')) $('u').focus();
+</script>
+</body>
+</html>
