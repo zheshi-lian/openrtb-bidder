@@ -142,6 +142,7 @@ AppLovin/Unity 拆成 3 个独立门户（Advertiser Console / Publisher / Partn
 | 改动 | 说明 |
 |---|---|
 | `nav.js` 移除登录态 chip | 公共站只显示「注册 / 登录」；已登录只显示「进入我的后台」链接。**不显示账号名，不提供登出** |
+| `nav.js` 清理 GROUPS 分组描述 | 去掉「账号密码登录（admin/admin123）或旧版 ADMIN_TOKEN」与供给侧「(仅 api_key)」等**登录方式/旧凭证**文案，描述只讲能做什么 |
 | `nav.js` 停读遗留键 | 只认 `adx_admin`，不再读 `auth_token`/`auth_user`/`auth_role` |
 | 新增 `console_top.js` | 控制台专属顶栏：角色徽标 + 账号 + 作用域 + 该角色功能 tab + 登出 |
 | 8 个控制台页换壳 | `console/dashboard/reports/creative/creative-auto/advertiser/publisher/publisher_report` 移除 `nav.js`，改用 `console_top.js` |

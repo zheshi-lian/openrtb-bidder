@@ -10,11 +10,11 @@
       { href: '/creative-auto.html',  label: '创意自动化' },
       { href: '/dsp.html',            label: 'DSP 接入' },
     ]},
-    { label: '供给侧(流量)', desc: '媒体后台：入驻获取 api_key → 嵌入广告位 → 看自己的收益报表(仅 api_key)', items: [
+    { label: '供给侧(流量)', desc: '媒体后台：入驻申请 → 嵌入广告位 → 看自己的收益报表', items: [
       { href: '/publisher.html',        label: '媒体入驻' },
       { href: '/publisher_report.html', label: '媒体收益' },
     ]},
-    { label: '平台运营(管理员)', desc: '账号密码登录（admin/admin123）或旧版 ADMIN_TOKEN：控制台/看板/结算/审核', items: [
+    { label: '平台运营(管理员)', desc: '管理员后台：ADX 控制台 / 运营看板 / 结算报表', items: [
       { href: '/console.html',   label: 'ADX 控制台' },
       { href: '/dashboard.html', label: '运营看板' },
       { href: '/reports.html',   label: '结算报表' },
