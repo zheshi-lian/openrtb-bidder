@@ -69,7 +69,10 @@
   nav.id = 'adx-nav';
   nav.innerHTML = html +
     '<span style="flex:1"></span>' +
-    '<a id="adx-login" href="/login.html" style="color:#7fd1ff;text-decoration:none;padding:4px 11px;border:1px solid #3a4358;border-radius:5px;white-space:nowrap">登录</a>';
+    '<span id="adx-auth">' +
+      '<a href="/register.html" style="color:#9aa6c0;text-decoration:none;padding:4px 11px;white-space:nowrap">注册</a>' +
+      '<a id="adx-login" href="/login.html" style="color:#7fd1ff;text-decoration:none;padding:4px 11px;border:1px solid #3a4358;border-radius:5px;white-space:nowrap">登录</a>' +
+    '</span>';
   document.body.insertBefore(nav, document.body.firstChild);
   // 点击切换（兼容不响应 hover 的环境）；点击其它区域收起
   nav.addEventListener('click', function (e) {
@@ -84,21 +87,18 @@
       for (var k = 0; k < open.length; k++) open[k].classList.remove('open');
     }
   });
-  // 右上角登录态指示：已登录显示「账号 · 登出」，未登录显示「登录」（原来各页登录状态不互通，用户不知道自己登没登）
+  // 右上角：公共站导航只显示入口，不显示身份。
+  // 身份（账号 + 作用域 + 登出）属于控制台，由 console_top.js 渲染——绝不污染营销页。
+  // 只认 admin.js 的会话键 adx_admin（旧 auth_token/auth_user 键是遗留垃圾，已停读）。
   (function () {
-    var a = document.getElementById('adx-login'); if (!a) return;
-    var tok = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '';
-    var usr = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user') || '';
-    var rle = localStorage.getItem('auth_role') || sessionStorage.getItem('auth_role') || '';
-    if (tok) {
-      a.innerHTML = (usr || rle || '账号') + ' · 登出';
-      a.href = 'javascript:void(0)';
-      a.onclick = function (e) {
-        e.preventDefault();
-        ['auth_token', 'auth_role', 'auth_scope', 'auth_user'].forEach(function (k) { localStorage.removeItem(k); sessionStorage.removeItem(k); });
-        fetch('/api/admin/logout', { method: 'POST' }).catch(function () {});
-        location.reload();
-      };
+    var box = document.getElementById('adx-auth'); if (!box) return;
+    var cur = function (k) { return localStorage.getItem(k) || sessionStorage.getItem(k) || ''; };
+    var me = null;
+    try { me = cur('adx_admin') ? JSON.parse(cur('adx_admin')) : null; } catch (e) { me = null; }
+    if (me && me.token) {
+      var home = me.type === 'advertiser' ? '/advertiser.html'
+               : (me.type === 'publisher' ? '/publisher_report.html' : '/console.html');
+      box.innerHTML = '<a href="' + home + '" style="color:#04122a;text-decoration:none;padding:4px 12px;border-radius:5px;background:linear-gradient(92deg,#3b82f6,#22d3ee);white-space:nowrap;font-weight:600">进入我的后台</a>';
     }
   })();
 })();

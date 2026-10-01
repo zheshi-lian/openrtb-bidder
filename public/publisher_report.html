@@ -5,25 +5,46 @@
  h2{font-size:18px} table{width:100%;border-collapse:collapse;margin-top:14px;background:#fff}
  td,th{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left}
  .card{background:#fff;padding:14px;border-radius:8px;margin:10px 0;box-shadow:0 1px 3px #0001}
- button{padding:6px 14px;cursor:pointer}</style></head>
+ input{padding:6px;width:320px} button{padding:6px 14px;cursor:pointer}
+ .kpi{display:flex;gap:16px;flex-wrap:wrap} .kpi div{background:#0a0f1d;color:#e5e9f2;border:1px solid #26304a;border-radius:8px;padding:10px 14px} .kpi b{font-size:18px;color:#7fd1ff}
+ .hint{font-size:12px;color:#666}</style></head>
 <body>
-  <h2>媒体方(Publisher)收益报表 —— 来自 SSP 账本</h2>
-  <div class="card" id="global"></div>
-  <h2>分媒体方明细</h2>
+<div id="ctop"></div>
+  <h2>媒体方(Publisher)收益报表</h2>
+  <div class="card">
+    <label>我的 api_key（入驻时获取；留空看全局 SSP）</label>
+    <input id="apikey" placeholder="pub_xxx"> <button onclick="load()">查询</button>
+    <div class="hint">api_key 由「媒体方入驻」页注册后返回；凭它只能看到自己的数据。</div>
+  </div>
+  <div class="kpi" id="kpi"></div>
+  <h2>分媒体方明细（SSP 全局）</h2>
   <table id="tbl"><thead><tr><th>媒体(domain)</th><th>胜出次数</th><th>SSP收入(元)</th><th>媒体分成(元)</th><th>SSP毛利(元)</th></tr></thead><tbody></tbody></table>
-  <button onclick="load()">刷新</button>
+  <button onclick="loadGlobal()">刷新全局</button>
+  <script src="/admin.js"></script>
   <script>
-    function load(){
-      fetch('/ssp/report').then(r=>r.json()).then(d=>{
-        const s=d.ssp, m=s.ssp_margin_cny;
-        document.getElementById('global').innerHTML=
-          `全局：胜出 ${s.wins} 次 ｜ SSP向需求方实收 <b>${s.gross_cny.toFixed(4)}</b> 元 ｜ 给媒体分成 <b>${s.payout_cny.toFixed(4)}</b> 元 ｜ <b>SSP毛利 ${s.ssp_margin_cny.toFixed(4)}</b> 元（毛利率 ${(s.margin_rate*100).toFixed(1)}%）`;
-        const tb=document.querySelector('#tbl tbody'); tb.innerHTML='';
-        (d.publishers||[]).forEach(p=>{ const tr=document.createElement('tr');
-          tr.innerHTML=`<td>${p.publisher}</td><td>${p.wins}</td><td>${p.gross_cny.toFixed(4)}</td><td>${p.payout_cny.toFixed(4)}</td><td>${(p.gross_cny-p.payout_cny).toFixed(4)}</td>`;
-          tb.appendChild(tr); });
-      });
+    function fillKpi(d){
+      kpi.innerHTML = `<div>胜出 <b>${d.wins}</b></div><div>SSP收入 <b>${d.gross_cny.toFixed(4)}</b></div><div>媒体分成 <b>${d.payout_cny.toFixed(4)}</b></div><div>SSP毛利 <b>${d.ssp_margin_cny.toFixed(4)}</b></div>`;
     }
-    load(); setInterval(load, 3000);
+    async function load(){
+      const k = apikey.value.trim();
+      if (k) {
+        const d = await (await fetch('/api/publisher/report?api_key='+encodeURIComponent(k))).json();
+        if (d.error) { kpi.innerHTML = '<div style="color:#c00">'+d.error+'</div>'; return; }
+        fillKpi(d);
+        kpi.insertAdjacentHTML('beforeend', `<div>完播发奖 <b>${d.rewarded_granted}/${d.rewarded_total}</b></div><div>点击 <b>${d.clicks}</b></div><div>转化 <b>${d.conversions}</b></div><div>GMV <b>${d.gmv}</b></div>`);
+      } else { loadGlobal(); }
+    }
+    async function loadGlobal(){
+      try {
+        const d = await (await fetch('/ssp/report')).json();
+        if (!d || !d.ssp) { kpi.innerHTML = '<div style="color:#c00">全局 SSP 视图需管理员令牌（顶部填入 ADMIN_TOKEN）</div>'; return; }
+        fillKpi(d.ssp);
+      const tb = document.querySelector('#tbl tbody'); tb.innerHTML='';
+      (d.publishers||[]).forEach(p=>{ const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${p.publisher}</td><td>${p.wins}</td><td>${p.gross_cny.toFixed(4)}</td><td>${p.payout_cny.toFixed(4)}</td><td>${p.ssp_margin_cny.toFixed(4)}</td>`;
+        tb.appendChild(tr); });
+    }
+    loadGlobal(); setInterval(loadGlobal, 5000);
   </script>
+<script src="/console_top.js"></script>
 </body></html>

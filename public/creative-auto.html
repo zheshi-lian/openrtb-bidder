@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>创意自动化 · Creative Automation</title>
+<style>
+  :root{--bg:#0b1020;--card:#141b2e;--line:#26304a;--accent:#3b82f6;--ok:#22c55e;--bad:#ef4444;--txt:#e5e9f2;--muted:#8a93a6}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 'Microsoft YaHei',system-ui,sans-serif}
+  header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  header b{font-size:15px} a.nav{color:#7fd1ff;text-decoration:none;font-size:13px;padding:4px 8px;border:1px solid var(--line);border-radius:6px}
+  .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  h3{margin:0 0 10px;font-size:14px}
+  label{font-size:12px;color:var(--muted);display:block;margin:6px 0 2px}
+  input,textarea,select{width:100%;background:#0a0f1d;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font-size:13px}
+  textarea{min-height:56px;font-family:ui-monospace,Consolas,monospace}
+  .row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px;margin-top:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  pre{background:#060a14;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 ui-monospace,Consolas,monospace;color:#9fb3d1;max-height:260px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
+  iframe{border:1px solid var(--line);border-radius:8px;background:#fff;width:100%;height:360px;margin-top:8px}
+  .hint{font-size:12px;color:var(--muted)}
+  img.prev{max-width:220px;border:1px solid var(--line);border-radius:8px;margin-top:8px}
+  #banner{display:none;background:#2a1212;border:1px solid var(--bad);color:#ffb4b4;padding:10px 14px;border-radius:8px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div id="ctop"></div>
+<header><b>创意自动化</b><span class="hint">可玩广告 / 静图转视频 / DCO / 多语言；接真实文生图模型后，「文生图」「静图转视频」可调用真实 API</span></header>
+<div class="wrap">
+
+  <div class="panel" id="libBar">
+    <h3>绑定计划 · 让素材库真正可下发</h3>
+    <p class="hint">创意自动化生成的结果默认只是预览。点下方按钮创建「创意自动化 Demo 计划」（自动审核通过、CPM 高于默认 109 会优先胜出），再把生成结果存入它的素材库，即可在 <a href="/media-demo.html">平台演示</a> 中看到被真实下发。</p>
+    <div class="row">
+      <div><label>目标 campaign_id（创意绑定到此计划才可被 bidder 选中）</label><input id="lib_cid" type="number" placeholder="先点右侧按钮创建"></div>
+      <div><label>广告主</label><input id="lib_adv" value="AutoGen"></div>
+      <div><label>默认落地页</label><input id="lib_land" value="https://example.com"></div>
+    </div>
+    <button onclick="createDemoCampaign()">创建创意自动化 Demo 计划（自动审核通过）</button>
+    <span class="hint" id="lib_msg"></span>
+  </div>
+
+  <div class="panel">
+    <h3>① 一键生成（图 + 文案 → 可玩 / 视频 / 多语言）</h3>
+    <label>图片 URL（逗号分隔，可留空改用「文生图底图 prompt」）</label><input id="g_images" value="https://x/a.png,https://x/b.png">
+    <label>或用文生图产出底图（填 prompt 且上方留空时生效）</label><input id="g_gen" placeholder="一只赛博朋克风格的猫，游戏宣传图">
+    <div class="row">
+      <div><label>标题 title</label><input id="g_title" value="游戏上线 限时福利"></div>
+      <div><label>副标题 subtitle</label><input id="g_sub" value="登录即送 100 抽"></div>
+      <div><label>CTA 文案</label><input id="g_cta" value="立即下载"></div>
+    </div>
+    <label>落地页 landingUrl</label><input id="g_land" value="https://example.com">
+    <div class="row">
+      <div><label>目标语言 locales（逗号，如 en,ja,ko）</label><input id="g_loc" value="en,ja"></div>
+      <div><label>形态 formats（playable,video 逗号）</label><input id="g_fmt" value="playable,video"></div>
+      <div><label>输出视频文件 outFile</label><input id="g_out" value="out"></div>
+    </div>
+    <button onclick="runGenerate()">生成</button>
+    <div class="grid2">
+      <div><div class="hint">可玩广告预览</div><iframe id="g_play"></iframe></div>
+      <div><div class="hint">视频 HTML 预览</div><iframe id="g_video"></iframe></div>
+    </div>
+    <pre id="g_out_pre">点击「生成」查看可玩 HTML / 视频分镜 / 多语言文案 / ffmpeg 命令</pre>
+  </div>
+
+  <div class="panel">
+    <h3>② 可玩广告 Playable（单图/多图交互）</h3>
+    <div class="row">
+      <div><label>标题</label><input id="p_title" value="试玩领福利"></div>
+      <div><label>副标题</label><input id="p_sub" value="点我开始"></div>
+      <div><label>CTA</label><input id="p_cta" value="开始游戏"></div>
+    </div>
+    <label>落地页</label><input id="p_land" value="https://example.com">
+    <label>icon URL（可选）</label><input id="p_icon" value="https://x/a.png">
+    <button onclick="runPlayable()">生成可玩广告</button>
+    <iframe id="p_iframe"></iframe>
+    <pre id="p_out">可玩广告 HTML + 估算体积</pre>
+  </div>
+
+  <div class="panel">
+    <h3>③ 静图转视频（Storyboard + ffmpeg 命令）</h3>
+    <label>图片 URL（逗号分隔，可留空改用「文生图底图 prompt」）</label><input id="v_images" value="https://x/a.png,https://x/b.png,https://x/c.png">
+    <label>或用文生图底图（填 prompt 且上方留空时生效）</label><input id="v_gen" placeholder="游戏角色奔跑，宣传视频帧">
+    <div class="row">
+      <div><label>宽</label><input id="v_w" value="720"></div>
+      <div><label>高</label><input id="v_h" value="1280"></div>
+      <div><label>每屏时长 ms</label><input id="v_ms" value="3000"></div>
+    </div>
+    <label>CTA（JSON：{"text":"下载","url":"https://e.com"}）</label><input id="v_cta" value='{"text":"立即下载","url":"https://example.com"}'>
+    <button onclick="runVideo()">生成视频脚本</button>
+    <button class="ghost" onclick="runVideoWithGen()">先文生图底图再转视频</button>
+    <pre id="v_out">输出分镜（scenes）、HTML 预览、ffmpeg 命令（需在装了 ffmpeg 的环境执行合成）</pre>
+  </div>
+
+  <div class="panel">
+    <h3>④ DCO 动态创意优选（按上下文挑版本）</h3>
+    <div class="row">
+      <div><label>模板 template</label><input id="d_tpl" value="default"></div>
+      <div><label>item（JSON）</label><input id="d_item" value='{"cat":"gaming"}'></div>
+      <div><label>ctx（JSON）</label><input id="d_ctx" value='{"geo":"CN","hour":20}'></div>
+    </div>
+    <label>stats（JSON 数组，可选）</label><input id="d_stats" value="[]">
+    <button onclick="runDco()">优选创意</button>
+    <pre id="d_out">输出挑选的创意版本与理由</pre>
+  </div>
+
+  <div class="panel">
+    <h3>⑤ 多语言 i18n（本地化 / 翻译）</h3>
+    <label>文案 copy（JSON：{"title":"游戏上线","cta":"立即下载"}）</label><input id="i_copy" value='{"title":"游戏上线","subtitle":"限时福利","cta":"立即下载"}'>
+    <label>目标语言 locales（逗号，如 en,ja）</label><input id="i_loc" value="en,ja,ko">
+    <button onclick="runI18n()">翻译 / 本地化</button>
+    <pre id="i_out">注：机器翻译需配置 LLM 翻译器（未配置时返回 NO_TRANSLATOR，本地化字典命中则直接返回）</pre>
+  </div>
+
+  <div class="panel">
+    <h3>⑥ 生成模型配置（文生图 / 图生视频真实 API）</h3>
+    <div class="row">
+      <div><label>provider</label><input id="gc_provider" value="openai"></div>
+      <div><label>base_url（到 /v1）</label><input id="gc_base" placeholder="https://api.openai.com/v1"></div>
+      <div><label>api_key</label><input id="gc_key" type="password" placeholder="sk-..."></div>
+    </div>
+    <label>model</label><input id="gc_model" value="gpt-image-1">
+    <label>图生视频 endpoint（可选；留空则「静图转视频」用 ffmpeg 分镜兜底）</label><input id="gc_video" placeholder="https://your-video-api/...">
+    <div class="row" style="margin-top:8px">
+      <button onclick="saveGenCfg()">保存配置</button>
+      <button class="ghost" onclick="loadGenCfg()">读取当前配置</button>
+      <span class="hint" id="gc_msg" style="grid-column:span 3"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>⑦ 文生图（真实模型，产出后直接入素材库）</h3>
+    <label>prompt</label><input id="t2i_prompt" placeholder="一只赛博朋克风格的猫，游戏宣传图">
+    <div class="row" style="margin-top:8px">
+      <button onclick="runT2I()">生成图片</button>
+      <button class="ghost" onclick="saveT2ILib()" id="t2i_libbtn" style="display:none">存入素材库</button>
+      <span class="hint" id="t2i_msg" style="grid-column:span 3"></span>
+    </div>
+    <img id="t2i_img" class="prev" style="display:none">
+  </div>
+
+  <div class="panel">
+    <h3>⑧ 一键存入素材库（把上方最后一次生成结果入库，绑定计划后即可被 bidder 下发）</h3>
+    <div class="row">
+      <div><label>存入形态 format</label><select id="save_fmt">
+        <option>interstitial</option><option>banner</option><option>splash</option><option>native</option><option>icon</option><option>push</option><option>rewarded</option></select></div>
+      <div><label>存入类型 type</label><select id="save_type"><option>html</option><option>native</option><option>push</option><option>vast</option><option>image</option></select></div>
+      <div><label>创意标题</label><input id="save_title" value="自动生成创意"></div>
+    </div>
+    <button onclick="saveFromLast()">存入素材库</button>
+    <span class="hint" id="save_msg"></span>
+  </div>
+</div>
+
+<script src="/admin.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+// 统一鉴权 fetch（自动带 Bearer；401 时 admin.js 顶部红条提示）
+async function api(path, body) {
+  const r = await admApi(path, body);
+  const j = await r.json();
+  window.lastCreative = j;
+  return j;
+}
+function showIframe(el, html) { try { el.srcdoc = html || ''; } catch (e) {} }
+function J(s, d) { try { return JSON.parse(s); } catch (e) { return d; } }
+
+async function runGenerate() {
+  const out = $('g_out_pre'); out.textContent = '请求中…';
+  try {
+    const body = { images: $('g_images').value.split(',').map(s=>s.trim()).filter(Boolean), genPrompt: $('g_gen').value.trim(),
+      title: $('g_title').value, subtitle: $('g_sub').value, ctaText: $('g_cta').value,
+      landingUrl: $('g_land').value, locales: $('g_loc').value.split(',').map(s=>s.trim()).filter(Boolean),
+      formats: $('g_fmt').value.split(',').map(s=>s.trim()).filter(Boolean), outFile: $('g_out').value };
+    const j = await api('/api/creative-auto/generate', body);
+    out.textContent = JSON.stringify(j, null, 2);
+    if (j.playable) showIframe($('g_play'), j.playable);
+    if (j.html) showIframe($('g_video'), j.html);
+  } catch (e) { out.textContent = 'ERR ' + e.message; }
+}
+async function runPlayable() {
+  const out = $('p_out'); out.textContent = '请求中…';
+  try {
+    const j = await api('/api/creative-auto/playable', { title: $('p_title').value, subtitle: $('p_sub').value, ctaText: $('p_cta').value, landingUrl: $('p_land').value, iconUrl: $('p_icon').value });
+    out.textContent = JSON.stringify(j, null, 2);
+    if (j.html) showIframe($('p_iframe'), j.html);
+  } catch (e) { out.textContent = 'ERR ' + e.message; }
+}
+async function runVideo() { await _runVideo($('v_images').value); }
+async function runVideoWithGen() {
+  const p = $('v_gen').value.trim(); if (!p) { $('v_out').textContent = '请先在「用文生图底图」填 prompt'; return; }
+  try {
+    const g = await admApi('/api/creative-auto/generate-image', { prompt: p });
+    const d = await g.json();
+    if (!d.ok) { $('v_out').textContent = '文生图失败: ' + JSON.stringify(d); return; }
+    await _runVideo(d.url);
+  } catch (e) { $('v_out').textContent = 'ERR ' + e.message; }
+}
+async function _runVideo(imagesCsv) {
+  const out = $('v_out'); out.textContent = '请求中…';
+  try {
+    const j = await api('/api/creative-auto/video', { images: String(imagesCsv).split(',').map(s=>s.trim()).filter(Boolean), width: +$('v_w').value||720, height: +$('v_h').value||1280, sceneMs: +$('v_ms').value||3000, cta: J($('v_cta').value, {}) });
+    out.textContent = JSON.stringify(j, null, 2);
+  } catch (e) { out.textContent = 'ERR ' + e.message; }
+}
+async function runDco() {
+  const out = $('d_out'); out.textContent = '请求中…';
+  try {
+    const j = await api('/api/creative-auto/dco', { template: $('d_tpl').value, item: J($('d_item').value, {}), ctx: J($('d_ctx').value, {}), stats: J($('d_stats').value, []) });
+    out.textContent = JSON.stringify(j, null, 2);
+  } catch (e) { out.textContent = 'ERR ' + e.message; }
+}
+async function runI18n() {
+  const out = $('i_out'); out.textContent = '请求中…';
+  try {
+    const j = await api('/api/creative-auto/i18n', { action: 'translate', copy: J($('i_copy').value, {}), locales: $('i_loc').value.split(',').map(s=>s.trim()).filter(Boolean) });
+    out.textContent = JSON.stringify(j, null, 2);
+  } catch (e) { out.textContent = 'ERR ' + e.message; }
+}
+
+// ── 生成模型配置 ──
+async function loadGenCfg() {
+  try { const d = await (await admApi('/api/creative-auto/gen-config')).json();
+    gc_provider.value=d.provider||'openai'; gc_base.value=d.base_url||''; gc_key.value=d.api_key||''; gc_model.value=d.model||''; gc_video.value=d.video_endpoint||'';
+    gc_msg.textContent = '已读取（来源='+(d.source||'?')+'，已配密钥='+(d.hasKey?'是':'否')+(d.ok?'，可用':'，未配置 base_url')+'）';
+  } catch(e){ gc_msg.textContent='ERR '+e.message; }
+}
+async function saveGenCfg() {
+  try { const d = await (await admApi('/api/creative-auto/gen-config', { provider:gc_provider.value, base_url:gc_base.value, api_key:gc_key.value, model:gc_model.value, video_endpoint:gc_video.value })).json();
+    gc_msg.textContent = '已保存: '+JSON.stringify(d); } catch(e){ gc_msg.textContent='ERR '+e.message; }
+}
+
+// ── 文生图 ──
+let lastImgUrl='';
+async function runT2I() {
+  const p = t2i_prompt.value.trim(); if(!p){ t2i_msg.textContent='请填 prompt'; return; }
+  t2i_msg.textContent='生成中…';
+  try {
+    const r = await admApi('/api/creative-auto/generate-image', { prompt:p });
+    const d = await r.json();
+    if(!d.ok){ t2i_msg.textContent='失败 '+JSON.stringify(d); return; }
+    lastImgUrl=d.url; t2i_img.src=d.url; t2i_img.style.display='block'; t2i_libbtn.style.display='inline-block';
+    t2i_msg.textContent='生成成功（'+d.source+'）: '+d.url;
+  } catch(e){ t2i_msg.textContent='ERR '+e.message; }
+}
+async function saveT2ILib() {
+  if(!lastImgUrl) return;
+  try {
+    const d = await (await admApi('/api/creatives', { campaign_id:+$('lib_cid').value||1, advertiser:$('lib_adv').value, format:'banner', type:'image', title:t2i_prompt.value.slice(0,40), content:'<img src="'+lastImgUrl+'" style="max-width:100%">', media_url:lastImgUrl, landing_url:$('lib_land').value })).json();
+    t2i_msg.textContent='已入素材库: '+JSON.stringify(d);
+  } catch(e){ t2i_msg.textContent='ERR '+e.message; }
+}
+
+// ── 绑定计划 + 一键入库（打通 创意自动化 → 素材库 → bidder 下发）──
+function lastContent() {
+  const j = window.lastCreative; if (!j) return '';
+  if (typeof j === 'string') return j;
+  if (j.playable) return j.playable;
+  if (j.html) return j.html;
+  return JSON.stringify(j, null, 2);
+}
+async function createDemoCampaign() {
+  const msg = $('lib_msg'); msg.textContent = '创建中…';
+  try {
+    const r = await admApi('/api/campaign', { method:'POST', body: { name: '创意自动化Demo', advertiser: 'AutoGen', budget_cny: 5000, country: 'CN', app_category: 'gaming', creative_html: '<div>占位创意</div>', landing_url: $('lib_land').value, target_cpm_cny: 25, intent_tags: 'gaming' } });
+    const d = await r.json();
+    if (!d.ok) { msg.textContent = '创建失败: ' + JSON.stringify(d); return; }
+    await admApi('/api/campaign/' + d.id + '/approve', { method:'PUT' });
+    $('lib_cid').value = d.id;
+    msg.textContent = '已创建并审核通过 campaign #' + d.id + '（CPM 25，高于默认 109 将优先胜出）；现在去生成创意并「存入素材库」。';
+  } catch (e) { msg.textContent = 'ERR ' + e.message; }
+}
+async function saveFromLast() {
+  const msg = $('save_msg');
+  const cid = +$('lib_cid').value;
+  if (!cid) { msg.textContent = '请先创建或填写 campaign_id'; return; }
+  if (!window.lastCreative) { msg.textContent = '请先点上方任一「生成」得到结果'; return; }
+  const body = { campaign_id: cid, advertiser: $('lib_adv').value, format: $('save_fmt').value, type: $('save_type').value, title: $('save_title').value, content: lastContent(), landing_url: $('lib_land').value, status: 'active' };
+  try {
+    const r = await admApi('/api/creatives', body);
+    const d = await r.json();
+    msg.textContent = d.ok ? ('已存入素材库 id=' + d.id + ' · 到 /media-demo.html 请求「' + body.format + '」形态即可看到此创意被下发') : ('失败 ' + JSON.stringify(d));
+  } catch (e) { msg.textContent = 'ERR ' + e.message; }
+}
+loadGenCfg();
+</script>
+<script src="/console_top.js"></script>
+</body></html>

@@ -27,6 +27,7 @@
 </style>
 </head>
 <body>
+<div id="ctop"></div>
 <header>
   <div>
     <h1>ADX 控制台</h1>
@@ -53,8 +54,27 @@
   <div id="rwBox" class="muted">加载中…</div>
 </div>
 
+<div class="box">
+  <h3>账号管理（租户开通 · 给客户/演示用）</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <select id="accType" style="padding:5px;border-radius:6px;background:#0b1220;color:#e5e7eb;border:1px solid #374151">
+      <option value="advertiser">广告主</option>
+      <option value="publisher">媒体</option>
+      <option value="admin">子管理员</option>
+    </select>
+    <input id="accUser" placeholder="用户名" style="width:140px">
+    <input id="accPass" placeholder="密码(≥6位)" style="width:140px">
+    <input id="accScope" placeholder="作用域(广告主名/域名)" style="width:200px">
+    <input id="accDisp" placeholder="显示名(可选)" style="width:140px">
+    <button onclick="registerAccount()">开通账号</button>
+  </div>
+  <p class="muted" style="font-size:12px">广告主 scope=广告主名称（与建计划时填的 advertiser 一致）；媒体 scope=媒体域名（与入驻 domain 一致）；管理员 scope=*。账号密码用于对应角色后台登录，互不通用。</p>
+  <table id="accTable"><thead><tr><th>ID</th><th>角色</th><th>用户名</th><th>作用域</th><th>显示名</th><th>状态</th><th>创建者</th></tr></thead><tbody></tbody></table>
+</div>
+
+<script src="/admin.js"></script>
 <script>
-  var BASE = location.origin;
+var BASE = location.origin;
   function yuan(micros) { return (Number(micros || 0) / 1e6).toFixed(2); }
   function kpi(lab, val) { return '<div class="kpi"><div class="lab">' + lab + '</div><div class="val">' + val + '</div></div>'; }
 
@@ -104,8 +124,34 @@
     });
   }
 
+  function registerAccount() {
+    var type = document.getElementById('accType').value;
+    var username = document.getElementById('accUser').value.trim();
+    var password = document.getElementById('accPass').value;
+    var scope = document.getElementById('accScope').value.trim();
+    var display = document.getElementById('accDisp').value.trim();
+    if (!username || !password) return alert('用户名和密码必填');
+    fetch(BASE + '/api/account/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: type, username: username, password: password, scope: scope, display: display })
+    }).then(r => r.json()).then(function (d) {
+      if (d.ok) { alert('已开通：' + username + '（' + type + ' / ' + (scope || '*') + '）'); loadAccounts(); }
+      else alert('开通失败：' + (d.error || 'unknown'));
+    }).catch(function (e) { alert('请求失败：' + e.message); });
+  }
+  function loadAccounts() {
+    fetch(BASE + '/api/accounts').then(r => r.json()).then(function (list) {
+      var tb = document.querySelector('#accTable tbody');
+      tb.innerHTML = (list || []).map(function (a) {
+        return '<tr><td>' + a.id + '</td><td>' + a.type + '</td><td>' + a.username + '</td><td>' + (a.scope || '*') +
+          '</td><td>' + (a.display || '-') + '</td><td><span class="tag' + (a.status == 1 ? '' : ' off') + '">' + (a.status == 1 ? '启用' : '停用') + '</span></td><td>' + (a.created_by || '-') + '</td></tr>';
+      }).join('');
+    }).catch(function () {});
+  }
+
   load();
+  loadAccounts();
   setInterval(load, 5000);
 </script>
+<script src="/console_top.js"></script>
 </body>
 </html>

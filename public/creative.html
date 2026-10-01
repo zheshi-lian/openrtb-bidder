@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>素材管理 · Creative Management</title>
+<style>
+  :root{--bg:#0b1020;--card:#141b2e;--line:#26304a;--accent:#3b82f6;--ok:#22c55e;--bad:#ef4444;--txt:#e5e9f2;--muted:#8a93a6}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 'Microsoft YaHei',system-ui,sans-serif}
+  header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  header b{font-size:15px} a.nav{color:#7fd1ff;text-decoration:none;font-size:13px;padding:4px 8px;border:1px solid var(--line);border-radius:6px}
+  .wrap{padding:18px 22px;max-width:1100px;margin:0 auto}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  h3{margin:0 0 10px;font-size:14px}
+  .sub{font-size:12px;color:var(--muted);margin:-4px 0 10px}
+  label{font-size:12px;color:var(--muted);display:block;margin:6px 0 2px}
+  input,select,textarea{width:100%;background:#0a0f1d;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font-size:13px}
+  textarea{min-height:70px;font-family:ui-monospace,Consolas,monospace}
+  .row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px;margin-top:10px}
+  button.ghost{background:#1f2942;color:var(--txt)} button.ok{background:var(--ok)} button.bad{background:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px} th,td{border:1px solid var(--line);padding:6px 8px;text-align:left}
+  th{background:#101830;color:var(--muted)} .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#15203a;color:#7fd1ff}
+  .hint{font-size:12px;color:var(--muted)} .next{margin-top:6px;font-size:12px} .next a{color:#7fd1ff}
+  img.prev{max-width:200px;border:1px solid var(--line);border-radius:8px;margin-top:8px}
+</style></head>
+<body>
+<div id="ctop"></div>
+<header><b>素材管理</b><span class="hint">真实客户落地链路：开户 → 建计划 → <b>上传/生成素材</b> → 创意自动化 → 参拍下发 → 媒体演示查看</span></header>
+<div class="wrap">
+
+  <div class="panel">
+    <h3>① 新增 / 编辑创意（手填 HTML / VAST / JSON）</h3>
+    <div class="row">
+      <div><label>关联计划 campaign_id</label><input id="campaign_id" type="number" value="1"></div>
+      <div><label>广告主</label><input id="advertiser" value="GameCo"></div>
+      <div><label>形态 format</label><select id="format">
+        <option>banner</option><option>rewarded</option><option>interstitial</option><option>splash</option><option>native</option><option>icon</option><option>push</option><option>any</option></select></div>
+      <div><label>类型 type</label><select id="type">
+        <option value="html">html</option><option value="vast">vast(VAST XML)</option><option value="native">native(JSON)</option><option value="image">image(图片URL)</option><option value="push">push(JSON)</option></select></div>
+    </div>
+    <label>标题 title</label><input id="title" value="示例创意">
+    <label>内容 content（html 片段 / VAST XML / native JSON / push JSON）</label><textarea id="content"><div style="padding:12px;background:#4F8EF7;color:#fff;border-radius:8px">示例广告 · 立即体验</div></textarea>
+    <div class="row">
+      <div><label>媒体 URL（视频/图片）</label><input id="media_url" placeholder="https://.../a.mp4（也可先「③上传」自动填入）"></div>
+      <div><label>落地页 landing_url</label><input id="landing_url" value="https://example.com"></div>
+      <div><label>宽 width</label><input id="width" type="number" value="0"></div>
+      <div><label>高 height</label><input id="height" type="number" value="0"></div>
+    </div>
+    <button id="saveBtn" onclick="save()">保存创意</button>
+    <button class="ghost" onclick="seedSamples()">一键填充 6 形态示例素材（campaign 1，让演示页亮起来）</button>
+    <span class="hint" id="msg"></span>
+  </div>
+
+  <div class="panel">
+    <h3>② 上传真实素材文件（图片 / 视频 → 直接入库可被下发）</h3>
+    <div class="sub">真实客户手里的 jpg/png/mp4 直接传，服务端落 public/uploads 并返回可访问 URL，自动建一条素材。</div>
+    <div class="row">
+      <div><label>文件</label><input id="up_file" type="file"></div>
+      <div><label>归属 campaign_id</label><input id="up_cid" type="number" value="1"></div>
+      <div><label>广告主</label><input id="up_adv" value="GameCo"></div>
+      <div><label>落地页</label><input id="up_land" value="https://example.com"></div>
+    </div>
+    <button onclick="uploadFile()">上传并入素材库</button>
+    <span class="hint" id="up_msg"></span>
+  </div>
+
+  <div class="panel">
+    <h3>③ 生成模型配置（文生图 / 图生视频真实 API）</h3>
+    <div class="sub">填一次即可让「文生图」「静图转视频」调用真实模型；也可设环境变量 GEN_BASE_URL / GEN_API_KEY / GEN_MODEL / GEN_VIDEO_ENDPOINT。</div>
+    <div class="row">
+      <div><label>provider</label><input id="gc_provider" value="openai"></div>
+      <div><label>base_url（到 /v1）</label><input id="gc_base" placeholder="https://api.openai.com/v1"></div>
+      <div><label>api_key</label><input id="gc_key" type="password" placeholder="sk-..."></div>
+      <div><label>model</label><input id="gc_model" value="gpt-image-1"></div>
+    </div>
+    <label>图生视频 endpoint（可选；留空则「静图转视频」用 ffmpeg 分镜兜底）</label><input id="gc_video" placeholder="https://your-video-api/...">
+    <div class="row" style="margin-top:8px">
+      <button onclick="saveGenCfg()">保存配置</button>
+      <button class="ghost" onclick="loadGenCfg()">读取当前配置</button>
+      <span class="hint" id="gc_msg" style="grid-column:span 2"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>④ 文生图（真实模型，产出后直接入素材库）</h3>
+    <label>prompt</label><input id="t2i_prompt" placeholder="一只赛博朋克风格的猫，游戏宣传图">
+    <div class="row" style="margin-top:8px">
+      <button onclick="runT2I()">生成图片</button>
+      <button class="ghost" onclick="saveT2ILib()" id="t2i_libbtn" style="display:none">存入素材库</button>
+      <span class="hint" id="t2i_msg" style="grid-column:span 2"></span>
+    </div>
+    <img id="t2i_img" class="prev" style="display:none">
+  </div>
+
+  <div class="panel">
+    <h3>⑤ 素材库（按 campaign 过滤可留空看全部）</h3>
+    <input id="filterCid" type="number" placeholder="输入 campaign_id 过滤" style="max-width:220px" oninput="load()">
+    <table id="tbl"><thead><tr><th>id</th><th>campaign</th><th>广告主</th><th>format</th><th>type</th><th>title</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+    <div class="next">下一步：去 <a href="/creative-auto.html" target="_blank">创意自动化</a> 组装可玩/视频，或去 <a href="/media-demo.html" target="_blank">平台演示</a> 看真实下发。</div>
+  </div>
+</div>
+
+<script src="/admin.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+async function save(){
+  const body = { campaign_id:+campaign_id.value||0, advertiser:advertiser.value, format:format.value, type:type.value,
+    title:title.value, content:content.value, media_url:media_url.value, landing_url:landing_url.value, width:+width.value||0, height:+height.value||0 };
+  try { const r = await admApi('/api/creatives', body); const d = await r.json(); msg.textContent = '保存: '+JSON.stringify(d); load(); }
+  catch(e){ msg.textContent = 'ERR '+e.message; }
+}
+async function seedSamples(){
+  const samples = [
+    {format:'interstitial',type:'html',title:'插屏示例',content:'<div style="padding:20px;background:#2563eb;color:#fff;border-radius:12px">插屏广告 · 全屏可关</div>'},
+    {format:'splash',type:'html',title:'开屏示例',content:'<div style="padding:40px;background:#0f172a;color:#fff;text-align:center">开屏广告</div>'},
+    {format:'native',type:'native',title:'原生示例',content:JSON.stringify({title:'原生标题',body:'原生描述',cta:'立即下载'})},
+    {format:'icon',type:'html',title:'Icon示例',content:'<div style="width:120px;text-align:center">ICON 广告</div>'},
+    {format:'push',type:'push',title:'推送示例',content:JSON.stringify({title:'推送标题',body:'推送正文'})},
+    {format:'banner',type:'html',title:'Banner示例',content:'<div style="padding:8px;background:#e67e22;color:#fff">Banner 广告</div>'}
+  ];
+  for(const s of samples){ await admApi('/api/creatives', {campaign_id:1,advertiser:'GameCo',...s,landing_url:'https://example.com'}); }
+  msg.textContent='已填充 6 形态示例素材'; load();
+}
+async function load(){
+  const cid = filterCid.value.trim();
+  const url = cid ? ('/api/creatives?campaign_id='+cid) : '/api/creatives';
+  try { const rows = await (await admApi(url)).json(); const tb = document.querySelector('#tbl tbody'); tb.innerHTML='';
+    rows.forEach(c=>{ const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${c.id}</td><td>${c.campaign_id}</td><td>${c.advertiser}</td><td><span class="tag">${c.format}</span></td><td>${c.type}</td><td>${c.title}</td><td>${c.status}</td>
+        <td><button class="ghost" onclick="fill(${c.id})">编辑</button> <button class="bad" onclick="del(${c.id})">删</button></td>`;
+      tb.appendChild(tr); });
+  } catch(e){ /* 401 等已由 admApi 提示 */ }
+}
+async function fill(id){
+  const c = (await (await admApi('/api/creatives')).json()).find(x=>x.id===id); if(!c) return;
+  campaign_id.value=c.campaign_id; advertiser.value=c.advertiser; format.value=c.format; type.value=c.type;
+  title.value=c.title; content.value=c.content||''; media_url.value=c.media_url||''; landing_url.value=c.landing_url||''; width.value=c.width; height.value=c.height;
+  saveBtn.textContent='更新创意 #'+id; saveBtn.onclick=()=>update(id);
+}
+async function update(id){
+  const body={campaign_id:+campaign_id.value||0,advertiser:advertiser.value,format:format.value,type:type.value,title:title.value,content:content.value,media_url:media_url.value,landing_url:landing_url.value,width:+width.value||0,height:+height.value||0,status:'active'};
+  const r=await admApi('/api/creatives/'+id,{method:'PUT',body}); msg.textContent='更新: '+JSON.stringify(await r.json()); saveBtn.textContent='保存创意'; saveBtn.onclick=save; load();
+}
+async function del(id){ await admApi('/api/creatives/'+id,{method:'DELETE'}); load(); }
+
+// ── 上传真实素材 ──
+async function uploadFile(){
+  const f = up_file.files[0]; if(!f){ up_msg.textContent='请选择文件'; return; }
+  const buf = await f.arrayBuffer(); const b64 = Buffer.from(buf).toString('base64');
+  try {
+    const r = await admApi('/api/creatives/upload', { data:b64, name:f.name, mime:f.type });
+    const d = await r.json(); if(!d.ok){ up_msg.textContent='上传失败 '+JSON.stringify(d); return; }
+    const isVideo = (f.type||'').startsWith('video');
+    await admApi('/api/creatives', { campaign_id:+up_cid.value||1, advertiser:up_adv.value,
+      format: isVideo?'rewarded':'banner', type: isVideo?'vast':'image', title:f.name,
+      content: isVideo?('<VAST/>'):('<img src="'+d.url+'" style="max-width:100%">'), media_url:d.url, landing_url:up_land.value });
+    up_msg.textContent='已上传 '+d.url+' 并入素材库'; load();
+  } catch(e){ up_msg.textContent='ERR '+e.message; }
+}
+
+// ── 生成模型配置 ──
+async function loadGenCfg(){
+  try { const d = await (await admApi('/api/creative-auto/gen-config')).json();
+    gc_provider.value=d.provider||'openai'; gc_base.value=d.base_url||''; gc_key.value=d.api_key||''; gc_model.value=d.model||''; gc_video.value=d.video_endpoint||'';
+    gc_msg.textContent = '已读取（来源='+(d.source||'?')+'，已配密钥='+(d.hasKey?'是':'否')+(d.ok?'，可用':'，未配置 base_url')+'）';
+  } catch(e){ gc_msg.textContent='ERR '+e.message; }
+}
+async function saveGenCfg(){
+  try { const d = await (await admApi('/api/creative-auto/gen-config', { provider:gc_provider.value, base_url:gc_base.value, api_key:gc_key.value, model:gc_model.value, video_endpoint:gc_video.value })).json();
+    gc_msg.textContent = '已保存: '+JSON.stringify(d); } catch(e){ gc_msg.textContent='ERR '+e.message; }
+}
+
+// ── 文生图 ──
+let lastImgUrl='';
+async function runT2I(){
+  const p = t2i_prompt.value.trim(); if(!p){ t2i_msg.textContent='请填 prompt'; return; }
+  t2i_msg.textContent='生成中…';
+  try {
+    const r = await admApi('/api/creative-auto/generate-image', { prompt:p });
+    const d = await r.json();
+    if(!d.ok){ t2i_msg.textContent='失败 '+JSON.stringify(d); return; }
+    lastImgUrl = d.url; t2i_img.src=d.url; t2i_img.style.display='block'; t2i_libbtn.style.display='inline-block';
+    t2i_msg.textContent='生成成功（'+d.source+'）: '+d.url;
+  } catch(e){ t2i_msg.textContent='ERR '+e.message; }
+}
+async function saveT2ILib(){
+  if(!lastImgUrl) return;
+  try { const d = await (await admApi('/api/creatives', { campaign_id:+filterCid.value||1, advertiser:advertiser.value, format:'banner', type:'image', title:t2i_prompt.value.slice(0,40), content:'<img src="'+lastImgUrl+'" style="max-width:100%">', media_url:lastImgUrl, landing_url:landing_url.value })).json();
+    t2i_msg.textContent='已入素材库: '+JSON.stringify(d); load(); } catch(e){ t2i_msg.textContent='ERR '+e.message; }
+}
+load(); loadGenCfg();
+</script>
+<script src="/console_top.js"></script>
+</body></html>

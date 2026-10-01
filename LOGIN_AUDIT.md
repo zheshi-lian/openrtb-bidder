@@ -117,3 +117,52 @@ nav.js「媒体入驻」/home.html STEP01 → /register.html#publisher → POST 
 | `openrtb-bidder/public/admin.js` | 双存储读取；登出同步清 cookie；`Auth.*` 统一走 `get()` |
 | `openrtb-bidder/public/register.html` | 展示两侧开户返回的登录凭据 |
 | `openrtb-bidder/public/nav.js` | 登录态指示；管理员分组文案更新 |
+## 8. 身份与导航的边界（第一性原理重构）
+
+### 用户反馈的问题
+「页面上多了用户名密码、已登录、登出等字，很奇怪——正常情况这些不会出现在左上角。」
+
+**根因**：旧 `nav.js` 是**全站唯一顶部导航**，17 个页面全量引用；而登录态指示（`(账号) · 登出`）被追加在它上面，于是**营销页也显示登录身份**。更糟的是它读的是 `auth_token`/`auth_user` 遗留键，而 `admin.js` 实际用的是 `adx_admin`——**键名都不一致**，导致显示残留的假登录态。
+
+### 结论：不需要学 AppLovin 拆成 3 个平台
+
+AppLovin/Unity 拆成 3 个独立门户（Advertiser Console / Publisher / Partner Ops）解决的是**企业级合规问题**：客户品牌隔离、独立 SLA、独立安全审计、独立部署运维。MVP 阶段拆 3 站只会让联调成本 ×3、收益为零。
+
+**真正的分界不是站点数，而是三条职责边界：**
+
+| 边界 | 是什么 | 显示身份吗 | 谁负责 |
+|---|---|---|---|
+| **公共站**（marketing） | 能力/产品/SDK/生态/文档/开户 | **绝不显示** | `nav.js`（GROUPS 下拉） |
+| **控制台**（console） | 角色专属后台壳 | **显示**（账号+作用域+登出） | `console_top.js` |
+| **权限闸门**（backend） | 接口级访问控制 | 不适用 | `server.js` 的 `requireAuth(...)` |
+
+**关键原则：前端隐藏 ≠ 权限。** 前端只负责导航收敛与身份可见性；真闸门在后端中间件 + scope 令牌。
+
+### 本轮改动
+| 改动 | 说明 |
+|---|---|
+| `nav.js` 移除登录态 chip | 公共站只显示「注册 / 登录」；已登录只显示「进入我的后台」链接。**不显示账号名，不提供登出** |
+| `nav.js` 停读遗留键 | 只认 `adx_admin`，不再读 `auth_token`/`auth_user`/`auth_role` |
+| 新增 `console_top.js` | 控制台专属顶栏：角色徽标 + 账号 + 作用域 + 该角色功能 tab + 登出 |
+| 8 个控制台页换壳 | `console/dashboard/reports/creative/creative-auto/advertiser/publisher/publisher_report` 移除 `nav.js`，改用 `console_top.js` |
+| 6 个营销页保留 `nav.js` | `home/index/docs/pricing/dsp/ecpm_demo/media-demo/register` |
+
+### 角色 → 控制台映射
+| 角色 | 控制台页 | 专属 tab |
+|---|---|---|
+| 管理员 | `console.html` | 控制台 / 实时大盘 / 报表 / 素材 |
+| 广告主 | `advertiser.html` | 我的计划 |
+| 媒体 | `publisher_report.html` | 收益报表 / 入驻·广告位 |
+
+### 验证
+```
+nav.js      : 旧变量 rle=False, javascript:void=False, 只有「进入我的后台」入口
+console 页×8: ctop=True, console_top.js=True, nav.js=False
+营销页×6    : nav.js=True, ctop=False, console_top.js=False
+login.html  : 独立登录卡，两者都不含
+```
+
+### 残留
+- `AUTH_TITLE` 变量在 `admin.js` 与 `advertiser.html`/`publisher.html` 中仍被引用（401 提示文案），无害保留。
+- 控制台顶栏未做「角色 tab 分组下拉」，当前 tab 数量少，直接平铺更清楚。
+
