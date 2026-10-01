@@ -35,7 +35,8 @@ app.use(security.secureCors);
 // 注意：必须早于业务路由注册，否则会先命中 handler 而绕过鉴权
 const ADMIN_PREFIXES = [
   '/report', '/ssp/report', '/api/report', '/api/reports', '/api/attribution',
-  '/api/creative',
+  // 注意：/api/creatives(素材库) 由其路由自身用 requireAuth('admin','advertiser') 保护，
+  // 不放进管理员前缀——否则前缀 requireAdmin 会先于路由执行、把广告主自己挡在素材库外。
   '/api/dsp', '/api/demand-partners', '/api/console', '/api/ecpm',
   '/api/reward/log', '/metrics',
   // 新增能力面：经营与身份数据一律不得匿名访问
@@ -198,11 +199,14 @@ security.attachAudit(async (req, action, target, detail) => {
 });
 
 // 需求方(DSP)注册表：可经 /ssp/demand 动态添加外部 DSP
-// 本链路只保留「自有」需求方(zhuque-dsp)，让广告位仅填充自有 软考 campaign，
-// 不走快手磁力引擎 / 外部 DSP（避免第三方 banner 污染自有数据闭环）。
-// 如需演示外部需求，可经 /ssp/demand 临时挂载，验证完再移除。
+// 保留「自有」需求方 zhuque-dsp + 两个外部演示需求方，
+// 竞价引擎（二价/eCPM'/意图匹配/deadline）原样保留，供演示多需求方拍卖。
+// 注：快手磁力引擎(kuaishou-dsp)已从公开投放链路移除——其模拟创意不应出现在对外落地页；
+//     如需在管理台单独演示磁力引擎买量，可经 /api/demand/kuaishou/* 调用，不影响公开页面。
 let DEMAND_PARTNERS = [
-  { name: 'zhuque-dsp', type: 'http', url: `http://127.0.0.1:${PORT}/openrtb2/bid`, payoutRate: 0.70, isOwn: true }
+  { name: 'zhuque-dsp', type: 'http', url: `http://127.0.0.1:${PORT}/openrtb2/bid`, payoutRate: 0.70, isOwn: true },
+  { name: 'external-dsp-A', type: 'mock', priceMicros: 4000000, payoutRate: 0.65, isOwn: false, adm: '<div style="padding:10px;background:#e67e22;color:#fff">外部DSP-A 演示广告</div>', crid: 'ext-a' },
+  { name: 'external-dsp-B', type: 'mock', priceMicros: 4500000, payoutRate: 0.60, isOwn: false, adm: '<div style="padding:10px;background:#27ae60;color:#fff">外部DSP-B 演示广告</div>', crid: 'ext-b' }
 ];
 
 // SSP 账本（内存；生产落 ssp_pub_ledger）
@@ -948,7 +952,10 @@ app.post('/ssp/bid', async (req, res) => {
     return res.json({ id: br.id, seatbid: [], nbr: 3 });   // nbr=3 无效请求（未通过审核/政策）
   }
   // 竞价总 deadline：到点即返回已到达的出价，p99 不再被最慢的 partner 决定
-  const responses = await bidEng.deadlineAll(DEMAND_PARTNERS.map(async (p) => {
+  // 库存范围开关：公开落地页广告位带 ownOnly 时，只让「自有」需求方参与，
+  // 外部/Kuaishou 演示创意不进公开页面；管理台/演示页走完整多需求方竞价（竞价引擎逻辑不变）。
+  const partners = (imp.ext && imp.ext.ownOnly) ? DEMAND_PARTNERS.filter(p => p.isOwn) : DEMAND_PARTNERS;
+  const responses = await bidEng.deadlineAll(partners.map(async (p) => {
     if (p.type === 'mock') {
       const imp = (br.imp && br.imp[0]) || {};
       return { seatbid: [{ seat: p.name, bid: [{ id: 'b-mock', impid: imp.id, price: p.priceMicros, adm: p.adm, crid: p.crid, cid: 0, ext: { cid: 0 } }] }] };
@@ -968,7 +975,7 @@ app.post('/ssp/bid', async (req, res) => {
   const allBids = [];
   responses.forEach((resp, idx) => {
     if (!resp) return;
-    const partner = DEMAND_PARTNERS[idx];
+    const partner = partners[idx];
     (resp.seatbid || []).forEach(seat => (seat.bid || []).forEach(bid => allBids.push({ partner, seat, bid, micros: bid.price || 0 })));
   });
   // P1 统一竞价增强：聚合外部 SSP（类 AppLovin MAX 的"中介聚合多供给"）；SUPPLY_PARTNERS 默认空则不生效
@@ -1777,40 +1784,16 @@ app.get('/api/demo/report', async (_, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 需求侧自助开户（register.html）：建"待审"计划，预算 0、未过审不产生任何扣费；运营审核+充值后才可参拍
-app.post('/api/public/advertiser-open', async (req, res) => {
-  const b = req.body || {};
-  const email = String(b.email || '').trim();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: '请填写有效邮箱' });
-  // 修掉原缺陷（需求方漏斗断点）：本端点原先只建 adv_campaign 行、不建登录账号，
-  //   而 home.html STEP02 与 nav.js「自助开户」都指向这里 → 需求方提交后拿不到账号，
-  //   无法登录查看审核状态，闭环断裂。现同步开通 advertiser 账号（作用域=邮箱），并把凭据随响应返回。
-  const username = String(b.username || '').trim() || email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').slice(0, 40) || ('adv-' + Date.now().toString(36));
-  const userPass = String(b.password || '').trim();
-  const genPass = userPass ? null : ('adv_' + crypto.randomBytes(6).toString('hex'));
-  try {
-    const [r] = await pool.query(
-      `INSERT INTO adv_campaign
-         (name, advertiser, app_category, creative_html, landing_url, target_cpm_micros, status, review_status, budget_micros)
-       VALUES (?, ?, ?, '', ?, ?, 1, 'pending', 0)`,
-      [String(b.name || '').trim() || ('advertiser-' + email), email, String(b.cat || '').trim(),
-       String(b.landing || '').trim() || 'https://example.com', Math.round((Number(b.targetCpm) || 6) * 1e6)]
-    );
-    let account = null, acctNote = '';
-    try {
-      const [dup] = await pool.query('SELECT id FROM accounts WHERE username=?', [username]);
-      if (!dup || !dup.length) {
-        await pool.query('INSERT INTO accounts (type,username,pass_hash,scope,display,created_by) VALUES (?,?,?,?,?,?)',
-          ['advertiser', username, security.hashPwd(genPass || userPass), email, String(b.name || '').trim() || username, 'self-signup']);
-        account = { username, password: genPass || undefined, scope: email, campaign_id: r.insertId };
-        acctNote = '；已同步开通登录账号（用户名=邮箱前缀，密码见 account.password），登录后即可查看本计划审核状态';
-      } else {
-        acctNote = '；登录用户名 ' + username + ' 已被占用，请改用「广告主自助开户」页创建你的登录账号';
-      }
-    } catch (e) {}
-    res.json({ ok: true, campaign_id: r.insertId, status: 'pending_review', account,
-      msg: '已提交开户申请（预算当前 0，未产生任何扣费）。运营审核通过并充值后即可参拍' + acctNote + '。' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+// 需求侧开户已统一到 /api/signup/advertiser（唯一实现）。
+// 原 /api/public/advertiser-open 是第二套开户实现：账号作用域取「邮箱」而非「广告主名称」，
+//   与 advertiser_signup.html / 广告主控制台的口径不一致（同一主体两个 scope，数据互相看不见）。
+//   按「一个角色=一个开户接口=一个作用域口径」收敛后，此处仅保留明确提示，不再重复建账号。
+app.post('/api/public/advertiser-open', (req, res) => {
+  res.status(410).json({
+    error: '该开户入口已下线',
+    hint: '请改用统一开户接口 POST /api/signup/advertiser（字段：username/password/advertiser/display，作用域=广告主名称）',
+    ui: '/register.html#advertiser'
+  });
 });
 
 // 软考留资闭环（landing/ruankao/index.html 提交邮箱/微信时回传）：免登录、纯联系方式，无敏感数据
@@ -2261,7 +2244,7 @@ app.post('/api/creative-auto/generate-video', async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 // 真实素材文件上传（base64 → public/uploads → 可入库下发）
-app.post('/api/creatives/upload', async (req, res) => {
+app.post('/api/creatives/upload', security.requireAuth('admin', 'advertiser'), async (req, res) => {
   try {
     const { data, name, mime } = req.body || {};
     if (!data) return res.status(400).json({ error: 'data(base64) required' });
@@ -2290,11 +2273,8 @@ app.get('/metrics/slo', (_, res) => res.json({
   dsp_latency: metrics.slo('dsp_latency', Number(process.env.DSP_P99_TARGET_MS || 50)),
 }));
 
+app.use('/landing', express.static('landing'));   // 平台自托管落地页：广告主 landing_url 可指向 /landing/<项目>/，不再依赖外部托管
 app.use(express.static('public'));
-// 落地页由平台自己托管（素材库/落地页管理的前身）：把 marketing-agent/landing 挂到 /lp
-// 这样落地页与竞价/留资同域同源，编辑即时生效、闭环完全在平台内，不再依赖 GitHub Pages 推送。
-// 例：https://calendar.dellai.xyz/lp/ruankao/index.html  （pub_sdk.js 经 ../pub_sdk.js 同目录加载）
-app.use('/lp', express.static(path.join(__dirname, '..', 'marketing-agent', 'landing')));
 init().then(() => {
   const srv = app.listen(PORT, () =>
   console.log(`[platform v2] http://0.0.0.0:${PORT} | SSP /ssp/bid | DSP /openrtb2/bid | 控制台 /advertiser.html | 媒体报表 /publisher_report.html | 意图 /api/intent-match

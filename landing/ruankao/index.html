@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2026 软考资料包 · 免费领取</title>
+<meta name="description" content="系统分析师/架构师/项目管理/网络工程师 历年真题与备考资料包，免费领取">
+<style>
+  :root{--bg:#060b18;--card:#0e1626;--line:#1c2942;--tx:#e6edf7;--dim:#8ea0bd;--a1:#3b82f6;--a2:#22d3ee;--ok:#34d399;--err:#f87171}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh}
+  .wrap{max-width:620px;margin:0 auto;padding:44px 20px 60px}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.14em;color:var(--a2);border:1px solid var(--line);border-radius:999px;padding:4px 12px;margin-bottom:18px}
+  h1{font-size:28px;line-height:1.35;font-weight:700;margin-bottom:10px}
+  h1 b{background:linear-gradient(92deg,var(--a1),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--dim);margin-bottom:26px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .card h2{font-size:14px;letter-spacing:.06em;color:var(--dim);margin-bottom:12px;font-weight:600}
+  .item{display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-bottom:1px dashed var(--line)}
+  .item:last-child{border-bottom:0}
+  .item .n{flex:0 0 22px;height:22px;border-radius:6px;background:linear-gradient(92deg,var(--a1),var(--a2));color:#04122a;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .item .t{flex:1}
+  .item .t b{font-weight:600;display:block}
+  .item .t span{font-size:12.5px;color:var(--dim)}
+  label{display:block;font-size:13px;color:var(--dim);margin-bottom:5px}
+  input{width:100%;background:#080e1c;border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--tx);font-size:15px;outline:none;transition:.15s}
+  input:focus{border-color:var(--a1);box-shadow:0 0 0 3px rgba(59,130,246,.16)}
+  .row{margin-bottom:13px}
+  .hint{font-size:12px;color:var(--dim);margin-top:4px}
+  button{width:100%;border:0;border-radius:10px;padding:13px;font-size:16px;font-weight:700;cursor:pointer;color:#04122a;background:linear-gradient(92deg,var(--a1),var(--a2));transition:.15s}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .msg{font-size:13px;min-height:18px;margin-top:9px}
+  .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .box{background:#080e1c;border:1px solid var(--line);border-radius:10px;padding:13px 14px;font-size:14px;line-height:1.9;word-break:break-all}
+  .box code{color:var(--a2);font-weight:700}
+  .done{display:none} .done.on{display:block}
+  .live{display:block} .live.off{display:none}
+  footer{text-align:center;color:#4d5c78;font-size:12px;margin-top:26px;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="tag">2026 软考 · 免费领取</span>
+  <h1>软考 <b>全科目备考资料包</b><br>历年真题 + 考点速记 + 冲刺模拟</h1>
+  <p class="sub">系统分析师 / 系统架构师 / 信息系统项目管理师 / 网络工程师。留下联系方式，即刻获取下载链接。</p>
+  <div class="card live" id="list">
+    <h2>资料包包含</h2>
+    <div class="item"><div class="n">1</div><div class="t"><b>历年真题 2019–2025</b><span>试卷 + 逐题详解 + 错题分类索引</span></div></div>
+    <div class="item"><div class="n">2</div><div class="t"><b>考点速记手册</b><span>按科目整理高频考点与公式，考前 7 天专用</span></div></div>
+    <div class="item"><div class="n">3</div><div class="t"><b>冲刺模拟卷 ×3</b><span>严格对齐最新大纲，含评分标准</span></div></div>
+    <div class="item"><div class="n">4</div><div class="t"><b>论文/案例模板库</b><span>20 套通用框架，可直接套用</span></div></div>
+  </div>
+  <div class="card live" id="formCard">
+    <h2>填写联系方式领取</h2>
+    <form id="f" autocomplete="off">
+      <div class="row"><label>姓名（选填）</label><input id="name" maxlength="20" placeholder="张同学"></div>
+      <div class="row"><label>手机号 或 微信号</label><input id="ct" maxlength="60" placeholder="138****0000 或微信号" required></div>
+      <button id="go" type="submit">领取资料包</button>
+      <div class="msg" id="msg"></div>
+      <p class="hint">仅用于发送资料包下载链接，不外传、不共享。</p>
+    </form>
+  </div>
+  <div class="card done" id="done">
+    <h2>✓ 已记录，请查收</h2>
+    <p class="sub" style="margin-bottom:14px" id="okMsg"></p>
+    <p class="hint" style="margin-bottom:7px">百度云网盘提取码（备用通道）：</p>
+    <div class="box">链接：<code>pan.baidu.com/s/1linkos2026</code><br>提取码：<code>RUANKAO</code></div>
+  </div>
+  <footer>本页面由 LinkOS ADX 平台自托管 · 留资数据仅存联系方式，不含身份证/银行卡等敏感信息<br>Powered by LinkOS ADX</footer>
+</div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var ch = q.get(' + "'ch'" + ') || ' + "'ruankao'" + ';
+  var src = q.get(' + "'src'" + ') || (document.referrer ? new URL(document.referrer).hostname : ' + "''" + ') || ' + "'direct'" + ';
+  var f = document.getElementById(' + "'f'" + '), go = document.getElementById(' + "'go'" + '), msg = document.getElementById(' + "'msg'" + ');
+  function say(t, c) { msg.textContent = t; msg.className = ' + "'msg ' + (c || ' + "''" + ')'; }
+  f.addEventListener(' + "'submit'" + ', function (e) {
+    e.preventDefault();
+    var ct = document.getElementById(' + "'ct'" + ').value.trim();
+    var nm = document.getElementById(' + "'name'" + ').value.trim();
+    if (!ct) { say(' + "'\u8bf7\u586b\u5199\u624b\u673a\u53f7\u6216\u5fae\u4fe1\u53f7'" + ', ' + "'err'" + '); return; }
+    if (ct.length > 60) { say(' + "'\u8054\u7cfb\u65b9\u5f0f\u8fc7\u957f\uff0c\u8bf7\u68c0\u67e5'" + ', ' + "'err'" + '); return; }
+    go.disabled = true; say(' + "'\u63d0\u4ea4\u4e2d\u2026'" + ');
+    fetch(' + "'/api/public/ruankao-lead'" + ', { method:' + "'POST'" + ', headers:{' + "'Content-Type'" + ':' + "'application/json'" + '}, body: JSON.stringify({ contact:(nm?nm+' + "' / '" + ':''' + ')+ct, channel:ch, source:src }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok:r.ok, j:j }; }); })
+      .then(function (o) {
+        if (o.ok && o.j.ok) { document.getElementById(' + "'okMsg'" + ').textContent = o.j.msg || ' + "'\u63d0\u4ea4\u6210\u529f'" + '; document.getElementById(' + "'formCard'" + ').classList.remove(' + "'live'" + '); document.getElementById(' + "'done'" + ').classList.add(' + "'on'" + '); window.scrollTo({ top: document.getElementById(' + "'done'" + ').offsetTop - 90, behavior:' + "'smooth'" + ' }); }
+        else { say((o.j && o.j.error) || ' + "'\u63d0\u4ea4\u5931\u8d25'" + ', ' + "'err'" + '); go.disabled = false; }
+      })
+      .catch(function () { say(' + "'\u7f51\u7edc\u5f02\u5e38'" + ', ' + "'err'" + '); go.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>
