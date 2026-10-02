@@ -24,6 +24,8 @@
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px}
   button.ghost{background:#1f2942;color:var(--txt)} button:disabled{opacity:.5;cursor:default}
+  a.btn-link{display:inline-block;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px;font-weight:700;text-decoration:none}
+  a.btn-link:hover{filter:brightness(1.1)}
   input{background:#0a0f1d;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font-size:12px;width:200px}
   label{font-size:12px;color:var(--muted)}
   code{background:#0a0f1d;padding:1px 5px;border-radius:4px;color:#9fd0ff;font-size:12px}
@@ -52,7 +54,8 @@
       <label>平台地址</label><input id="platform" placeholder="默认=当前域名" value="">
       <label>媒体服务端</label><input id="ms" placeholder="默认=当前域名/ms" value="">
       <label>媒体域名(publisher)</label><input id="pub" value="zheshi-lian.github.io" style="width:160px">
-      <button id="join">① 媒体入驻(取密钥)</button>
+      <a class="btn-link" href="/register.html#publisher">① 媒体入驻（自助开户）</a>
+      <button class="ghost" id="rejoin" title="仅演示用：重新获取沙箱密钥跑通本页 6 种形态">重取沙箱密钥</button>
       <button class="ghost" id="runall">▶ 一次性跑完 6 种形态</button>
       <label style="margin-left:8px"><input type="checkbox" id="sim"> 模拟完播(跳过看视频)</label>
     </div>
@@ -61,6 +64,7 @@
       <b>设备指纹</b><span id="fp" class="muted">— 计算中 —</span>
       <b>指纹置信度</b><span id="fpconf" class="muted">—</span>
     </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px">上方「① 媒体入驻（自助开户）」会跳到 <a href="/register.html#publisher" style="color:#7fd1ff">自助开户</a> 开通<b>可登录的开发者账号</b>；本页展示用的「沙箱密钥」已自动获取（仅供 6 种形态演示，无法登录后台）。</div>
   </div>
 
   <!-- ① 广告形式（开发者 / 媒体方渲染） -->
@@ -343,7 +347,7 @@ async function runAll(){
 /* ===== 初始化 ===== */
 buildCards();
 $('#fpmax').textContent='30';
-$('#join').onclick=join;
+$('#rejoin').onclick=join;
 $('#runall').onclick=runAll;
 join().then(()=>log('页面就绪：① 点单个「请求创意」或「一次性跑完 6 种形态」；② 外部需求方(DSP)接入见 /dsp.html','g'));
 </script>
