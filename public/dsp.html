@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>外部 DSP 接入 · LinkOS</title>
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1000px 500px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:60px 20px 80px}
+  h1{font-size:30px;margin:0 0 6px}
+  .sub{color:var(--mut);margin:0 0 30px}
+  .card{background:var(--card);border:1px solid #26355c;border-radius:12px;padding:20px;margin-bottom:16px}
+  code{background:#0d1730;border:1px solid #223358;padding:2px 7px;border-radius:5px;font-size:13px;color:var(--acc2)}
+  ol{margin:0;padding-left:20px;color:var(--mut)}
+  li{margin:6px 0}
+  a{color:var(--acc2)}
+</style>
+</head>
+<body><div class="wrap">
+  <h1>外部 DSP 接入（买我们的流量）</h1>
+  <p class="sub">LinkOS 既是 SSP 也是 Exchange。外部买方可以标准 OpenRTB 2.x 接入，与自有 DSP 一同参拍（二价清算）。</p>
+  <div class="card">
+    <h3 style="margin-top:0;color:var(--acc2)">接入步骤</h3>
+    <ol>
+      <li>在 <a href="/register.html#advertiser">自助开户</a> 选择「DSP / 需求方」，提交端点与出价能力说明。</li>
+      <li>平台分配 DSP 标识，并将你的端点登记进竞价参与方列表。</li>
+      <li>你的服务端实现对 <code>POST /openrtb2/bid</code> 的 OpenRTB 2.6 响应（返回 seatbid / bid / price）。</li>
+      <li>平台在 SSP 拍卖中把你的报价与自有 DSP、其他需求方一并二价清算；赢价后通过 <code>/notify</code> 回传计费。</li>
+    </ol>
+  </div>
+  <div class="card">
+    <p style="color:var(--mut)">请求示例（供给侧发起的竞价请求）：</p>
+    <code>{ id, imp:[{id,banner:{w,h},bidfloor}], site:{domain}, device:{ua,ip}, at:2, tmax:3000 }</code>
+    <p style="color:var(--mut);margin-top:10px">所有接口均为真实实现，可用 <a href="/index.html">Prebid 端到端演示</a> 当场验证。</p>
+  </div>
+</div>
+<script src="/nav.js"></script>
+</body></html>

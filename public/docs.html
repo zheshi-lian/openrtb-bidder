@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenRTB 接入文档 · LinkOS</title>
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.75 system-ui,"Microsoft YaHei",sans-serif}
+  .wrap{max-width:880px;margin:0 auto;padding:52px 20px 90px}
+  h1{font-size:30px;margin:0 0 6px}
+  h2{font-size:19px;margin:34px 0 10px;color:#fff}
+  .sub{color:var(--mut);margin:0 0 10px}
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 8px}
+  .toc a{font-size:12.5px;color:var(--acc2);border:1px solid #2f4170;padding:5px 11px;border-radius:99px;text-decoration:none}
+  p{color:#cdd8f2;font-size:14.5px}
+  code{background:#0d1730;border:1px solid #223358;padding:1px 6px;border-radius:5px;font-size:12.5px}
+  pre{background:#0d1730;border:1px solid #223358;color:#7ee787;padding:14px;border-radius:10px;overflow:auto;font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  table{width:100%;border-collapse:collapse;margin:10px 0}
+  td,th{padding:9px 11px;border:1px solid #1e2b4c;font-size:13px;text-align:left;vertical-align:top}
+  th{background:#132043;color:var(--mut)}
+  .note{border-left:3px solid var(--acc2);background:#101a33;padding:12px 14px;border-radius:8px;font-size:13px;color:#cdd8f2}
+  a{color:var(--acc2)}
+  .fn{color:var(--mut);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>OpenRTB 接入文档</h1>
+  <p class="sub">本文档对应线上 <code>https://dellai.xyz</code> 的真实接口。所有示例可直接 <code>curl</code> 运行，返回结构与线上完全一致。</p>
+  <div class="toc">
+    <a href="#media">① 开发者 · 变现（SSP）</a>
+    <a href="#dsp">② 广告主 · 投放（DSP / 广告交易引擎）</a>
+    <a href="#prebid">③ Prebid.js 接入</a>
+    <a href="#settle">④ 结算与对账</a>
+    <a href="#trust">⑤ 信任层 ads.txt</a>
+    <a href="#ecpm">⑥ eCPM' 公式</a>
+  </div>
+
+  <h2 id="media">① 开发者 · 变现（SSP）</h2>
+  <p>媒体方取 <code>api_key</code>（见 <a href="/register.html#publisher">自助开户</a>），页面贴入广告位 SDK。SDK 自动调用 <code>/openrtb2/bid</code> 出价、渲染胜出广告、上报曝光/点击/VAST 事件。</p>
+<pre>curl -s https://dellai.xyz/api/publisher -X POST -H "Content-Type: application/json" \
+  -d '{"domain":"mygame.example.com","name":"MyGame","contact":"you@mygame.com","site_url":"https://mygame.example.com"}'
+# → {"api_key":"pub_…","payout_rate":0.7,"snippet":"<div class=\"ad-slot\" …></div><script src=\"https://dellai.xyz/pub_sdk.js\"></script>"}</pre>
+<p class="note">合规爬取会读取你填的 <code>site_url</code>（仅爬你自己声明的页面）补全品类/地域/关键词 → 该位库存被意图匹配时 eCPM 更高。同一媒体 24h 冷却一次。</p>
+
+  <h2 id="dsp">② 广告主 · 投放（DSP / 广告交易引擎 出价）</h2>
+  <p>向 <code>/openrtb2/bid</code> 发 OpenRTB 2.6 请求。未通过审核或预算不足的请求返回 <code>nbr</code>，合法请求保证有应答、不空跑库存。</p>
+<pre>curl -s https://dellai.xyz/openrtb2/bid -X POST -H "Content-Type: application/json" \
+  -d '{"id":"r1","imp":[{"id":"i1","banner":{"w":300,"h":250},"bidfloor":0.5}],"site":{"domain":"dellai.xyz"},"device":{"ua":"M","ip":"0.0.0.0"},"at":2,"tmax":2000}'
+# → {"id":"r1","seatbid":[{"seat":"zhuque","bid":[{"id":"bid1","impid":"i1","price":…,"adm":"…","crid":"…","cid":"…",
+#     "ext":{"intent_score":…,"intent_source":"llm|heuristic|embedding","bid_basis":"CPM|CPA|ROAS","shade":…,"pWin":…}}]}]}
+# 无匹配：{"id":"r1","seatbid":[],"nbr":2}   nbr=8 容量节流 / 3 未过审</pre>
+<p>作为外部 DSP，把你自己的 OpenRTB 端点注册进来（<a href="/dsp.html">DSP 接入</a>）：<code>POST /api/dsp/register</code>，平台会在每次拍卖中并发调用你的 <code>bidder_url</code>。</p>
+
+  <h2 id="prebid">③ Prebid.js 接入（前端竞价）</h2>
+  <p>端到端示例见 <a href="/index.html">Prebid 演示页</a>。最小可用配置：</p>
+<pre>pbjs.addBidder('linkos', {
+  params: { url: 'https://dellai.xyz/openrtb2/bid', imp: { banner: { w: 300, h: 250 }, floor: 1.0 } }
+});
+// 服务端按 OpenRTB 2.6 返回 seatbid；Prebid 渲染胜出广告并回调 onBidWon
+// 赢价后调用 /notify 回收预算；设备指纹 device.fp 用于跨 App 归因与风控</pre>
+
+  <h2 id="settle">④ 结算与对账</h2>
+<p>预算扣减由 S2S 回调完成。媒体 SDK 每次曝光/点击自动带 <code>api_key + HMAC</code> 签名的 <code>/s2s/reward</code>；Prebid/直连路径可手工调 <code>/notify</code>。去重身份 = <code>(impid, reqid)</code>，同请求重放不重复扣费。</p>
+<pre>curl -s https://dellai.xyz/notify -X POST -H "Content-Type: application/json" \
+  -d '{"cid":1,"crid":1,"impid":"i1","reqid":"r1","price":4000000,"win":true}'
+# → {"ok":true,"counted":true,"charged":4000000,"insufficient":false}</pre>
+<table>
+  <thead><tr><th>报表</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>/api/reports/publisher</code></td><td>媒体收益（清盘价、分成、应结）</td></tr>
+    <tr><td><code>/api/report/advertiser</code></td><td>广告主聚合（曝光/花费/GMV）</td></tr>
+    <tr><td><code>/api/reports/settlement</code></td><td>平台毛利（Σ清盘价 − Σ分成）</td></tr>
+    <tr><td><code>/api/reports/reconciliation</code></td><td>双端对账差异</td></tr>
+    <tr><td><code>/api/demo/report</code></td><td>免登录只读快照（演示页用）</td></tr>
+  </tbody>
+</table>
+
+  <h2 id="trust">⑤ 信任层 ads.txt / app-ads.txt / sellers.json</h2>
+<pre># GET https://dellai.xyz/ads.txt
+# GET https://dellai.xyz/app-ads.txt
+# GET https://dellai.xyz/sellers.json   （信任分层：sellers.json 校验后该 DSP 可获更高质量流量）</pre>
+
+  <h2 id="ecpm">⑥ eCPM' 公式</h2>
+  <p class="fn">eCPM' = 效果预测 × LTV × 折算出价 × 服务承诺。效果预测 = α·评测分 + (1−α)·行为数据，α = N0/(N0+n)，N0=20（冷启动先验随归因样本衰减）。统一折算到"每千次曝光"口径排序，避免"出价高但效果差"抢量。</p>
+<pre>CPM：unified = bid / 1000
+CPC：unified = bid × CTR
+CPA：unified = bid × CTR × 商机率
+ecpmPrime = pEffect × ltvFactor × unified × svcFactor</pre>
+  <p>免费试算：<a href="/tool/ecpm-score.html">eCPM' 打分器</a>。同一引擎跑在生产 <code>/openrtb2/bid</code> 里。</p>
+</div>
+<script src="/console_nav.js"></script>
+<script src="/nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>免费 eCPM' 打分器 · LinkOS</title>
+<meta name="description" content="免费在线测算 eCPM'：效果预测 × LTV × 折算出价 × 服务承诺。与 LinkOS 生产竞价同款引擎，无需注册。">
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1000px 500px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:50px 20px 90px}
+  h1{font-size:30px;margin:0 0 6px}
+  .sub{color:var(--mut);margin:0 0 22px;font-size:14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:660px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid #26355c;border-radius:14px;padding:22px}
+  h2{font-size:17px;margin:0 0 14px}
+  label{display:block;font-size:12px;color:var(--mut);margin:10px 0 5px}
+  input,select{width:100%;padding:9px 11px;border:1px solid #2f4170;background:#0d1730;color:var(--fg);border-radius:8px}
+  input:focus,select:focus{outline:none;border-color:var(--acc2)}
+  .btn{margin-top:16px;width:100%;padding:12px;border:0;border-radius:9px;background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a;font-weight:700;font-size:15px;cursor:pointer}
+  .rows{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .kv{background:#101a33;border:1px solid #24345c;border-radius:10px;padding:12px}
+  .kv .k{font-size:12px;color:var(--mut)}
+  .kv .v{font-size:22px;font-weight:700;margin-top:2px}
+  .kv .l{font-size:11px;color:var(--mut);margin-top:3px}
+  .bar{height:8px;background:#1e2b4c;border-radius:99px;overflow:hidden;margin-top:8px}
+  .bar i{display:block;height:100%;background:linear-gradient(92deg,var(--acc),var(--acc2));width:0;transition:width .5s}
+  .note{border-left:3px solid var(--acc2);background:#101a33;padding:11px 13px;border-radius:8px;font-size:13px;color:#cdd8f2;margin-top:12px}
+  .small{font-size:12px;color:var(--mut)}
+  .lock{filter:blur(6px);user-select:none;pointer-events:none}
+  pre{background:#0d1730;color:#7ee787;padding:12px;border-radius:8px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-word}
+  code{background:#0d1730;border:1px solid #223358;padding:1px 5px;border-radius:5px;font-size:12px}
+  a{color:var(--acc2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>免费 eCPM' 打分器</h1>
+  <p class="sub">用 LinkOS 生产竞价同款引擎，算出你的素材在这个广告位的"价值排序分"。无需注册、不收费。同一套引擎跑在 <code>/openrtb2/bid</code> 里。</p>
+
+  <div class="card">
+    <h2>① 你的素材与出价</h2>
+    <div class="grid">
+      <div>
+        <label>计划 / 素材名称</label>
+        <input id="name" placeholder="我的休闲游戏买量素材" value="休闲游戏买量素材">
+      </div>
+      <div>
+        <label>广告形态</label>
+        <select id="format">
+          <option value="banner">横幅 banner</option>
+          <option value="interstitial" selected>插屏 interstitial</option>
+          <option value="rewarded">激励视频 rewarded</option>
+          <option value="native">原生 native</option>
+          <option value="icon">应用商店 icon</option>
+          <option value="push">推送 push</option>
+        </select>
+      </div>
+      <div>
+        <label>出价方式</label>
+        <select id="bidType">
+          <option value="CPM" selected>CPM（元 / 千次）</option>
+          <option value="CPC">CPC（元 / 次）</option>
+          <option value="CPA">CPA（元 / 商机）</option>
+        </select>
+      </div>
+      <div>
+        <label>出价金额</label>
+        <input id="bid" type="number" step="0.1" value="6">
+      </div>
+      <div>
+        <label>广告位 CTR（点击率）</label>
+        <input id="ctr" type="number" step="0.01" value="0.05">
+      </div>
+      <div>
+        <label>广告位商机率（点击 → 有效商机）</label>
+        <input id="leadRate" type="number" step="0.01" value="0.10">
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>② 效果与承诺（eCPM' 的四个因子）</h2>
+    <div class="grid">
+      <div>
+        <label>LTV 系数（用户生命周期价值）</label>
+        <input id="ltv" type="number" step="0.1" min="0.1" max="5" value="1.2">
+      </div>
+      <div>
+        <label>服务承诺系数（SLA / 赔付）</label>
+        <input id="svc" type="number" step="0.05" min="0.5" max="1.5" value="1.1">
+      </div>
+    </div>
+    <div class="rows" style="margin-top:12px">
+      <div><label>L1 能力评测（0–1）</label><input id="l1" type="number" step="0.05" min="0" max="1" value="0.6"></div>
+      <div><label>L2 效果评测（0–1）</label><input id="l2" type="number" step="0.05" min="0" max="1" value="0.7"></div>
+      <div><label>L3 交付口碑（0–1）</label><input id="l3" type="number" step="0.05" min="0" max="1" value="0.65"></div>
+      <div><label>已回流归因样本数（T+30）</label><input id="nSamples" type="number" step="1" min="0" value="8"></div>
+    </div>
+    <button class="btn" onclick="score()">算出 eCPM'</button>
+    <div class="small" style="margin-top:10px">留邮箱解锁完整拆解报告：<input id="email" placeholder="you@company.com" style="margin-left:8px;width:auto;flex:1"></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>③ 结果</h2>
+    <div id="result">填好上面的参数点"算出 eCPM'"。</div>
+  </div>
+
+  <div class="card" id="detailCard" style="margin-top:14px">
+    <h2>④ 完整拆解（留邮箱解锁）</h2>
+    <div id="detail"><div class="small">提交上方邮箱后解锁。</div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>⑤ 这个接口是公开的</h2>
+    <p class="small">下面就是你刚点的那次请求。任何人都能 curl 到同样的结果——引擎是真实的，没有黑箱。</p>
+    <pre id="curl">GET /api/public/ecpm-score?…</pre>
+    <div class="small" style="margin-top:10px">
+      下一步：<a href="/register.html">申请开户</a> · <a href="/docs.html">OpenRTB 接入文档</a> · <a href="/pricing.html">定价</a> · <a href="/index.html">看真实竞价演示</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  var FMT = { banner:0.02, interstitial:0.05, rewarded:0.40, native:0.03, icon:0.01, push:0.02 };
+  function fmtMoney(v){ v=Number(v)||0; return v < 1e-9 ? '0.00' : v.toFixed(3); }
+  async function score(){
+    var p={ format:format.value, bidType:bidType.value, bid:bid.value||'6', ctr:ctr.value, leadRate:leadRate.value,
+            ltv:ltv.value, svc:svc.value, l1:l1.value, l2:l2.value, l3:l3.value, nSamples:nSamples.value };
+    var qs=Object.keys(p).map(function(k){ return k+'='+encodeURIComponent(p[k]); }).join('&');
+    document.getElementById('curl').textContent='curl -s "https://dellai.xyz/api/public/ecpm-score?'+qs+'"';
+    var r=document.getElementById('result');
+    r.innerHTML='计算中…';
+    try{
+      var resp=await fetch('/api/public/ecpm-score?'+qs), d=await resp.json();
+      if(!d.ok){ r.innerHTML='计算失败：'+(d.error||'未知错误'); return; }
+      var bar=Math.min(100, Math.max(4, d.pEffect*100));
+      r.innerHTML='<div class="rows">'
+        + '<div class="kv"><div class="k">eCPM&#39;（排序分）</div><div class="v">' + fmtMoney(d.ecpmPrime) + '</div>'
+        + '<div class="bar"><i style="width:'+bar+'%"></i></div></div>'
+        + '<div class="kv"><div class="k">折算出价（元 / 千次曝光）</div><div class="v">'+fmtMoney(d.unifiedEcpm)+'</div>'
+        + '<div class="l">区间 '+d.estRange[0]+' – '+d.estRange[1]+'</div></div>'
+        + '<div class="kv"><div class="k">效果预测 pEffect</div><div class="v">'+(d.pEffect*100).toFixed(1)+'%</div>'
+        + '<div class="bar"><i style="width:'+bar+'%"></i></div></div>'
+        + '<div class="kv"><div class="k">先验权重 α / 冷启动</div><div class="v">'+d.alpha+'</div>'
+        + '<div class="l">'+(d.coldStart?'⚠ 冷启动：评测分主导':'✓ 行为数据已接管')+'</div></div>'
+        + '</div>'
+        + '<div class="note">'+d.note+'</div>';
+      renderDetail(d, p);
+    }catch(e){ r.innerHTML='请求失败：'+e.message; }
+  }
+  function renderDetail(d, p){
+    var un=Number(d.unifiedEcpm)||0, pe=Number(d.pEffect)||0;
+    var html='<p class="small">公式逐步展开（与 <code>ecpm_engine.js</code> 完全一致）：</p>'
+      + '<pre>pEffect = α·评测分 + (1-α)·行为数据\n'
+      + '        α = 20 / (20 + 样本数) = ' + d.alpha + '\n'
+      + 'unified = ' + p.bidType + ' 折算：' + p.bid + ' → ' + fmtMoney(un) + ' 元/千次\n'
+      + 'ecpmPrime = pEffect × LTV × unified × 服务承诺\n'
+      + '        = ' + pe.toFixed(4) + ' × ' + p.ltv + ' × ' + fmtMoney(un) + ' × ' + p.svc
+      + ' = ' + fmtMoney(d.ecpmPrime) + '</pre>'
+      + '<p class="small">解读：pEffect 是决定成败的主因子。'
+      + (d.coldStart ? '你现在处于冷启动期，先靠三层评测分（L1/L2/L3）拿量，归因样本攒到 20 条以上，真实效果会接管排序。'
+        : '样本已足够，排序由真实效果接管——把出价往 eCPM' + ' 上抬 5–10% 即可扩大胜出率。') + '</p>'
+      + '<p class="small">要放大胜出率：① 抬 pEffect（补 L2 效果评测、攒归因）；② 抬 LTV 系数（提供复购/留存数据）；③ 抬服务承诺（SLA 赔付）。'
+      + '出价只是其中一项——<b>效果差的服务商出价再高也排不上</b>。</p>'
+      + '<div class="note">完整对比报告（同品类分位、出价建议、预估胜出率）已加入你的邮箱：<b>' + (email.value||'未填') + '</b>。'
+      + '需要实际参拍请 <a href="/register.html#advertiser">申请开户</a>。</div>';
+    var el=document.getElementById('detail');
+    if(email.value){ el.innerHTML=html; el.classList.remove('lock'); }
+    else { el.innerHTML=html; el.classList.add('lock'); }
+  }
+  format.addEventListener('change', function(){ ctr.value=FMT[format.value]||0.05; });
+</script>
+<script src="/nav.js"></script>
+</body>
+</html>
+

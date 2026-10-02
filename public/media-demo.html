@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>程序化广告平台演示 · DSP + SSP + 广告交易引擎</title>
+<style>
+  /* 调色板已归并到 /tokens.css（--card 原为 #141b2e、--line 原为 #26304a） */
+  :root{--bg:#0b1020;--card:#16203a;--line:#26355c;--accent:#3b82f6;--ok:#22c55e;--bad:#ef4444;--warn:#f59e0b;--txt:#e8eefc;--muted:#93a3c4}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 'Microsoft YaHei',system-ui,sans-serif}
+  header{padding:18px 22px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,#101830,#0b1020)}
+  h1{margin:0 0 4px;font-size:18px}
+  .sub{color:var(--muted);font-size:12px}
+  .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .fcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:120px}
+  .fcard h3{margin:0;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;background:#1f2942;color:var(--muted)}
+  .badge.ok{background:#0e2a1a;color:var(--ok)} .badge.bad{background:#2a1212;color:var(--bad)}
+  .render{flex:1;background:#0a0f1d;border:1px dashed var(--line);border-radius:8px;padding:8px;overflow:auto;min-height:90px;font-size:12px;color:var(--muted)}
+  .render video{width:100%;border-radius:6px;background:#000}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px}
+  button.ghost{background:#1f2942;color:var(--txt)} button:disabled{opacity:.5;cursor:default}
+  input{background:#0a0f1d;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font-size:12px;width:200px}
+  label{font-size:12px;color:var(--muted)}
+  code{background:#0a0f1d;padding:1px 5px;border-radius:4px;color:#9fd0ff;font-size:12px}
+  .log{background:#060a14;border:1px solid var(--line);border-radius:8px;height:200px;overflow:auto;padding:10px;font:12px/1.45 ui-monospace,Consolas,monospace;color:#9fb3d1}
+  .log .t{color:#5b6b86} .log .g{color:var(--ok)} .log .r{color:var(--bad)} .log .y{color:var(--warn)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
+  .kv b{color:var(--muted);font-weight:600}
+  .push{position:fixed;right:18px;top:18px;width:280px;background:#1a2238;border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);display:none;z-index:99}
+  .push img{width:40px;height:40px;border-radius:8px;vertical-align:middle;margin-right:8px}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:6px;background:#15203a;color:#7fd1ff;margin-right:4px}
+  table{width:100%;border-collapse:collapse;font-size:12px} th,td{border:1px solid var(--line);padding:6px 8px;text-align:left}
+  th{background:#101830;color:var(--muted)}
+  .pill{font-size:11px;padding:2px 7px;border-radius:999px}
+</style>
+</head>
+<body>
+<header>
+  <h1>程序化广告平台演示 · DSP + SSP + 广告交易引擎（对标 汇量 / Appluck）</h1>
+  <div class="sub">本平台 = <b>DSP + SSP + 广告交易引擎</b>，对标 AppLuck / 汇量（轻资产、高毛利、预付/周结的程序化广告平台）。商业模式：<b>开发者侧</b>聚合长尾流量（App 开发者的广告位，6 种形态呈现），<b>广告主侧</b>投放买量；另有<b>外部需求方（DSP）接入</b>：把其他买方的 OpenRTB 出价端点接入本平台拍卖来买我们的流量（示例见「外部 DSP 接入」页）。盈利=投放差价+技术服务费。① <b>广告形式</b>（6 种形态，同 AppLuck 披露，可对照 <a href="https://zheshi-lian.github.io/rewarded/" target="_blank" style="color:#7fd1ff">rewarded 参考实现</a>）；② <b>外部需求方(DSP)接入</b>：注册 OpenRTB 出价端点参与拍卖；③ 风控/可见性。（注：汇量 / Appluck 为同类竞争对手；代理去外部平台投放由投放中台处理，不在本平台范围内。）</div>
+</header>
+
+<div class="wrap">
+  <!-- 配置 -->
+  <div class="panel">
+    <div class="row" style="margin-bottom:10px">
+      <label>平台地址</label><input id="platform" placeholder="默认=当前域名" value="">
+      <label>媒体服务端</label><input id="ms" placeholder="默认=当前域名/ms" value="">
+      <label>媒体域名(publisher)</label><input id="pub" value="zheshi-lian.github.io" style="width:160px">
+      <button id="join">① 媒体入驻(取密钥)</button>
+      <button class="ghost" id="runall">▶ 一次性跑完 6 种形态</button>
+      <label style="margin-left:8px"><input type="checkbox" id="sim"> 模拟完播(跳过看视频)</label>
+    </div>
+    <div class="kv" id="envbox">
+      <b>api_key</b><span id="apikey" class="muted">— 未入驻 —</span>
+      <b>设备指纹</b><span id="fp" class="muted">— 计算中 —</span>
+      <b>指纹置信度</b><span id="fpconf" class="muted">—</span>
+    </div>
+  </div>
+
+  <!-- ① 广告形式（开发者 / 媒体方渲染） -->
+  <div class="panel" style="margin-bottom:14px">
+    <h3 style="margin:0 0 6px">① 广告形式（开发者 / 媒体侧渲染，激励广告只是其中一种）</h3>
+    <div class="sub" style="font-size:12px"><b>聚合长尾流量（AppLuck 模式）</b> = 把大量长尾 App 开发者的广告位聚合起来（AppLuck 披露：近千家开发者），以不同<b>形态</b>呈现；下方用"假想媒体"代表被聚合的一家长尾流量，把 6 种形态跑一遍：竞价 → 渲染 →（激励视频）S2S 结算 + OMID + 设备指纹。形态 ≠ 平台，真正的"外部需求方(DSP)接入"见「外部 DSP 接入」页。（注：汇量 / Appluck 是同类竞争平台，不是媒体。）</div>
+  </div>
+  <div class="grid" id="cards"></div>
+
+  <!-- 明细面板 -->
+  <div class="grid" style="margin-top:16px">
+    <div class="panel">
+      <h3 style="margin:0 0 8px">🛡 设备指纹层（反"多设备农场化"）</h3>
+      <div class="kv">
+        <b>device_fp</b><span id="fp2">—</span>
+        <b>令牌绑定</b><span>rw_token.device_fp 与结算设备必须一致，跨设备重放 → <code>DEVICE_FP_MISMATCH</code></span>
+        <b>设备级风控</b><span>单指纹 10 分钟内结算 &gt; <code id="fpmax">30</code> 次 → <code>DEVICE_FP_RATE_LIMIT</code></span>
+        <b>上次裁决</b><span id="fplast">—</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px">👁 OMID / 可见性测量（VAST 4.0 标配）</h3>
+      <div class="kv">
+        <b>VAST 节点</b><span><code>&lt;AdVerifications&gt;&lt;Verification&gt;</code> 指向 <code>omid-session.js</code></span>
+        <b>测量方式</b><span>几何可见性（≥50% 像素连续可见 ≥1s = 可见曝光）</span>
+        <b>回传端点</b><span><code>GET /vast/omid</code></span>
+        <b>本次可见性</b><span id="omidlast">—</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px">📋 完整体验汇总</h3>
+      <table id="summary"><thead><tr><th>形态</th><th>adm_type</th><th>结果</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <!-- ② 外部需求方(DSP)接入：让买方来买我们的流量 -->
+  <div class="panel">
+    <h3 style="margin:0 0 8px">② 外部需求方(DSP)接入 <span class="tag">高级 / 商务对接</span></h3>
+    <div class="sub" style="font-size:12px">
+      把外部买方（其他 DSP、广告网络、或代理商自有竞价端）的 <b>OpenRTB 出价端点</b>注册进本平台拍卖，
+      它就会在每次竞价时收到我们的 bid request 并出价，买走开发者（媒体）的广告位。
+      <b>这里我们是卖方，注册进来的是买方。</b><br>
+      买方越多 → 竞争越充分 → 开发者 eCPM 越高 → 平台毛利越高。真实需求方对接属商务动作，
+      操作入口见 <a href="/dsp.html" style="color:#7fd1ff">「外部 DSP 接入」</a>。<br>
+      <b>注意方向</b>：代理去外部平台（短视频 / 社交平台等）花钱投放是<b>相反方向</b>（我们是买方），
+      由投放中台处理，不在本平台范围内。
+    </div>
+  </div>
+
+  <!-- ④ 对标 汇量 / Appluck 能力矩阵 -->
+  <div class="panel">
+    <h3 style="margin:0 0 8px">④ 对标 汇量 / Appluck 能力矩阵 <span class="tag">定位</span></h3>
+    <div class="sub" style="font-size:12px">本平台目标＝能力超过汇量 / Appluck 等同类型程序化平台。下表为能力对照（✓ 具备 / △ 部分或待补 / ✗ 无）。</div>
+    <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px">
+      <thead><tr style="background:#16203a;color:#cfe0ff">
+        <th style="border:1px solid #243152;padding:6px;text-align:left">能力维度</th>
+        <th style="border:1px solid #243152;padding:6px">dellai.xyz 平台（我们）</th>
+        <th style="border:1px solid #243152;padding:6px">汇量 / Appluck（同类）</th>
+      </tr></thead>
+      <tbody style="color:#dbe6f5">
+        <tr><td style="border:1px solid #243152;padding:6px">实时竞价 RTB 引擎（毫秒级）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 自研</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 行业标配</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">意图 Agent 智能出价</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ LLM 相关性/出价</td><td style="border:1px solid #243152;padding:6px;text-align:center">△ 规则/传统算法</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">VAST 4.0 + OMID 可见性测量</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">△ 部分</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">设备指纹风控 + 跨设备重放拦截</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">△</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">S2S 服务端结算 + HMAC 防伪造</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">外部需求方(DSP)接入（OpenRTB 出价端点）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 可注册接入</td><td style="border:1px solid #243152;padding:6px;text-align:center">△ 以聚合为主</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">长尾流量聚合（SSP 核心）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 核心(AppLuck 模式)</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">轻资产 / 高毛利 / 预付周结</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 同披露</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">多形态广告（激励/插屏/开屏/原生/icon/push）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 6 种</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">反作弊 / 数据安全体系</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 事件日志 -->
+  <div class="panel">
+    <h3 style="margin:0 0 8px">📜 事件日志</h3>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<div class="push" id="push"><img id="pushimg" src=""><div><b id="pushtitle"></b><div id="pushbody" style="font-size:12px;color:var(--muted)"></div></div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+// 地址默认按"当前打开页面域名"推导：本地=127.0.0.1:8080，公网隧道=隧道域名，媒体服务端统一走 /ms 代理（单端口）
+const PLATFORM = () => $('#platform').value.trim() || location.origin;
+const MS  = () => $('#ms').value.trim() || (location.origin + '/ms');
+const PUB = () => $('#pub').value.trim();
+let API_KEY = '', FP = '', FP_CONF = 0.93;
+
+/* ===== 设备指纹：canvas + 环境信号，FNV-1a 稳定哈希 ===== */
+function computeFP(){
+  let px='no-canvas';
+  try{ const c=document.createElement('canvas'); const x=c.getContext('2d');
+    x.textBaseline='top'; x.font="16px 'Arial'"; x.fillStyle='#f60'; x.fillRect(2,2,120,20);
+    x.fillStyle='#0a0'; x.fillText('linkos-fp',4,4); x.fillStyle='rgba(0,0,255,.4)'; x.fillText('linkos-fp',6,6);
+    px=c.toDataURL();
+  }catch(e){}
+  const s=[navigator.userAgent,navigator.language,screen.width+'x'+screen.height+'x'+screen.colorDepth,
+    new Date().getTimezoneOffset(),navigator.hardwareConcurrency||0,navigator.deviceMemory||0,
+    (navigator.languages||[]).join(','),px.length+px.slice(-24)].join('§');
+  const fnv=(str,seed)=>{let h=seed>>>0;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,0x01000193);}return h>>>0;};
+  const a=fnv(s,0x811c9dc5),b=fnv(s,0x12345678);
+  return (a>>>0).toString(16).padStart(8,'0')+(b>>>0).toString(16).padStart(8,'0');
+}
+FP = computeFP();
+$('#fp').textContent = FP; $('#fp2').textContent = FP; $('#fpconf').textContent = FP_CONF;
+
+/* ===== 日志 ===== */
+function log(msg,cls){
+  const d=$('#log'); const t=new Date().toLocaleTimeString();
+  const el=document.createElement('div'); el.innerHTML=`<span class="t">[${t}]</span> <span class="${cls||''}">${msg}</span>`;
+  d.appendChild(el); d.scrollTop=d.scrollHeight;
+}
+window.__OMID_LOG__ = (ev,viewable,dur)=>{ $('#omidlast').textContent = ev + (viewable?'(可见)':(ev==='viewable'?'':'') ); log('OMID ▸ '+ev+(viewable?' viewable':'')+(dur?(' '+dur+'ms'):''), viewable?'g':'y'); };
+
+/* ===== 工具 ===== */
+const fire = u => { try{ new Image().src=u; }catch(e){} };
+async function post(path,body){ const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return r; }
+function durToMs(s){ if(!s||s.indexOf(':')<0) return 52000; const p=s.split(':').map(Number); return (p[0]*3600+p[1]*60+p[2])*1000; }
+
+/* ===== 竞价 ===== */
+async function bid(format){
+  const id='demo_'+format+'_'+Date.now();
+  const body={ id, site:{domain:PUB(),keywords:'休闲游戏,激励视频,'+format},
+    imp:[{ id, bidfloor:2.0, ext:{ cat:'gaming', ad_type:format, device_fp:FP } }],
+    device:{ geo:{country:'CN'} } };
+  const r=await post(PLATFORM()+'/ssp/bid',body); const j=await r.json();
+  const seat=j.seatbid&&j.seatbid[0]; const b=seat&&seat.bid&&seat.bid[0];
+  return {id,bid:b,ext:b&&b.ext};
+}
+
+/* ===== 解析 VAST 4.0 ===== */
+function parseVast(xml){
+  const p=new DOMParser().parseFromString(xml,'text/xml');
+  let mediaUrl='',duration=''; const tracking={};
+  const imp=p.querySelector('Impression'); if(imp&&imp.textContent) tracking.impression=imp.textContent.trim();
+  const mfs=p.getElementsByTagName('MediaFile'); for(let i=0;i<mfs.length;i++){const t=(mfs[i].textContent||'').trim(); if(t&&!mediaUrl) mediaUrl=t;}
+  const ds=p.getElementsByTagName('Duration'); if(ds[0]) duration=(ds[0].textContent||'').trim();
+  const trs=p.getElementsByTagName('Tracking'); for(let j=0;j<trs.length;j++){const ev=trs[j].getAttribute('event'); const u=(trs[j].textContent||'').trim(); if(ev&&u) tracking[ev]=u;}
+  const av=p.getElementsByTagName('AdVerifications'); const omid = av && av.length ? '有(AdVerifications)' : '无';
+  return {mediaUrl,duration,tracking,omid,ver:/<VAST[^>]*version="4\.0"/.test(xml)?'4.0':'?'};
+}
+
+/* ===== 渲染各形态 ===== */
+function renderCard(fmt, render){
+  const card=document.querySelector(`.fcard[data-fmt="${fmt}"] .render`);
+  card.innerHTML=''; render(card);
+}
+function fireImp(impid){ fire(PLATFORM()+'/ssp/imp?pub='+encodeURIComponent(PUB())+'&imp='+encodeURIComponent(impid)); }
+
+const FORMATS=[
+  {fmt:'rewarded',name:'激励视频',desc:'VAST4 + 完播结算 + OMID'},
+  {fmt:'interstitial',name:'插屏',desc:'全屏 HTML'},
+  {fmt:'splash',name:'开屏',desc:'启动页 HTML'},
+  {fmt:'native',name:'原生',desc:'结构化 JSON 自渲染'},
+  {fmt:'icon',name:'图标/下载',desc:'小图 + 落地'},
+  {fmt:'push',name:'推送',desc:'服务端下发'}
+];
+
+function buildCards(){
+  const wrap=$('#cards'); wrap.innerHTML='';
+  FORMATS.forEach(f=>{
+    const el=document.createElement('div'); el.className='fcard'; el.dataset.fmt=f.fmt;
+    el.innerHTML=`<h3>${f.name}<span class="badge">${f.desc}</span></h3>
+      <div class="render">点击右侧按钮请求创意</div>
+      <div class="row"><button data-act="req">请求创意</button><span class="badge" data-st>待命</span></div>`;
+    el.querySelector('[data-act="req"]').onclick=()=>runOne(f.fmt,false);
+    wrap.appendChild(el);
+  });
+}
+
+/* ===== 单个形态：竞价 + 渲染 ===== */
+async function runOne(fmt, simulate){
+  const card=document.querySelector(`.fcard[data-fmt="${fmt}"]`);
+  const st=card.querySelector('[data-st]'); const render=card.querySelector('.render');
+  st.textContent='竞价中…'; st.className='badge';
+  log(`[${fmt}] 请求平台竞价 (publisher=${PUB()}, device_fp=${FP.slice(0,8)}…)`);
+  let r; try{ r=await bid(fmt); }catch(e){ st.textContent='竞价失败'; st.className='badge bad'; log('['+fmt+'] 竞价异常: '+e.message,'r'); return false; }
+  if(!r.bid){ st.textContent='NO_FILL'; st.className='badge bad'; log('['+fmt+'] 无填充','r'); return false; }
+  const adm=String(r.bid.adm||''); const ext=r.ext||{};
+  st.textContent=(ext.adm_type||'-')+' · '+(ext.ad_format||'-'); st.className='badge ok';
+  addSummary(fmt,(ext.adm_type||'-'),'展示成功');
+  log(`[${fmt}] 命中: cid=${ext.cid} price=${r.bid.price} adm_type=${ext.adm_type} len=${adm.length}`);
+  fireImp(r.id);
+
+  if(fmt==='rewarded'){ return await renderRewarded(render,r,simulate); }
+
+  render.innerHTML='';
+  if(fmt==='native'){
+    try{ const n=JSON.parse(adm);
+      fire(n.impTrackers&&n.impTrackers[0]||'');
+      const d=document.createElement('div'); d.style.cssText='padding:6px';
+      d.innerHTML=`<img src="${n.icon}" width="48" height="48" style="border-radius:8px"><b>${n.title}</b><div style="color:#8a93a6;font-size:12px">${n.body}</div><a href="${n.clickUrl}" target="_blank" style="display:inline-block;margin-top:6px;background:#3b82f6;color:#fff;padding:6px 12px;border-radius:8px;text-decoration:none">${n.cta}</a>`;
+      render.appendChild(d);
+    }catch(e){ render.textContent='native 解析失败'; }
+  } else if(fmt==='push'){
+    const p=(ext.push)||{};
+    const pn=$('#push'); $('#pushimg').src=p.icon||''; $('#pushtitle').textContent=p.title||'推送'; $('#pushbody').textContent=p.body||'';
+    pn.style.display='block'; setTimeout(()=>pn.style.display='none',6000);
+    fire(p.impUrl||'');
+    render.innerHTML=`<div class="tag">push</div> 已以系统推送样式下发（右上方 toast），不经 SDK 渲染，由媒体推送系统投递。`;
+  } else { // interstitial / splash / icon (HTML)
+    const host=document.createElement('div'); host.innerHTML=adm; render.appendChild(host);
+  }
+  return true;
+}
+
+/* ===== 激励视频：播放 + tracking + OMID + 结算 ===== */
+async function renderRewarded(render,r,simulate){
+  const v=r.bid.adm? parseVast(r.bid.adm):null;
+  if(!v||!v.mediaUrl){ render.textContent='VAST 解析失败'; return false; }
+  log(`[rewarded] VAST ${v.ver} · AdVerifications=${v.omid} · 时长 ${v.duration} · media=${v.mediaUrl.slice(0,40)}…`);
+  const video=document.createElement('video'); video.controls=true; video.src=v.mediaUrl; video.style.width='100%';
+  render.appendChild(video);
+  const fired={};
+  const track=ev=>{ const u=v.tracking[ev]; if(u&&!fired[ev]){ fired[ev]=1; fire(u); log('[rewarded] tracking ▸ '+ev,'y'); } };
+  track('impression');
+  video.addEventListener('timeupdate',()=>{ const r2=video.duration?video.currentTime/video.duration:0;
+    if(r2>=0.25)track('firstQuartile'); if(r2>=0.5)track('midpoint'); if(r2>=0.75)track('thirdQuartile'); });
+  video.addEventListener('play',()=>track('start'));
+
+  const impid=r.id, cid=r.ext.cid, dur=durToMs(v.duration);
+  // OMID 可见性：注入会话上下文 + 加载 shim
+  window.__OMID__={impid,cid,base:PLATFORM(),el:video};
+  const s=document.createElement('script'); s.src=PLATFORM()+'/omid-session.js'; document.body.appendChild(s);
+
+  if(simulate){
+    track('complete');
+    return await settle(impid,cid,dur,dur,true);
+  }
+  video.addEventListener('ended',()=>{ track('complete'); settle(impid,cid,Math.round(video.duration*1000),dur,false); });
+  render.insertAdjacentHTML('beforeend','<div style="margin-top:6px;font-size:12px;color:#8a93a6">播放至结束将自动触发结算（默认模拟完播可跳过）。</div>');
+  return true;
+}
+
+/* ===== 结算：优先走媒体服务端 S2S，失败回退客户端直结 ===== */
+async function settle(impid,cid,watched,duration,simulate){
+  const fp=FP;
+  let res, path;
+  try{
+    const r=await post(MS()+'/api/reward',{impid,cid,watchedMs:watched,durationMs:duration,userId:'demo_user',device_fp:fp});
+    res=await r.json(); path='媒体服务端 S2S';
+  }catch(e){
+    try{ const r=await post(PLATFORM()+'/ssp/reward',{impid,cid,publisher:PUB(),watchedMs:watched,durationMs:duration,device_fp:fp});
+      res=await r.json(); path='客户端直结 /ssp/reward';
+    }catch(e2){ log('[rewarded] 结算请求失败: '+e2.message,'r'); return false; }
+  }
+  const ok=res&&res.ok&&res.granted;
+  log(`[rewarded] 结算(${path}) → ${ok?'GRANTED ✓':('REJECT: '+res.why)}`+(res.deviceFpCount?(' 设备计数='+res.deviceFpCount):''), ok?'g':'r');
+  $('#fplast').textContent = (ok?'GRANTED':'REJECT:'+(res.why||'')) + (res.deviceFpCount?(' · 设备计数='+res.deviceFpCount):'');
+  addSummary('rewarded', 'vast4', ok?'GRANTED ✓':'REJECT:'+res.why);
+  return ok;
+}
+
+/* ===== 汇总表 ===== */
+function addSummary(fmt,type,result){
+  const tb=$('#summary tbody'); let tr=[...tb.children].find(x=>x.dataset.f===fmt);
+  if(!tr){ tr=document.createElement('tr'); tr.dataset.f=fmt; tb.appendChild(tr); }
+  tr.innerHTML=`<td>${fmt}</td><td>${type}</td><td>${result}</td>`;
+}
+
+/* ===== 入驻 ===== */
+async function join(){
+  const r=await post(PLATFORM()+'/api/publisher',{domain:PUB(),name:'假想媒体',payout_rate:0.7,cat:'gaming',geo:'CN',keywords:'休闲游戏,激励视频'});
+  const j=await r.json(); API_KEY=j.api_key||'';
+  $('#apikey').textContent = API_KEY? (API_KEY.slice(0,16)+'…'):'(空)';
+  log('① 媒体入驻 '+PUB()+' → api_key='+(API_KEY?API_KEY.slice(0,16)+'…':'(空)'), API_KEY?'g':'r');
+}
+
+/* ===== 一次性跑完 ===== */
+async function runAll(){
+  $('#sim')||0; const sim=$('#sim').checked;
+  log('▶ 开始一次性跑完 6 种形态'+(sim?'（模拟完播）':''),'y');
+  for(const f of FORMATS){ await runOne(f.fmt,sim); await new Promise(r=>setTimeout(r,250)); }
+  log('▶ 6 种形态演示结束，详见汇总表','g');
+}
+
+/* ===== 初始化 ===== */
+buildCards();
+$('#fpmax').textContent='30';
+$('#join').onclick=join;
+$('#runall').onclick=runAll;
+join().then(()=>log('页面就绪：① 点单个「请求创意」或「一次性跑完 6 种形态」；② 外部需求方(DSP)接入见 /dsp.html','g'));
+</script>
+<script src="/console_nav.js"></script>
+<script src="/nav.js"></script>
+</body>
+</html>

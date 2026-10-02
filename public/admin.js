@@ -13,21 +13,37 @@
     '<button id="auth_btn" style="background:#3b82f6;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer">登录</button>' +
     '<span id="auth_status" style="color:#8a93a6"></span>' +
     '<button id="auth_out" style="background:#26304a;color:#cbd5e1;border:0;border-radius:6px;padding:6px 10px;cursor:pointer;display:none">登出</button>';
-  if (document.body) document.body.prepend(bar);
-  else document.addEventListener('DOMContentLoaded', function () { document.body.prepend(bar); });
+  // 控制台页（含 #ctop）的身份展示与登出由 console_top.js 统一负责。
+  // 这里若再插一条带用户名/密码输入框的旧登录条，会挤占顶部、盖住「返回官网」入口 → 控制台页隐藏本条。
+  // 仅隐藏 UI，Auth 能力与全局 Bearer 注入不受影响。
+  function mountBar() {
+    if (document.getElementById('ctop')) bar.style.display = 'none';
+    document.body.prepend(bar);
+  }
+  if (document.body) mountBar();
+  else document.addEventListener('DOMContentLoaded', mountBar);
 
   var callbacks = [];
   function setStatus(t, bad) { var s = document.getElementById('auth_status'); if (s) { s.textContent = t; s.style.color = bad ? '#ef4444' : '#8a93a6'; } }
   function flag401() { var b = document.getElementById('auth-bar'); if (b) b.style.background = '#2a1212'; setStatus('⚠ 401 未授权：请登录', true); }
-  function showBar() { var b = document.getElementById('auth-bar'); if (b) b.style.display = 'flex'; }
+  // 控制台页（含 #ctop）的身份/登出统一由 console_top.js 负责，绝不在此页面弹出用户名/密码登录条，
+  // 否则会挤占顶部并盖住持久导航（这就是"控制台左上角冒出登录框"的根因）。
+  function showBar() { if (document.getElementById('ctop')) return; var b = document.getElementById('auth-bar'); if (b) b.style.display = 'flex'; }
 
   // 会话可读 localStorage 或 sessionStorage：login.html 勾选「记住我」写 localStorage，未勾选写 sessionStorage，
   // 两种都必须在任意后台页读到（原来只读 sessionStorage，关掉标签页/新开标签页就丢会话 → 反复要求登录）。
   function get(k) { return localStorage.getItem(k) || sessionStorage.getItem(k) || ''; }
   function setAll(k, v) { sessionStorage.setItem(k, v); localStorage.setItem(k, v); }
   function wipeAll(k) { localStorage.removeItem(k); sessionStorage.removeItem(k); }
+  // 规范会话键：linkos_admin（JSON {token,type,scope,username}）是唯一真源；
+  // 遗留 auth_token/auth_role/... 仍双写，保证过渡期旧页不崩，但读取一律优先 linkos_admin。
+  var SESSION_KEY = 'linkos_admin';
+  function readSession() { try { var s = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || ''; return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  function writeSession(o) { try { var j = JSON.stringify(o || {}); sessionStorage.setItem(SESSION_KEY, j); localStorage.setItem(SESSION_KEY, j); } catch (e) {} }
+  function clearSession() { try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); } catch (e) {} }
   function persist(tk, role, scope, user) {
     // 两个存储都写，避免「记住我」的 localStorage 与页面自身 sessionStorage 不一致，导致部分页面拿不到令牌而 401
+    writeSession({ token: tk || '', type: role || '', scope: scope || '', username: user || '' });
     setAll('auth_token', tk || '');
     setAll('auth_role', role || '');
     setAll('auth_scope', scope || '');
@@ -36,6 +52,7 @@
     var out = document.getElementById('auth_out'); if (out) out.style.display = '';
   }
   function clearAuth() {
+    clearSession();
     ['auth_token', 'auth_role', 'auth_scope', 'auth_user'].forEach(wipeAll);
     fetch('/api/admin/logout', { method: 'POST' }).catch(function () {});  // 同步清服务端 adm cookie
     var out = document.getElementById('auth_out'); if (out) out.style.display = 'none';
@@ -64,7 +81,8 @@
     if (btn) btn.onclick = function () { login(document.getElementById('auth_u').value.trim(), document.getElementById('auth_p').value); };
     var out = document.getElementById('auth_out');
     if (out) out.onclick = clearAuth;
-    var tk = get('auth_token');
+    var a = window.Auth.get();
+    var tk = a ? a.token : '';
     if (tk) {
       fetch('/api/account/me').then(function (r) { return r.ok ? r.json() : null; }).then(function (m) {
         if (m) persist(tk, m.type, m.scope, m.username); else showBar();
@@ -73,11 +91,18 @@
   }, 0);
 
   window.Auth = {
-    token: function () { return get('auth_token'); },
-    role: function () { return get('auth_role'); },
-    scope: function () { return get('auth_scope'); },
-    user: function () { return get('auth_user'); },
-    ready: function () { return !!get('auth_token'); },
+    // 规范读取：优先 linkos_admin；若只有遗留键则一次性迁移
+    get: function () {
+      var a = readSession(); if (a && a.token) return a;
+      var tk = get('auth_token');
+      if (tk) { var o = { token: tk, type: get('auth_role'), scope: get('auth_scope'), username: get('auth_user') }; writeSession(o); return o; }
+      return null;
+    },
+    token: function () { var a = this.get(); return (a && a.token) || get('auth_token') || ''; },
+    role: function () { var a = this.get(); return (a && a.type) || get('auth_role') || ''; },
+    scope: function () { var a = this.get(); return (a && a.scope) || get('auth_scope') || ''; },
+    user: function () { var a = this.get(); return (a && a.username) || get('auth_user') || ''; },
+    ready: function () { var a = this.get(); return !!(a && a.token); },
     login: login,
     logout: clearAuth,
     onAuth: function (fn) { if (typeof fn === 'function') callbacks.push(fn); },

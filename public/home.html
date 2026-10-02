@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LinkOS · 轻资产高毛利的程序化广告平台（DSP + SSP + 广告交易引擎）</title>
+<meta name="description" content="LinkOS：DSP+SSP+广告交易引擎 一体。意图 Agent 出价、6 种广告形态、VAST4.0+OMID 可见性、设备指纹风控、S2S 结算+HMAC 防伪造。预付/周结、不设最低充值。本页可当场跑一次真实竞价。">
+<meta property="og:title" content="LinkOS · 程序化广告平台">
+<meta property="og:description" content="意图 Agent 出价 + 轻资产高毛利。预付/周结、不设最低充值。本页可当场跑一次真实竞价验证。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://dellai.xyz/home.html">
+<meta name="theme-color" content="#0b1020">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EZ%3C/text%3E%3C/svg%3E">
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.75 system-ui,"Microsoft YaHei",sans-serif}
+  a{color:var(--acc2);text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  .hero{padding:70px 0 36px;text-align:center}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.14em;color:var(--acc2);border:1px solid #2b3c66;background:#132043;padding:5px 14px;border-radius:99px;margin-bottom:22px}
+  h1{font-size:38px;line-height:1.25;margin:0 0 16px;letter-spacing:-.02em}
+  h1 b{background:linear-gradient(92deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{font-size:18px;color:var(--mut);max-width:760px;margin:0 auto 30px}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .btn{display:inline-block;padding:13px 24px;border-radius:9px;font-weight:700;font-size:15px;cursor:pointer;border:0}
+  .btn.p{background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a}
+  .btn.g{background:transparent;color:var(--fg);border:1px solid #2f4170}
+  .btn:hover{filter:brightness(1.1)}
+  .live{margin:34px auto 0;max-width:720px;background:var(--card);border:1px solid #26355c;border-radius:14px;padding:20px 22px;box-shadow:0 18px 50px #0007}
+  .live h3{margin:0 0 4px;font-size:16px}
+  .live .d{font-size:12px;color:var(--mut);margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+  .cell{background:#101a33;border:1px solid #24345c;border-radius:11px;padding:14px}
+  .cell .k{font-size:12px;color:var(--mut)}
+  .cell .v{font-size:14px;margin-top:4px;word-break:break-all}
+  section{padding:42px 0}
+  h2{font-size:25px;margin:0 0 8px}
+  .h2sub{color:var(--mut);margin:0 0 22px;font-size:14px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid #26355c}
+  td,th{padding:11px 13px;border-bottom:1px solid #1e2b4c;font-size:13.5px;text-align:left;vertical-align:top}
+  th{background:#132043;color:var(--mut);font-size:12px;letter-spacing:.05em}
+  tr:last-child td{border-bottom:0}
+  .ok{color:var(--ok);font-weight:700}.mid{color:var(--warn);font-weight:700}
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+  .step{background:var(--card);border:1px solid #26355c;border-radius:12px;padding:18px}
+  .step .n{font-size:12px;color:var(--acc2);font-weight:700;letter-spacing:.1em}
+  .step h3{margin:8px 0 6px;font-size:16px}
+  .step p{margin:0;color:var(--mut);font-size:13px}
+  footer{padding:32px 0 60px;color:var(--mut);font-size:13px;border-top:1px solid #1e2b4c;margin-top:20px}
+  code{background:#0d1730;border:1px solid #223358;padding:1px 6px;border-radius:5px;font-size:12px}
+  .small{font-size:12px;color:var(--mut)}
+</style>
+<style>#linkos-nav{position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:4px;background:#1f2430;padding:6px 12px;font:13px/1.4 system-ui,"Microsoft YaHei",sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.25)}#linkos-nav .brand{color:#fff;font-weight:700;margin-right:10px;letter-spacing:.5px;text-decoration:none}#linkos-nav .grp{position:relative}#linkos-nav .glabel{display:inline-block;color:#cfd6e4;padding:5px 12px;border-radius:4px;cursor:pointer;user-select:none}#linkos-nav .grp:hover .glabel,#linkos-nav .glabel:hover{background:#323a4d;color:#fff}#linkos-nav .grp.on .glabel{color:#fff;font-weight:600;box-shadow:inset 0 -2px 0 #3b82f6}#linkos-nav .menu{display:none;position:absolute;top:100%;left:0;min-width:220px;background:#262d3d;border:1px solid #3a4358;border-radius:6px;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,.35)}#linkos-nav .grp:hover .menu,#linkos-nav .grp.open .menu{display:block}#linkos-nav .menu a{display:block;color:#cfd6e4;text-decoration:none;padding:6px 12px;border-radius:4px}#linkos-nav .menu a:hover{background:#323a4d;color:#fff}#linkos-nav .menu a.on{background:#3b82f6;color:#fff;font-weight:600}#linkos-nav .gdesc{font-size:11px;color:#8a93a6;padding:4px 12px 2px;line-height:1.4;border-bottom:1px solid #3a4358;margin-bottom:2px}</style></head>
+<body><div id="linkos-nav"><a class="brand" href="/home.html">LinkOS</a><div class="grp"><span class="glabel">广告主 · 投放</span><div class="menu"><div class="gdesc">开户 → 充值 → 建计划 → 传素材 → 创意自动化 → 审核 → 投放看数（对标 AppLovin ADVERTISE / Mintegral AppGrowth）</div><a href="/register.html#advertiser">自助开户</a><a href="/advertiser.html">投放工作台</a><a href="/creative.html">素材管理</a><a href="/creative-auto.html">创意自动化</a></div></div><div class="grp"><span class="glabel">开发者 · 变现</span><div class="menu"><div class="gdesc">入驻 → ① 添加应用 → ② 广告单元 → ③ 埋点码 → ④ 集成自检 → ⑤ 收益报表（对标 AppLovin MAX / Mintegral Monetization）</div><a href="/publisher.html">入驻与接入</a><a href="/apps.html">应用</a><a href="/ad_units.html">广告单元</a><a href="/integrity.html">集成自检</a><a href="/publisher_report.html">收益报表</a></div></div><div class="grp"><span class="glabel">演示与示例</span><div class="menu"><div class="gdesc"></div><a href="/media-demo.html">平台演示</a><a href="/index.html">Prebid 演示</a><a href="/ecpm_demo.html">eCPM 演示</a><a href="/advanced.html">高级能力台</a><a href="/dsp.html">外部 DSP 接入</a></div></div><div class="grp"><span class="glabel">开户·文档</span><div class="menu"><div class="gdesc"></div><a href="/register.html">自助开户</a><a href="/pricing.html">定价</a><a href="/docs.html">接入文档</a><a href="/tool/ecpm-score.html">免费eCPM工具</a></div></div><span style="flex:1"></span><span id="linkos-auth"><a href="/register.html" style="color:#9aa6c0;text-decoration:none;padding:4px 11px;white-space:nowrap">注册</a><a href="/login.html" style="color:#7fd1ff;text-decoration:none;padding:4px 11px;border:1px solid #3a4358;border-radius:5px;white-space:nowrap">登录</a></span></div>
+
+<div class="hero"><div class="wrap">
+  <span class="tag">DSP + SSP + 广告交易引擎 · 轻资产 / 高毛利 / 预付周结</span>
+  <h1>不是再做一个 AppLovin。<br>是把<b>意图</b>变成<b>可成交的曝光</b>。</h1>
+  <p class="sub">聚合长尾 App 流量，接入真实买量引擎，用意图 Agent 出价替代规则出价。<br>每个能力都不是 PPT——本页就能当场跑一次真实竞价给你看。</p>
+  <div class="cta">
+    <a class="btn p" href="#live">▶ 当场跑一次真实竞价</a>
+    <a class="btn g" href="/register.html">申请开户</a>
+    <a class="btn g" href="/docs.html">OpenRTB 接入文档</a>
+    <a class="btn g" href="/tool/ecpm-score.html">免费 eCPM' 打分</a>
+  </div>
+</div></div>
+
+<div class="wrap">
+  <div class="live" id="live">
+    <h3>📡 这是 LinkOS 正在跑的一次真实 RTB 竞价</h3>
+    <div class="d">不是录屏、不是模拟数据。点击后你的浏览器直接向 <code>/openrtb2/bid</code> 发一个 OpenRTB 2.6 请求，意图 Agent 实时出价并返回 seatbid。</div>
+    <button class="btn p" onclick="liveBid()">发起一次真实竞价</button>
+    <div class="grid">
+      <div class="cell"><div class="k">本次竞价结果</div><div class="v" id="livebody">点击按钮开始</div></div>
+      <div class="cell"><div class="k">累计成交（全平台）</div><div class="v" id="liverpt">赢价 <b>40</b> 次<br>消耗 <b>271.6959</b> 元<br><span class="small">campaign #11 计划A</span></div></div>
+    </div>
+    <div class="small" style="margin-top:12px">更多真实演示：<a href="/index.html">Prebid.js 端到端竞价</a> · <a href="/media-demo.html">6 种广告形态演示</a> · <a href="/ecpm_demo.html">eCPM' 价值竞价机制</a></div>
+  </div>
+</div>
+
+<section><div class="wrap">
+  <h2>为什么不用 AppLovin / 汇量</h2>
+  <p class="h2sub">AppLovin 是重交付的手游买量巨头；汇量 / AppLuck 是同类程序化平台。LinkOS 的定位是轻资产、高毛利、预付周结，并把"效果"写进竞价机制本身。</p>
+  <table>
+    <thead><tr><th>能力</th><th>LinkOS（我们）</th><th>同类平台</th><th>当场验证</th></tr></thead>
+    <tbody>
+      <tr><td>意图 Agent 智能出价</td><td class="ok">✓ LLM 意图画像 + embedding 相关性 + shading <span id="llmstate" class="hint" style="color: rgb(180, 83, 9);">（LLM 已配置，热路径未开启）</span></td><td class="mid">△ 规则 / 传统算法</td><td><a href="/index.html">Prebid 演示</a></td></tr>
+      <tr><td>eCPM' 价值排序</td><td class="ok">✓ 效果 × LTV × 出价 × 服务承诺</td><td class="mid">△ 纯出价排序</td><td><a href="/ecpm_demo.html">eCPM 演示</a></td></tr>
+      <tr><td>广告形态</td><td class="ok">✓ 6 种：激励 / 插屏 / 开屏 / 原生 / icon / push</td><td class="ok">✓ 同类</td><td><a href="/media-demo.html">形态演示</a></td></tr>
+      <tr><td>VAST 4.0 + OMID 可见性</td><td class="ok">✓ 几何可见性 ≥50% 连续 1s</td><td class="mid">△ 部分</td><td><a href="/media-demo.html">媒体侧渲染</a></td></tr>
+      <tr><td>设备指纹风控 + 跨设备重放拦截</td><td class="ok">✓ DEVICE_FP_MISMATCH / RATE_LIMIT</td><td class="mid">△</td><td><a href="/media-demo.html">风控层</a></td></tr>
+      <tr><td>S2S 结算 + HMAC 防伪造</td><td class="ok">✓ 双端账本对账</td><td class="ok">✓ 同类</td><td><a href="/reports.html">结算报表</a></td></tr>
+      <tr><td>需求方接入（买量）</td><td class="ok">✓ 自有 DSP + 通用 OpenRTB 需求方开箱参拍</td><td class="mid">△ 以聚合为主</td><td><a href="/dsp.html">DSP 接入</a></td></tr>
+      <tr><td>长尾流量聚合（SSP 核心）</td><td class="ok">✓ 核心（AppLuck 模式）</td><td class="ok">✓ 同类</td><td><a href="/publisher.html">媒体入驻</a></td></tr>
+      <tr><td>轻资产 / 高毛利 / 预付周结</td><td class="ok">✓ 不设最低充值</td><td class="ok">✓ 同类</td><td><a href="/pricing.html">定价</a></td></tr>
+    </tbody>
+  </table>
+</div></section>
+
+<section><div class="wrap">
+  <h2>平台核心能力架构</h2>
+  <p class="h2sub">对标 AppLovin / 汇量 Mintegral 的真实落地模块（均非 PPT）：流量侧与需求侧在交易所内实时撮合，所有结果回流到数据飞轮。</p>
+  <div class="steps">
+    <div class="step"><div class="n">CAP 01</div><h3>双向 OpenRTB 实时竞价</h3><p>自有 DSP 出价引擎 + SSP 多需求方二价清算（second-price），媒体分成透明、可审计。</p></div>
+    <div class="step"><div class="n">CAP 02</div><h3>全链路归因与增量度量</h3><p>多触点归因、SKAN 视图归因，holdout / ghost ads / geo-lift 增量实验，证明广告「真的有效」（对标 Adjust）。</p></div>
+    <div class="step"><div class="n">CAP 03</div><h3>创意自动化工厂</h3><p>可玩广告、DCO 元素级组合、文生图 / 图生视频、多语言本地化（对标 Mindworks / Spark）。</p></div>
+    <div class="step"><div class="n">CAP 04</div><h3>ESMM 多目标预估 + 智能出价</h3><p>CTR/CVR 多任务模型（pCTCVR = pCTR·pCVR 规避样本选择偏差）+ pLTV 多目标 + bid shading + eCPM′ 贝叶斯冷启动（对标 AXON 内核）。</p></div>
+    <div class="step"><div class="n">CAP 05</div><h3>增长 Agent + 数据飞轮</h3><p>读懂 Brief → 生成创意 → 真实建 campaign 参拍 → 读实测 eCPM/eCPA → 回流重训模型，闭环自进化（领先于竞品的智能体编排层）。</p></div>
+    <div class="step"><div class="n">CAP 06</div><h3>合规与品牌安全基线</h3><p>IAB/GARM 品牌安全、post-ATT 设备身份图谱、ads.txt / app-ads.txt / sellers.json 校验。</p></div>
+  </div>
+  <p class="h2sub" style="margin-top:18px">第一性原理：广告平台的本质是「撮合 + 数据飞轮」——平台赚的是广告主 eCPM 与给媒体 payout 之间的差价；真正的护城河是模型预测的 ROI 比对手更准。模型越准 → 广告主 ROI 越高 → 预算越多 → 数据越厚 → 模型更准，飞轮一旦转起来后来者很难追（这也是 AppLovin / 汇量把 AI 引擎当核心资产的原因）。</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2>3 步接入</h2>
+  <p class="h2sub">全部自助完成，无需销售介入。开发者 5 分钟拿到广告位代码，广告主提交开户后进入审核（未通过审核不产生任何扣费）。</p>
+  <div class="steps">
+    <div class="step"><div class="n">STEP 01</div><h3>开发者取密钥</h3><p><a href="/register.html#publisher">填写域名</a>，立即拿到 <code>api_key</code>，随后可在后台创建广告单元并拿到埋点代码；落地页会被合规爬取补全品类/地域，自动抬升 eCPM。</p></div>
+    <div class="step"><div class="n">STEP 02</div><h3>广告主开户</h3><p><a href="/register.html#advertiser">提交开户信息</a>（登录用户名 / 密码 / 广告主名称），生成待审计划；运营审核 + 充值后即可参拍。或 <a href="/dsp.html">注册你的 OpenRTB 端点</a> 作为 DSP。</p></div>
+    <div class="step"><div class="n">STEP 03</div><h3>跑一次真实竞价</h3><p>本页按钮或 <a href="/index.html">Prebid 端到端</a> 当场验证：<code>/openrtb2/bid</code> 出价 → <code>/notify</code> 扣预算 → 报表。</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>先免费算一算你的 eCPM'</h2>
+  <p class="h2sub">不确定该出多少价？用与平台同款的 eCPM' 引擎先估一下，不用注册。同一套机制跑在生产竞价里。</p>
+  <div class="cta" style="justify-content:flex-start">
+    <a class="btn p" href="/tool/ecpm-score.html">打开免费 eCPM' 打分器</a>
+    <a class="btn g" href="/pricing.html">看定价</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div>LinkOS · 程序化广告平台（DSP + SSP + 广告交易引擎）</div>
+  <div style="margin-top:8px">
+    <a href="/home.html">首页</a> · <a href="/media-demo.html">平台演示</a> · <a href="/docs.html">接入文档</a> ·
+    <a href="/register.html">自助开户</a> · <a href="/pricing.html">定价</a> ·
+    <a href="/tool/ecpm-score.html">免费工具</a> · <a href="/ads.txt">ads.txt</a> ·
+    <a href="/app-ads.txt">app-ads.txt</a> · <a href="/sellers.json">sellers.json</a> · <a href="/health">健康检查</a>
+  </div>
+  <div class="small" style="margin-top:10px">eCPM' = 效果预测 × LTV × 折算出价 × 服务承诺。所有演示页均为可当场运行的真实接口，非模拟截图。</div>
+</div></footer>
+
+<script>
+  async function liveBid(){
+    var b=document.getElementById('livebody');
+    b.textContent='竞价中…';
+    var t=performance.now();
+    try{
+      var r=await fetch('/openrtb2/bid',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:'home-'+Date.now(),imp:[{id:'home-imp-'+Date.now(),banner:{w:300,h:250},bidfloor:0.5}],
+          site:{domain:'dellai.xyz'},device:{ua:navigator.userAgent,ip:'0.0.0.0'},at:2,tmax:3000})
+      });
+      var d=await r.json(), ms=Math.round(performance.now()-t);
+      var s=d.seatbid&&d.seatbid[0]&&d.seatbid[0].bid&&d.seatbid[0].bid[0];
+      if(s){
+        b.innerHTML='✅ 出价成功 · '+ms+'ms<br>cpm: <b>'+(s.price/1e6).toFixed(4)+' 元</b> · campaign #'+s.cid+'<br>'
+          + '意图分 '+(s.ext&&s.ext.intent_score!=null?(s.ext.intent_score*100).toFixed(0)+'%':'-')
+          + ' · 来源 '+(s.ext&&s.ext.intent_source||'-')
+          + ' · 目标价 '+(s.ext&&s.ext.bid_basis||'-');
+        liveReport();
+      } else {
+        b.innerHTML='本次无出价（nbr: '+(d.nbr!=null?d.nbr:'无')+') · '+ms+'ms<br><span class="small"> nbr=8 容量节流 · 3 未过审 · 2 无匹配创意</span>';
+      }
+    }catch(e){ b.textContent='请求失败：'+e.message; }
+  }
+  async function liveReport(){
+    try{
+      var r=await fetch('/api/demo/report'), d=await r.json();
+      document.getElementById('liverpt').innerHTML='赢价 <b>'+d.wins+'</b> 次<br>消耗 <b>'+d.spent_cny.toFixed(4)+'</b> 元<br>'
+        + '<span class="small">campaign #'+d.campaign.id+' '+(d.campaign.name||'')+'</span>';
+    }catch(e){ document.getElementById('liverpt').textContent='加载失败'; }
+  }
+  liveReport();
+</script>
+<script>
+  // ⑥ LLM 真实接入状态：不能文案写着 LLM、竞价里实际跑 heuristic。
+  // 真实状态取自 /api/config/llm（llm_enabled 是否配置 + hot_path 是否进竞价热路径）。
+  (async function () {
+    try {
+      const d = await (await fetch('/api/config/llm')).json();
+      const el = document.getElementById('llmstate');
+      if (!el) return;
+      el.textContent = d.llm_enabled
+        ? ('（' + (d.hot_path ? 'LLM 已进竞价热路径' : 'LLM 已配置，热路径未开启') + '）')
+        : '（LLM 未配置，当前为启发式回落）';
+      el.style.color = (d.llm_enabled && d.hot_path) ? '#27ae60' : '#b45309';
+    } catch (e) {}
+  })();
+</script>
+<script src="/console_nav.js"></script>
+<script src="/nav.js"></script>
+
+
+
+
+</body></html>

@@ -3,27 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ADX 运营看板</title>
+<title>运营看板</title>
 <style>
-  body{font-family:-apple-system,'Microsoft YaHei',sans-serif;margin:0;background:#f4f6fb;color:#1f2937}
+  body{font-family:-apple-system,'Microsoft YaHei',sans-serif;margin:0;background:#0b1020;color:#e8eefc}
   header{background:#0f172a;color:#fff;padding:14px 20px;font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
   .wrap{max-width:1100px;margin:18px auto;padding:0 16px}
   .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
-  .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-  .card .k{font-size:12px;color:#6b7280}.card .v{font-size:24px;font-weight:800;margin-top:4px}
-  h3{margin:18px 0 8px;font-size:15px}
-  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;font-size:13px}
-  th,td{padding:8px 10px;border-bottom:1px solid #eef2f7;text-align:left}
-  th{background:#f8fafc;color:#475569}
+  .card{background:#16203a;border:1px solid #26355c;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .card .k{font-size:12px;color:#93a3c4}.card .v{font-size:24px;font-weight:800;margin-top:4px;color:#e8eefc}
+  h3{margin:18px 0 8px;font-size:15px;color:#e8eefc}
+  table{width:100%;border-collapse:collapse;background:#16203a;border:1px solid #26355c;border-radius:12px;overflow:hidden;font-size:13px}
+  th,td{padding:8px 10px;border-bottom:1px solid #26355c;text-align:left;color:#e8eefc}
+  th{background:#0d1730;color:#93a3c4}
   .bar{height:8px;background:#2563eb;border-radius:4px;display:inline-block;vertical-align:middle}
   pre{background:#0f172a;color:#a5f3fc;padding:12px;border-radius:10px;overflow:auto;font-size:12px}
   .refresh{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer}
-  .muted{color:#94a3b8;font-size:12px}
+  .muted{color:#93a3c4;font-size:12px}
 </style>
 </head>
 <body>
 <div id="ctop"></div>
-<header><span>ADX 运营看板 / Dashboard</span><button class="refresh" onclick="load()">刷新</button></header>
+<header><span>运营看板 / Dashboard</span><button class="refresh" onclick="load()">刷新</button></header>
 <div class="wrap">
   <div class="grid" id="kpis"></div>
   <h3>实时指标 <span class="muted" id="be"></span></h3>
@@ -39,8 +39,16 @@
 <script>
 async function load(){
   try{
-    const ov = await (await fetch('/api/console/overview')).json();
-    const ms = await (await fetch('/metrics')).json();
+    const ovR = await fetch('/api/console/overview');
+    // 实时大盘是平台运营视角（需管理员）。此前 401 被当成正常 JSON 解析，页面一片空白看不出原因。
+    if (!ovR.ok) {
+      document.getElementById('metrics').textContent =
+        '实时大盘是「平台运营视角」，需要管理员权限（HTTP ' + ovR.status + '）。广告主请用投放工作台，媒体请用收益报表。';
+      return;
+    }
+    const ov = await ovR.json();
+    const msR = await fetch('/metrics');
+    const ms = msR.ok ? await msR.json() : {};
     document.getElementById('be').textContent = 'backend: ' + (ms.backend||'-');
     const p = ov.platform||{};
     const kpis = [
@@ -52,7 +60,8 @@ async function load(){
     document.getElementById('kpis').innerHTML = kpis.map(k=>`<div class="card"><div class="k">${k[0]}</div><div class="v">${k[1]}</div></div>`).join('');
     document.getElementById('metrics').textContent = JSON.stringify(ms, null, 2);
     document.querySelector('#adv tbody').innerHTML = (ov.advertisers||[]).map(a=>`<tr><td>${a.id}</td><td>${a.name}</td><td>${a.app_category||'-'}</td><td>${(a.balance_micros/1e6).toFixed(0)}</td><td>${(a.spend_micros/1e6).toFixed(2)}</td><td>${a.impressions||0}</td><td>${a.clicks||0}</td><td>${a.conversions||0}</td></tr>`).join('');
-    const rep = await (await fetch('/ssp/report')).json();
+    const repR = await fetch('/ssp/report');
+    const rep = repR.ok ? await repR.json() : {};
     document.querySelector('#ssp tbody').innerHTML = (rep.publishers||[]).map(r=>`<tr><td>${r.publisher}</td><td>${r.wins}</td><td>${r.gross_cny.toFixed(2)}</td><td>${r.payout_cny.toFixed(2)}</td><td>${r.ssp_margin_cny.toFixed(2)}</td></tr>`).join('');
     const rw = ov.reward||{};
     document.querySelector('#rw tbody').innerHTML = [['发放',rw.granted||0],['拒绝',rw.rejected||0],['总计',rw.total||0]].map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td></tr>`).join('');
@@ -61,6 +70,7 @@ async function load(){
 load();
 setInterval(load, 10000);
 </script>
+<script src="/console_nav.js"></script>
 <script src="/console_top.js"></script>
 </body>
 </html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>账号安全 · 两步验证</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:760px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#e8eefc}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ label{display:block;font-size:12px;color:#93a3c4;margin:8px 0 3px}
+ input{width:100%;padding:9px;border:1px solid #26355c;border-radius:6px;box-sizing:border-box;font-size:14px;background:#0d1730;color:#e8eefc}
+ button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;margin-top:10px}
+ button.ghost{background:#5b6b82} button.bad{background:#c0392b}
+ .secret{font-family:ui-monospace,Consolas,monospace;background:#0d1730;border:1px solid #f1c40f;padding:10px;border-radius:6px;margin-top:10px;word-break:break-all;font-size:13px;color:#fde68a}
+ code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>账号安全</h2>
+  <div class="hint">两步验证（TOTP）：开启后登录需「密码 + 认证器 6 位动态码」，对标 AppLovin 2-Step Verification。请用 Google Authenticator / 微信「二次验证」等任意 TOTP 认证器扫码。</div>
+
+  <div class="card">
+    <h3>① 生成密钥（重置会覆盖旧密钥，需重新扫码）</h3>
+    <button onclick="setup()">生成 / 重置密钥</button>
+    <div id="s-out"></div>
+  </div>
+
+  <div class="card">
+    <h3>② 输入认证器上的 6 位动态码</h3>
+    <input id="code" placeholder="000000" maxlength="6" inputmode="numeric">
+    <button onclick="enable()">启用两步验证</button>
+    <button class="bad" onclick="disable()">停用两步验证</button>
+    <div class="hint" id="msg"></div>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='账号安全';</script>
+  <script src="/admin.js"></script>
+  <script>
+    var M = function (t) { document.getElementById('msg').textContent = t; };
+    async function setup(){
+      var d = await (await fetch('/api/account/2fa/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json().catch(function(){ return {}; });
+      if (d.error) { M('失败：' + d.error); return; }
+      document.getElementById('s-out').innerHTML =
+        '<div class="secret">密钥：<b>' + d.secret + '</b><br><br>otpauth（可转成二维码扫码）：<br><code style="word-break:break-all">' + d.otpauth + '</code></div>' +
+        '<div class="hint">用认证器扫码或手填密钥，再输入显示的 6 位码点「启用」。</div>';
+      M('密钥已生成，请在认证器中绑定后再启用');
+    }
+    async function enable(){
+      var c = document.getElementById('code').value.trim();
+      if (!/^\d{6}$/.test(c)) { M('请输入 6 位数字动态码'); return; }
+      var d = await (await fetch('/api/account/2fa/enable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: c }) })).json().catch(function(){ return {}; });
+      M(d.ok ? '已启用两步验证 ✓ 下次登录需要密码 + 动态码' : ('失败：' + (d.error || '')));
+    }
+    async function disable(){
+      var c = document.getElementById('code').value.trim();
+      if (!/^\d{6}$/.test(c)) { M('请输入 6 位数字动态码'); return; }
+      var d = await (await fetch('/api/account/2fa/disable', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: c }) })).json().catch(function(){ return {}; });
+      M(d.ok ? '已停用两步验证' : ('失败：' + (d.error || '')));
+    }
+  </script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>
+</body></html>

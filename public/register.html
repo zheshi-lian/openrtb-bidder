@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>自助开户 · LinkOS ADX</title>
+<title>自助开户 · LinkOS</title>
 <style>
   :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399}
   *{box-sizing:border-box}
@@ -35,6 +35,7 @@
   <div class="tabs">
     <button id="tab-pub" onclick="show('pub')">媒体侧 · 供给流量</button>
     <button id="tab-adv" onclick="show('adv')">需求侧 · 买量</button>
+    <button id="tab-dsp" onclick="show('dsp')">需求方 DSP · 接入竞价</button>
   </div>
 
   <div class="card" id="pub">
@@ -57,8 +58,10 @@
   <div class="card hide" id="adv">
     <label>广告主名称 / 主体</label>
     <input id="a-name" placeholder="我的游戏 / 我的工具 App">
-    <label>联系邮箱（必填）</label>
+    <label>联系邮箱（必填，作为登录用户名）</label>
     <input id="a-email" placeholder="you@company.com">
+    <label>登录密码（≥6 位）</label>
+    <input id="a-pwd" type="password" placeholder="设置登录密码">
     <label>品类（意图匹配，选填）</label>
     <select id="a-cat">
       <option value="">不限 / 待定</option>
@@ -73,16 +76,46 @@
     <div class="msg" id="a-msg"></div>
     <div class="key" id="a-account" style="margin-top:8px"></div>
   </div>
+
+  <div class="card hide" id="dsp">
+    <label>买方 / DSP 名称</label>
+    <input id="d-name" placeholder="MyDemand / 我的竞价端">
+    <label>OpenRTB 出价端点 URL（我们把 bid request POST 过来，你回 OpenRTB 响应出价）</label>
+    <input id="d-url" placeholder="https://bid.example.com/openrtb2/bid">
+    <label>分成比例（0-1，给到媒体的结算占比）</label>
+    <input id="d-rate" type="number" value="0.6" min="0" max="1" step="0.05">
+    <button class="btn" onclick="regDsp()">注册出价端点</button>
+    <div class="msg" id="d-msg"></div>
+  </div>
 </div>
 
 <script>
+  // 显式绑定表单元素：id 含连字符，浏览器不会自动生成 a_name 这样的全局变量，必须手动 getElementById，
+  // 否则会抛 ReferenceError: a_name is not defined（发布者侧 p_domain 等同样缺失）。
+  var p_domain = document.getElementById('p-domain');
+  var p_name = document.getElementById('p-name');
+  var p_contact = document.getElementById('p-contact');
+  var p_site = document.getElementById('p-site');
+  var a_name = document.getElementById('a-name');
+  var a_email = document.getElementById('a-email');
+  var a_pwd = document.getElementById('a-pwd');
+  var a_cat = document.getElementById('a-cat');
+  var a_cpm = document.getElementById('a-cpm');
+  var a_landing = document.getElementById('a-landing');
   function show(which){
-    document.getElementById('pub').classList.toggle('hide', which!=='pub');
-    document.getElementById('adv').classList.toggle('hide', which!=='adv');
-    document.getElementById('tab-pub').classList.toggle('on', which==='pub');
-    document.getElementById('tab-adv').classList.toggle('on', which==='adv');
+    ['pub','adv','dsp'].forEach(function(k){
+      var card=document.getElementById(k); if(card) card.classList.toggle('hide', which!==k);
+      var tab=document.getElementById('tab-'+k); if(tab) tab.classList.toggle('on', which===k);
+    });
   }
-  function initTab(){ show((location.hash||'').indexOf('adv')>-1?'adv':'pub'); }
+  function initTab(){
+    // 默认落到「需求侧 · 买量」：广告主漏斗（自助开户 / 注册）点进来就该是买量侧；
+    // 开发者侧必须显式带 #publisher（或 #pub），DSP 需求方带 #dsp，否则一律按需求侧展示。
+    var h=(location.hash||'').toLowerCase();
+    if(h.indexOf('pub')>-1 || h.indexOf('publisher')>-1) return show('pub');
+    if(h.indexOf('dsp')>-1) return show('dsp');
+    show('adv');
+  }
   async function regPub(){
     var m=document.getElementById('p-msg'); m.className='msg'; m.textContent='提交中…';
     try{
@@ -111,28 +144,48 @@
   async function regAdv(){
     var m=document.getElementById('a-msg'); m.className='msg'; m.textContent='提交中…';
     try{
-      var r=await fetch('/api/public/advertiser-open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        name:a_name.value.trim(), email:a_email.value.trim(), cat:a_cat.value,
-        targetCpm:a_cpm.value||'6', landing:a_landing.value.trim() })});
+      var email=a_email.value.trim(), pwd=a_pwd.value, name=a_name.value.trim();
+      if(!email){ m.textContent='请填写联系邮箱'; return; }
+      if(!pwd || pwd.length<6){ m.textContent='请设置至少 6 位的登录密码'; return; }
+      // 统一开户接口（server.js /api/signup/advertiser）：作用域=广告主名称，与广告主工作台/素材库同一口径。
+      // 注意：旧 /api/public/advertiser-open 已主动下线（返回 410），不要再调用。
+      var r=await fetch('/api/signup/advertiser',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        username:email, password:pwd, advertiser:name, display:name,
+        // 开户收集的品类/目标CPM/落地页必须一并提交落库，否则建计划时只能重填（需求侧漏斗断点）。
+        app_category:a_cat.value, target_cpm_cny:+a_cpm.value||0, landing_url:a_landing.value.trim() })});
       var d=await r.json();
       if(d.ok){
-        m.className='msg ok'; m.innerHTML='已提交开户申请 ✓  计划 #'+d.campaign_id+'（待审）。<br>'+d.msg;
-        // 后端已同步开通登录账号（作用域=邮箱）。这里必须展示凭据，否则需求方提交后拿不到账号、
-        //   无法登录查看审核状态 → 需求侧漏斗断点（home.html STEP02 与 nav.js 都指向本页）。
+        // 后端已开通广告主独立账号（用户名=邮箱，作用域=广告主名称），返回一次性密码。必须展示凭据，
+        // 否则需求方提交后拿不到账号、无法登录查看审核状态 → 需求侧漏斗断点。
+        m.className='msg ok';
+        m.innerHTML='广告主账号已开通 ✓  作用域（广告主名称）：'+d.scope+'<br>请到 <a href="/login.html">登录页</a> 用该账号进入广告主工作台建计划。';
         var acc=document.getElementById('a-account');
         if(d.account && d.account.password){
           acc.style.display='block';
-          acc.textContent='登录账号已开通：用户名 '+d.account.username+'  ·  密码 '+d.account.password+'（请立刻保存，之后不再显示。审核通过后用它登录广告主后台建计划）';
-        } else if(d.account){
-          acc.style.display='block';
-          acc.textContent='登录用户名 '+d.account.username+' 已被占用，请改用「广告主自助开户」页创建你的账号';
+          acc.textContent='登录账号：用户名 '+d.account.username+'  ·  密码 '+d.account.password+'（请用它登录 /login.html 进入广告主后台建计划）';
         } else { acc.style.display='none'; }
       }
       else { m.textContent='结果: '+(d.error||JSON.stringify(d)); }
     }catch(e){ m.textContent='请求失败: '+e.message; }
   }
+  // 需求方(DSP)接入：注册 OpenRTB 出价端点，参与本平台拍卖、买走开发者流量。
+  // 此前 dsp.html 让用户"在自助开户选择 DSP/需求方"，但注册页根本没有这一项 → 宣传页无落地动作。
+  async function regDsp(){
+    var m=document.getElementById('d-msg'); m.className='msg'; m.textContent='提交中…';
+    try{
+      var name=document.getElementById('d-name').value.trim();
+      var url=document.getElementById('d-url').value.trim();
+      if(!name || !url){ m.textContent='请填写买方名称与出价端点 URL'; return; }
+      var r=await fetch('/api/dsp/register',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ name:name, url:url, payoutRate:+document.getElementById('d-rate').value||0.6 })});
+      var d=await r.json();
+      if(d.ok){ m.className='msg ok'; m.textContent='已注册出价端点 ✓ 当前参与竞价的需求方：'+(d.partners||[]).join('、'); }
+      else { m.textContent='结果: '+(d.error||JSON.stringify(d)); }
+    }catch(e){ m.textContent='请求失败: '+e.message; }
+  }
   initTab();
 </script>
+<script src="/console_nav.js"></script>
 <script src="/nav.js"></script>
 </body>
 </html>

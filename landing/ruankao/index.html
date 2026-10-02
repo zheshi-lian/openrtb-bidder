@@ -67,29 +67,53 @@
     <p class="hint" style="margin-bottom:7px">百度云网盘提取码（备用通道）：</p>
     <div class="box">链接：<code>pan.baidu.com/s/1linkos2026</code><br>提取码：<code>RUANKAO</code></div>
   </div>
-  <footer>本页面由 LinkOS ADX 平台自托管 · 留资数据仅存联系方式，不含身份证/银行卡等敏感信息<br>Powered by LinkOS ADX</footer>
+  <footer>本页面由 LinkOS 平台自托管 · 留资数据仅存联系方式，不含身份证/银行卡等敏感信息<br>Powered by LinkOS</footer>
 </div>
 <script>
 (function () {
   var q = new URLSearchParams(location.search);
-  var ch = q.get(' + "'ch'" + ') || ' + "'ruankao'" + ';
-  var src = q.get(' + "'src'" + ') || (document.referrer ? new URL(document.referrer).hostname : ' + "''" + ') || ' + "'direct'" + ';
-  var f = document.getElementById(' + "'f'" + '), go = document.getElementById(' + "'go'" + '), msg = document.getElementById(' + "'msg'" + ');
-  function say(t, c) { msg.textContent = t; msg.className = ' + "'msg ' + (c || ' + "''" + ')'; }
-  f.addEventListener(' + "'submit'" + ', function (e) {
+  var ch = q.get('ch') || 'ruankao';
+  var src = q.get('src') || (document.referrer ? new URL(document.referrer).hostname : '') || 'direct';
+  // 广告归因参数：ADX SDK 点击时透传（imp=曝光ID / cid=计划ID / pub=媒体方）
+  var imp = (q.get('imp') || '').slice(0, 64);
+  var cid = (q.get('cid') || '').slice(0, 64);
+  var pub = (q.get('pub') || '').slice(0, 128);
+  // 落地页到达埋点（点击不等于到达，算到达率）：1x1 透明 GIF，异步加载不阻塞渲染
+  (function () {
+    var s = document.createElement('img');
+    s.alt = ''; s.referrerPolicy = 'no-referrer';
+    var u = '/api/public/landing-view?channel=' + encodeURIComponent(ch);
+    if (imp) u += '&imp=' + encodeURIComponent(imp);
+    if (pub) u += '&pub=' + encodeURIComponent(pub);
+    s.src = u;
+  })();
+  var f = document.getElementById('f'), go = document.getElementById('go'), msg = document.getElementById('msg');
+  function say(t, c) { msg.textContent = t; msg.className = 'msg ' + (c || ''); }
+  f.addEventListener('submit', function (e) {
     e.preventDefault();
-    var ct = document.getElementById(' + "'ct'" + ').value.trim();
-    var nm = document.getElementById(' + "'name'" + ').value.trim();
-    if (!ct) { say(' + "'\u8bf7\u586b\u5199\u624b\u673a\u53f7\u6216\u5fae\u4fe1\u53f7'" + ', ' + "'err'" + '); return; }
-    if (ct.length > 60) { say(' + "'\u8054\u7cfb\u65b9\u5f0f\u8fc7\u957f\uff0c\u8bf7\u68c0\u67e5'" + ', ' + "'err'" + '); return; }
-    go.disabled = true; say(' + "'\u63d0\u4ea4\u4e2d\u2026'" + ');
-    fetch(' + "'/api/public/ruankao-lead'" + ', { method:' + "'POST'" + ', headers:{' + "'Content-Type'" + ':' + "'application/json'" + '}, body: JSON.stringify({ contact:(nm?nm+' + "' / '" + ':''' + ')+ct, channel:ch, source:src }) })
-      .then(function (r) { return r.json().then(function (j) { return { ok:r.ok, j:j }; }); })
+    var ct = document.getElementById('ct').value.trim();
+    var nm = document.getElementById('name').value.trim();
+    if (!ct) { say('请填写手机号或微信号', 'err'); return; }
+    if (ct.length > 60) { say('联系方式过长，请检查', 'err'); return; }
+    go.disabled = true; say('提交中…');
+    fetch('/api/public/ruankao-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact: (nm ? nm + ' / ' : '') + ct, channel: ch, source: src, imp: imp, cid: cid, pub: pub })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (o) {
-        if (o.ok && o.j.ok) { document.getElementById(' + "'okMsg'" + ').textContent = o.j.msg || ' + "'\u63d0\u4ea4\u6210\u529f'" + '; document.getElementById(' + "'formCard'" + ').classList.remove(' + "'live'" + '); document.getElementById(' + "'done'" + ').classList.add(' + "'on'" + '); window.scrollTo({ top: document.getElementById(' + "'done'" + ').offsetTop - 90, behavior:' + "'smooth'" + ' }); }
-        else { say((o.j && o.j.error) || ' + "'\u63d0\u4ea4\u5931\u8d25'" + ', ' + "'err'" + '); go.disabled = false; }
+        if (o.ok && o.j.ok) {
+          var extra = o.j.conv ? ' ｜已归因为广告转化回流' : (o.j.dup ? ' ｜该曝光已归因过（去重）' : '');
+          document.getElementById('okMsg').textContent = (o.j.msg || '提交成功') + extra;
+          document.getElementById('formCard').classList.remove('live');
+          document.getElementById('done').classList.add('on');
+          window.scrollTo({ top: document.getElementById('done').offsetTop - 90, behavior: 'smooth' });
+        } else {
+          say((o.j && o.j.error) || '提交失败', 'err'); go.disabled = false;
+        }
       })
-      .catch(function () { say(' + "'\u7f51\u7edc\u5f02\u5e38'" + ', ' + "'err'" + '); go.disabled = false; });
+      .catch(function () { say('网络异常', 'err'); go.disabled = false; });
   });
 })();
 </script>

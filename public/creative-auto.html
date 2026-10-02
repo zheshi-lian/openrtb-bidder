@@ -2,26 +2,26 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>创意自动化 · Creative Automation</title>
+<title>创意自动化 · 广告主投放</title>
 <style>
-  :root{--bg:#0b1020;--card:#141b2e;--line:#26304a;--accent:#3b82f6;--ok:#22c55e;--bad:#ef4444;--txt:#e5e9f2;--muted:#8a93a6}
+  :root{--bg:#0b1020;--card:#16203a;--line:#26355c;--accent:#3b82f6;--ok:#34d399;--bad:#f87171;--txt:#e8eefc;--muted:#93a3c4}
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 'Microsoft YaHei',system-ui,sans-serif}
-  header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:#16203a}
   header b{font-size:15px} a.nav{color:#7fd1ff;text-decoration:none;font-size:13px;padding:4px 8px;border:1px solid var(--line);border-radius:6px}
   .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
   .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
   h3{margin:0 0 10px;font-size:14px}
   label{font-size:12px;color:var(--muted);display:block;margin:6px 0 2px}
-  input,textarea,select{width:100%;background:#0a0f1d;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font-size:13px}
+  input,textarea,select{width:100%;background:#0d1730;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font-size:13px}
   textarea{min-height:56px;font-family:ui-monospace,Consolas,monospace}
   .row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
   button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px;margin-top:10px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  pre{background:#060a14;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 ui-monospace,Consolas,monospace;color:#9fb3d1;max-height:260px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
-  iframe{border:1px solid var(--line);border-radius:8px;background:#fff;width:100%;height:360px;margin-top:8px}
+  pre{background:#0f172a;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.45 ui-monospace,Consolas,monospace;color:#9fb3d1;max-height:260px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
+  iframe{border:1px solid var(--line);border-radius:8px;background:#0d1730;width:100%;height:360px;margin-top:8px}
   .hint{font-size:12px;color:var(--muted)}
   img.prev{max-width:220px;border:1px solid var(--line);border-radius:8px;margin-top:8px}
-  #banner{display:none;background:#2a1212;border:1px solid var(--bad);color:#ffb4b4;padding:10px 14px;border-radius:8px;margin-bottom:14px}
+  #banner{display:none;background:#3a1d24;border:1px solid var(--bad);color:var(--bad);padding:10px 14px;border-radius:8px;margin-bottom:14px}
 </style>
 </head>
 <body>
@@ -285,5 +285,6 @@ async function saveFromLast() {
 }
 loadGenCfg();
 </script>
+<script src="/console_nav.js"></script>
 <script src="/console_top.js"></script>
 </body></html>

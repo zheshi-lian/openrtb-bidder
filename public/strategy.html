@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>策略配置 · 平台运营</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1180px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#e8eefc}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}.row>div{flex:1;min-width:130px}
+ label{display:block;font-size:12px;color:#93a3c4;margin:6px 0 3px}
+ input,select{width:100%;padding:6px 8px;border:1px solid #26355c;border-radius:6px;box-sizing:border-box;font-size:12.5px;background:#0d1730;color:#e8eefc}
+ button{padding:6px 12px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;font-size:12px}
+ button.ghost{background:#5b6b82} button.bad{background:#c0392b}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px} td,th{border:1px solid #26355c;padding:5px 7px;text-align:left;color:#e8eefc}
+ th{background:#0d1730;color:#93a3c4}
+ .tag{font-size:11px;padding:1px 6px;border-radius:5px;background:#16203a;color:#7fd1ff;border:1px solid #26355c}
+ .tag.ok{background:#16321f;color:#34d399;border-color:#234a35} .tag.no{background:#3a1d24;color:#f87171;border-color:#4a2630}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>策略配置</h2>
+  <div class="hint">需求源排序与底价、A/B 实验、品牌安全黑名单。改动立即作用于竞价链路（后端强制执行，不是仅前端展示）。</div>
+
+  <!-- ② Waterfall -->
+  <div class="card">
+    <h3>① Waterfall：需求源排序 + 分国家底价</h3>
+    <div class="hint">不配规则则默认并发拍卖；配了规则就按 position 定序。scope 填媒体域名或 <code>*</code>（全局）。</div>
+    <div class="row">
+      <div><label>scope</label><input id="w-scope" placeholder="* 或 媒体域名"></div>
+      <div><label>广告单元（可空）</label><input id="w-unit" placeholder="au_xxx"></div>
+      <div><label>国家（* = 全部）</label><input id="w-country" value="*" placeholder="CN / US / *"></div>
+      <div><label>需求源</label><input id="w-src" placeholder="如 zhuque-dsp"></div>
+      <div><label>排序 position</label><input id="w-pos" type="number" value="0"></div>
+      <div><label>底价 floor_cny</label><input id="w-floor" type="number" value="0" step="0.5"></div>
+    </div>
+    <button onclick="addWf()">新增规则</button>
+    <table id="wtbl"><thead><tr><th>id</th><th>scope</th><th>广告单元</th><th>国家</th><th>需求源</th><th>序</th><th>底价</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <!-- ③ A/B -->
+  <div class="card">
+    <h3>② A/B 实验</h3>
+    <div class="hint">kind：<b>bid_floor</b>（底价倍率）/ <b>demand_source</b>（限定参与需求源）/ <b>ecpm_weight</b>（排序权重）。按请求稳定分桶，结果看下方汇总。</div>
+    <div class="row">
+      <div><label>实验名</label><input id="ab-name" placeholder="如 底价1.0x vs 1.5x"></div>
+      <div><label>kind</label><select id="ab-kind">
+        <option value="bid_floor">bid_floor</option><option value="demand_source">demand_source</option><option value="ecpm_weight">ecpm_weight</option>
+      </select></div>
+      <div style="flex:3;min-width:280px"><label>variants（JSON 数组，每项含 key）</label>
+        <input id="ab-cfg" placeholder='[{"key":"A","floor_mul":1},{"key":"B","floor_mul":1.5}]'></div>
+    </div>
+    <button onclick="addAb()">创建实验</button>
+    <div class="hint" id="ab-msg"></div>
+    <table id="abtbl"><thead><tr><th>id</th><th>名称</th><th>kind</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+    <h3 style="margin-top:14px">实验结果（曝光 / 胜出 / 收入）</h3>
+    <table id="abres"><thead><tr><th>实验</th><th>变体</th><th>曝光</th><th>胜出</th><th>收入(元)</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <!-- ⑤ 黑名单 -->
+  <div class="card">
+    <h3>③ 品牌安全黑名单</h3>
+    <div class="hint">命中即 pre-bid 拦截（返回 nbr=3，不参拍），而不是先曝光再下架。</div>
+    <div class="row">
+      <div><label>类型</label><select id="bl-kind"><option value="domain">domain</option><option value="keyword">keyword</option><option value="bundle">bundle</option></select></div>
+      <div><label>值</label><input id="bl-val" placeholder="如 bad.example.com"></div>
+      <div><label>scope</label><input id="bl-scope" value="*" placeholder="* 或 媒体域名"></div>
+    </div>
+    <button onclick="addBl()">加入黑名单</button>
+    <table id="bltbl"><thead><tr><th>id</th><th>类型</th><th>值</th><th>scope</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='平台运营';</script>
+  <script src="/admin.js"></script>
+  <script>
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    async function addWf(){
+      const r = await fetch('/api/waterfall',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({scope:document.getElementById('w-scope').value.trim()||'*',
+          ad_unit_id:document.getElementById('w-unit').value.trim(),
+          country:document.getElementById('w-country').value.trim()||'*',
+          demand_source:document.getElementById('w-src').value.trim(),
+          position:+document.getElementById('w-pos').value||0,
+          floor_cny:+document.getElementById('w-floor').value||0})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) alert('失败：'+(d.error||'')); loadAll();
+    }
+    async function loadWf(){
+      const rows=await (await fetch('/api/waterfall')).json().catch(()=>[]);
+      const tb=document.querySelector('#wtbl tbody'); tb.innerHTML='';
+      (rows||[]).forEach(w=>{ const tr=document.createElement('tr');
+        tr.innerHTML='<td>'+w.id+'</td><td>'+esc(w.scope)+'</td><td>'+esc(w.ad_unit_id||'-')+'</td><td>'+esc(w.country)+'</td>'+
+          '<td><span class="tag">'+esc(w.demand_source)+'</span></td><td>'+w.position+'</td><td>'+w.floor_cny+'</td>'+
+          '<td><span class="tag '+(Number(w.enabled)?'ok':'no')+'">'+(Number(w.enabled)?'启用':'停用')+'</span></td>'+
+          '<td><button class="ghost" onclick="tglWf('+w.id+','+(Number(w.enabled)?0:1)+')">'+(Number(w.enabled)?'停用':'启用')+'</button> <button class="bad" onclick="delWf('+w.id+')">删</button></td>';
+        tb.appendChild(tr); });
+    }
+    async function tglWf(id,on){ await fetch('/api/waterfall/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:on})}); loadAll(); }
+    async function delWf(id){ await fetch('/api/waterfall/'+id,{method:'DELETE'}); loadAll(); }
+
+    async function addAb(){
+      const m=document.getElementById('ab-msg');
+      let cfg=[]; try{ cfg=JSON.parse(document.getElementById('ab-cfg').value.trim()||'[]'); }catch(e){ m.textContent='variants 不是合法 JSON'; return; }
+      const r=await fetch('/api/ab/experiments',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:document.getElementById('ab-name').value.trim(),kind:document.getElementById('ab-kind').value,config:{variants:cfg}})});
+      const d=await r.json().catch(()=>({}));
+      m.textContent = r.ok?('已创建实验 #'+d.id):('失败：'+(d.error||''));
+      loadAll();
+    }
+    async function loadAb(){
+      const rows=await (await fetch('/api/ab/experiments')).json().catch(()=>[]);
+      const tb=document.querySelector('#abtbl tbody'); tb.innerHTML='';
+      (rows||[]).forEach(e=>{ const tr=document.createElement('tr');
+        tr.innerHTML='<td>'+e.id+'</td><td>'+esc(e.name)+'</td><td>'+esc(e.kind)+'</td>'+
+          '<td><span class="tag '+(Number(e.status)?'ok':'no')+'">'+(Number(e.status)?'进行中':'已停止')+'</span></td>'+
+          '<td><button class="ghost" onclick="tglAb('+e.id+','+(Number(e.status)?0:1)+')">'+(Number(e.status)?'停止':'启动')+'</button></td>';
+        tb.appendChild(tr); });
+      const res=await (await fetch('/api/ab/results')).json().catch(()=>[]);
+      const rb=document.querySelector('#abres tbody'); rb.innerHTML='';
+      (res||[]).forEach(x=>{ const tr=document.createElement('tr');
+        tr.innerHTML='<td>#'+x.exp_id+'</td><td>'+esc(x.variant_key)+'</td><td>'+x.exposures+'</td><td>'+x.wins+'</td><td>'+Number(x.revenue_cny||0).toFixed(4)+'</td>';
+        rb.appendChild(tr); });
+    }
+    async function tglAb(id,on){ await fetch('/api/ab/experiments/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:on})}); loadAll(); }
+
+    async function addBl(){
+      const r=await fetch('/api/bs/blacklist',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({kind:document.getElementById('bl-kind').value,value:document.getElementById('bl-val').value.trim(),scope:document.getElementById('bl-scope').value.trim()||'*'})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) alert('失败：'+(d.error||'')); loadAll();
+    }
+    async function loadBl(){
+      const rows=await (await fetch('/api/bs/blacklist')).json().catch(()=>[]);
+      const tb=document.querySelector('#bltbl tbody'); tb.innerHTML='';
+      (rows||[]).forEach(b=>{ const tr=document.createElement('tr');
+        tr.innerHTML='<td>'+b.id+'</td><td>'+esc(b.kind)+'</td><td>'+esc(b.value)+'</td><td>'+esc(b.scope)+'</td>'+
+          '<td><button class="bad" onclick="delBl('+b.id+')">删</button></td>';
+        tb.appendChild(tr); });
+    }
+    async function delBl(id){ await fetch('/api/bs/blacklist/'+id,{method:'DELETE'}); loadAll(); }
+
+    function loadAll(){ loadWf(); loadAb(); loadBl(); }
+    loadAll();
+  </script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>
+</body></html>

@@ -1,0 +1,56 @@
+# Prometheus 告警规则
+# 用法：把本文件挂到 Prometheus rule_files，并 scrape https://你的域名/metrics
+# 注意：/metrics 已被后台鉴权保护，Prometheus 需带 ADMIN_TOKEN：
+#   authorization:  { credentials: "<ADMIN_TOKEN>" }
+#   # 或 Bearer token_file / bearer_token
+
+groups:
+  - name: adx.rules
+    rules:
+      - alert: ADX服务不可用
+        expr: up{job="adx"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "ADX 后端失联超过 1 分钟"
+          description: "健康检查失败，竞价全部丢失。立即检查进程与隧道。"
+
+      - alert: 竞价延迟过高
+        expr: histogram_quantile(0.95, adx_bid_latency_seconds_bucket) > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "bid_latency p95 > 50ms"
+          description: "将对交易所超时答疑标 Tutorial TTFB；检查 DB 慢查询与 Redis 延迟。"
+
+      - alert: 中标率异常低下
+        expr: rate(adx_wins_total[10m]) / rate(adx_bid_requests_total[10m]) < 0.01
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "中标率 < 1%"
+          description: "可能出价过低、相关性门槛误杀、或 pacing 过早停投。"
+
+      - alert: 重复结算金额不一致
+        expr: adx_reconciliation_diff_micros != 0
+        for: 30m
+        labels: { severity: critical }
+        annotations:
+          summary: "对账差异不为 0"
+          description: "应收与已投放不一致，存在多扣/漏扣，立即查 /api/reports/reconciliation。"
+
+      - alert: 扣费余额不足
+        expr: rate(adx_charge_insufficient_total[10m]) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "出现余额不足仍投放(挂账)"
+          description: "预算已耗尽但仍在 winning bid，可能为 Rabbi hole 引起必须补 budget 或收紧 pacing。"
+
+      - alert: 反欺诈拒绝飙增
+        expr: rate(adx_device_fp_bid_rate_total[5m]) > 50
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "设备级限流拒绝量异常"
+          description: "疑似设备农场刷量接入，核对 deviceGraph 与 reward_log。"

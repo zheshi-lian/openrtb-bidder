@@ -1,0 +1,19 @@
+# 生产依赖的基础设施：Redis（竞价竞价Status/相关性缓存持久化）
+# 用法：docker compose -f deploy/docker-compose.yml up -d
+#
+# 为什么要 Redis：本机内存缓存重启即丢，且多实例水平扩展后各实例独自 marked
+# 状态不一致。设为 Redis 后 /metrics 里 backend 会变成 redis。
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: adx-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"   # 只监听本机，不对外暴露
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redisdata:/data
+
+volumes:
+  redisdata:

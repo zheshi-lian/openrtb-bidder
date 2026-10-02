@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>审核台 · 平台运营</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1180px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#e8eefc}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ select{padding:6px 9px;border:1px solid #26355c;border-radius:6px;background:#0d1730;color:#e8eefc}
+ button{padding:5px 12px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;font-size:12px}
+ button.ghost{background:#5b6b82} button.bad{background:#c0392b}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left;vertical-align:top;color:#e8eefc}
+ th{background:#0d1730;color:#93a3c4}
+ .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#16203a;color:#7fd1ff;border:1px solid #26355c}
+ .tag.ok{background:#16321f;color:#34d399;border-color:#234a35} .tag.no{background:#3a1d24;color:#f87171;border-color:#4a2630}
+ pre{margin:0;white-space:pre-wrap;word-break:break-all;max-height:90px;overflow:auto;background:#0f172a;color:#9ae6b4;padding:6px;border-radius:5px;font-size:11px}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>审核台</h2>
+  <div class="hint">计划审核与素材审核。驳回必须填原因——原因会显示在广告主后台，是他据此修改的依据。</div>
+
+  <div class="card">
+    <h3>① 计划审核</h3>
+    <select id="st" onchange="loadCamp()">
+      <option value="pending">待审核</option><option value="rejected">已驳回</option><option value="approved">已通过</option>
+    </select>
+    <table id="ctbl"><thead><tr><th>id</th><th>名称</th><th>广告主</th><th>品类</th><th>落地页</th><th>目标CPM</th><th>驳回原因</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>② 素材审核</h3>
+    <div class="hint">停用的素材不再参与投放（A/B 轮播也会剔除）。</div>
+    <table id="ktbl"><thead><tr><th>id</th><th>计划</th><th>广告主</th><th>形态</th><th>标题</th><th>内容</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='平台运营';</script>
+  <script src="/admin.js"></script>
+  <script>
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    async function loadCamp(){
+      const st = document.getElementById('st').value;
+      const rows = await (await fetch('/api/campaigns/review?status=' + st)).json().catch(()=>([]));
+      const tb = document.querySelector('#ctbl tbody'); tb.innerHTML = '';
+      if (rows && rows.error) { tb.innerHTML = '<tr><td colspan="8">' + rows.error + '（需平台运营账号）</td></tr>'; return; }
+      (rows||[]).forEach(c=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = '<td>'+c.id+'</td><td>'+esc(c.name)+'</td><td>'+esc(c.advertiser)+'</td><td>'+esc(c.app_category||'*')+'</td>'+
+          '<td style="max-width:200px;word-break:break-all">'+esc(c.landing_url||'')+'</td><td>'+(Number(c.target_cpm_micros)/1e6).toFixed(2)+'</td>'+
+          '<td>'+esc(c.review_note||'')+'</td>'+
+          '<td>'+(st==='approved'?'—':('<button onclick="approve('+c.id+')">通过</button> <button class="bad" onclick="reject('+c.id+')">驳回</button>'))+'</td>';
+        tb.appendChild(tr);
+      });
+      if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="8">暂无</td></tr>';
+    }
+    async function approve(id){
+      await fetch('/api/campaign/'+id+'/approve',{method:'PUT'});
+      loadCamp();
+    }
+    async function reject(id){
+      const note = prompt('填写驳回原因（广告主会看到，请写清如何修改）：');
+      if(!note||!note.trim()) return;
+      const r = await fetch('/api/campaign/'+id+'/reject',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note.trim()})});
+      const d = await r.json().catch(()=>({}));
+      if(!r.ok) alert('失败：'+(d.error||''));
+      loadCamp();
+    }
+    async function loadCr(){
+      const rows = await (await fetch('/api/creatives')).json().catch(()=>([]));
+      const tb = document.querySelector('#ktbl tbody'); tb.innerHTML='';
+      (rows||[]).forEach(k=>{
+        const on = String(k.status)==='active';
+        const tr=document.createElement('tr');
+        tr.innerHTML='<td>'+k.id+'</td><td>'+k.campaign_id+'</td><td>'+esc(k.advertiser)+'</td><td><span class="tag">'+esc(k.format)+'</span></td>'+
+          '<td>'+esc(k.title)+'</td><td style="max-width:260px"><pre>'+esc(String(k.content||'').slice(0,220))+'</pre></td>'+
+          '<td><span class="tag '+(on?'ok':'no')+'">'+(on?'启用':'停用')+'</span></td>'+
+          '<td><button class="'+(on?'ghost':'')+'" onclick="toggleCr('+k.id+','+(on?0:1)+')">'+(on?'停用':'启用')+'</button></td>';
+        tb.appendChild(tr);
+      });
+      if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="8">暂无素材</td></tr>';
+    }
+    async function toggleCr(id,on){
+      await fetch('/api/creatives/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:on?'active':'paused'})});
+      loadCr();
+    }
+    loadCamp(); loadCr();
+  </script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>
+</body></html>

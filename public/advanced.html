@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>高级能力台 · 平台运营</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1080px;margin:0 auto;padding:18px 22px}
+ h2{font-size:19px;margin:0 0 4px;color:#e8eefc} h3{margin:16px 0 8px;font-size:14px;color:#cdd8f2}
+ .hint{font-size:12.5px;color:#93a3c4;line-height:1.6}
+ .card{background:#16203a;padding:16px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+ .tab{padding:7px 13px;border:1px solid #2f4170;border-radius:20px;cursor:pointer;font-size:13px;background:#101a33;color:#93a3c4}
+ .tab.on{background:#3b82f6;color:#fff;border-color:#3b82f6}
+ .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.row>div{flex:1;min-width:160px}
+ label{display:block;font-size:12px;color:#93a3c4;margin:8px 0 3px}
+ input,select,textarea{width:100%;padding:7px 9px;border:1px solid #2f4170;border-radius:6px;box-sizing:border-box;font-size:13px;background:#0d1730;color:#e8eefc}
+ button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px}
+ pre{background:#0a0f1d;color:#9fb3d1;padding:12px;border-radius:8px;overflow:auto;font-size:12px;line-height:1.5;max-height:320px}
+ .ok{color:#34d399;font-weight:700}.bad{color:#c0392b;font-weight:700}
+ table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left} th{background:#132043;color:#93a3c4}
+ .seg{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#132038;color:#93a3c4}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>高级能力台</h2>
+  <div class="hint">对标 AppLovin/Mintegral 的进阶技术能力：品牌安全、投放节奏(频控/时段)、身份图谱、MMP 归因、增量实验、模型平台、竞价工程。底层能力已就绪，此处统一演示与联调。</div>
+
+  <div class="tabs">
+    <div class="tab on" onclick="sw(this,'bs')">品牌安全</div>
+    <div class="tab" onclick="sw(this,'pac')">投放节奏·频控</div>
+    <div class="tab" onclick="sw(this,'idg')">身份图谱</div>
+    <div class="tab" onclick="sw(this,'mmp')">MMP·归因</div>
+    <div class="tab" onclick="sw(this,'inc')">增量实验</div>
+    <div class="tab" onclick="sw(this,'ml')">模型平台</div>
+    <div class="tab" onclick="sw(this,'bid')">竞价工程</div>
+  </div>
+
+  <!-- 品牌安全 -->
+  <div class="card" id="bs">
+    <h3>品牌安全（IAB 分类 + GARM 分级 + pre-bid）</h3>
+    <div class="row">
+      <div style="flex:3"><label>内容关键词（逗号分隔，如 politics, 游戏, porn）</label><input id="bskw" value="游戏,体育"></div>
+      <div style="flex:3"><label>域名 / 媒体</label><input id="bsdom" value="example.com"></div>
+      <div style="flex:1"><button onclick="bsRun()">分类</button></div>
+    </div>
+    <pre id="bsout">{ 点击「分类」查看 GARM 分级、IAB 类目、是否触发零容忍拦截 }</pre>
+  </div>
+
+  <!-- 投放节奏 -->
+  <div class="card" id="pac" style="display:none">
+    <h3>投放节奏：时段(daypart) + 频次控制(freq cap) + 预算平滑</h3>
+    <div class="row">
+      <div style="flex:1"><label>计划 campaign_id</label><input id="paccid" value="1"></div>
+      <div style="flex:1"><button onclick="pacGet()">读取当前配置</button></div>
+    </div>
+    <div class="row">
+      <div style="flex:1"><label>投放模式</label><select id="pacmode"><option>SMOOTH</option><option>ASAP</option><option>EVEN</option></select></div>
+      <div style="flex:2"><label>投放星期(0-6，逗号，0=周日)</label><input id="pacdays" value="1,2,3,4,5"></div>
+      <div style="flex:2"><label>投放小时(0-23，逗号)</label><input id="pachours" value="9,10,11,12,13,14,15,16,17,18"></div>
+    </div>
+    <div class="row">
+      <div style="flex:1"><label>频控次数/窗口</label><input id="paccnt" value="3"></div>
+      <div style="flex:1"><label>窗口秒</label><input id="pacwin" value="3600"></div>
+      <div style="flex:1"><label>频控维度</label><select id="pacscope"><option>device</option><option>user</option><option>campaign</option><option>creative</option></select></div>
+      <div style="flex:1"><button onclick="pacSave()">保存</button></div>
+    </div>
+    <pre id="pacout">{ 读取或保存后显示 }</pre>
+  </div>
+
+  <!-- 身份图谱 -->
+  <div class="card" id="idg" style="display:none">
+    <h3>身份解析图谱（post-ATT 设备图 / 跨 App 识别）</h3>
+    <div class="row">
+      <div style="flex:3"><label>ID 集合（JSON，如 {"idfa":"...","gaid":"..."}）</label><input id="idids" value='{"idfa":"IDFA-DEMO","gaid":"GAID-DEMO"}'></div>
+      <div style="flex:1"><button onclick="idResolve()">解析</button></div>
+      <div style="flex:1"><button onclick="idStats()">全局统计</button></div>
+    </div>
+    <pre id="idout">{ 解析或统计后显示 }</pre>
+  </div>
+
+  <!-- MMP / 归因 -->
+  <div class="card" id="mmp" style="display:none">
+    <h3>MMP 归因对接（AppsFlyer / Adjust / Singular …）</h3>
+    <div class="row">
+      <div style="flex:2"><label>广告主 scope</label><input id="madv" placeholder="如 DemoBrand"></div>
+      <div style="flex:2"><label>平台 provider</label><input id="mprov" value="appsflyer"></div>
+      <div style="flex:3"><label>回传 postback_url</label><input id="mpb" value="https://example.com/mmp/postback"></div>
+      <div style="flex:1"><button onclick="mmpAdd()">添加</button></div>
+      <div style="flex:1"><button onclick="mmpList()">刷新</button></div>
+    </div>
+    <div id="mmplist" class="hint">点击「刷新」查看已配置 MMP</div>
+    <h3>多触点归因 / 增量</h3>
+    <div class="row">
+      <div style="flex:2"><label>impid（曝光 ID，可留空＝自动取最近一次曝光）</label><input id="attrimp" placeholder="如 demo_rewarded_1738..."></div>
+      <div style="flex:1"><button onclick="attrGet()">拉取归因样本</button></div>
+      <div style="flex:1"><button onclick="incList()">增量实验列表</button></div>
+    </div>
+    <pre id="mmpout">{ 点击上方按钮查看 }</pre>
+  </div>
+
+  <!-- 增量实验 -->
+  <div class="card" id="inc" style="display:none">
+    <h3>增量实验（Geo / PSA 对照，统计显著性）</h3>
+    <div class="row">
+      <div style="flex:2"><label>实验名</label><input id="iname" value="brand-lift-1"></div>
+      <div style="flex:2"><label>对照组比例(0-1)</label><input id="ictrl" value="0.2"></div>
+      <div style="flex:1"><button onclick="incCreate()">创建</button></div>
+    </div>
+    <pre id="incout">{ 创建或列表后显示 }</pre>
+  </div>
+
+  <!-- 模型平台 -->
+  <div class="card" id="ml" style="display:none">
+    <h3>模型平台（特征 / 校准 / 多目标 pLTV / Bandit / 注册）</h3>
+    <div class="row">
+      <div style="flex:1"><button onclick="mlSnap()">快照</button></div>
+      <div style="flex:1"><button onclick="mlHealth()">模型健康</button></div>
+      <div style="flex:1"><button onclick="mlDrift()">漂移监控</button></div>
+    </div>
+    <pre id="mlout">{ 点击查看 }</pre>
+  </div>
+
+  <!-- 竞价工程 -->
+  <div class="card" id="bid" style="display:none">
+    <h3>竞价工程（胜率模型 / bid shading / 限流 / deadline）</h3>
+    <div class="row">
+      <div style="flex:1"><button onclick="bidWin()">胜率快照</button></div>
+      <div style="flex:1"><button onclick="bidThr()">限流状态</button></div>
+    </div>
+    <pre id="bidout">{ 点击查看 }</pre>
+  </div>
+</div>
+
+<script>window.AUTH_TITLE='平台运营';</script>
+<script src="/admin.js"></script>
+<script>
+function api(p, body){ return fetch(p, { method: body?'POST':'GET', credentials:'same-origin',
+  headers:{'Content-Type':'application/json'}, body: body?JSON.stringify(body):undefined }).then(r=>r.json().catch(()=>({error:'bad json'}))); }
+function sw(el, id){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on')); el.classList.add('on');
+  ['bs','pac','idg','mmp','inc','ml','bid'].forEach(x=>document.getElementById(x).style.display=(x===id?'block':'none')); }
+function me(){ return (window.Auth && Auth.get())||null; }
+function show(id, o){ document.getElementById(id).textContent = typeof o==='string'?o:JSON.stringify(o,null,2); }
+
+async function bsRun(){
+  const r = await api('/api/brand-safety/classify', { keywords: document.getElementById('bskw').value.split(',').map(s=>s.trim()).filter(Boolean), domain: document.getElementById('bsdom').value });
+  let h = JSON.stringify(r,null,2);
+  if (r.garmTier!==undefined) h = 'GARM 分级 Tier: '+r.garmTier + (r.garmTier===0?'  （零容忍，将拦截）':'') + '\nIAB 类目: '+(r.iab||[]).join(',') + '\n是否未知: '+!!r.unknown + '\n\n'+h;
+  show('bsout', h);
+}
+async function pacGet(){ const cid=document.getElementById('paccid').value; show('pacout', await api('/api/pacing/'+cid)); }
+async function pacSave(){
+  const cid=document.getElementById('paccid').value;
+  const body = { mode: document.getElementById('pacmode').value,
+    daypart: { days: document.getElementById('pacdays').value.split(',').map(Number), hours: document.getElementById('pachours').value.split(',').map(Number) },
+    freqCap: { count: +document.getElementById('paccnt').value, windowSec: +document.getElementById('pacwin').value, scope: document.getElementById('pacscope').value } };
+  show('pacout', await api('/api/pacing/'+cid, body));
+}
+async function idResolve(){ try{ const ids=JSON.parse(document.getElementById('idids').value); show('idout', await api('/api/identity/resolve',{ids})); }catch(e){ show('idout','ID JSON 解析失败: '+e.message);} }
+async function idStats(){ show('idout', await api('/api/identity/stats')); }
+async function mmpAdd(){
+  const adv=document.getElementById('madv').value.trim(); if(!adv){show('mmpout','请填广告主 scope');return;}
+  show('mmpout', await api('/api/mmp/config', { advertiser:adv, provider:document.getElementById('mprov').value, postback_url:document.getElementById('mpb').value }));
+  mmpList();
+}
+async function mmpList(){
+  const adv=document.getElementById('madv').value.trim();
+  const rows = adv? await api('/api/mmp/config?advertiser='+encodeURIComponent(adv)) : [];
+  if(!Array.isArray(rows)){ show('mmpout', rows); return; }
+  let h='<table><thead><tr><th>id</th><th>广告主</th><th>平台</th><th>回传地址</th><th>启用</th></tr></thead><tbody>';
+  rows.forEach(r=> h+='<tr><td>'+r.id+'</td><td>'+r.advertiser+'</td><td><span class="seg">'+r.provider+'</span></td><td>'+r.postback_url+'</td><td>'+(r.enabled?'✓':'✗')+'</td></tr>');
+  h+='</tbody></table>'; document.getElementById('mmplist').innerHTML=h;
+}
+async function attrGet(){
+  // 可指定 impid；留空由后端回退到最近一次曝光（此前无参调用恒 400）。
+  const imp=(document.getElementById('attrimp').value||'').trim();
+  show('mmpout', await api('/api/attribution'+(imp?('?impid='+encodeURIComponent(imp)):'')));
+}
+async function incList(){ show('mmpout', await api('/api/incrementality')); }
+async function incCreate(){
+  const r = await api('/api/incrementality/create', { name:document.getElementById('iname').value, control_ratio:+document.getElementById('ictrl').value });
+  show('incout', r); if(r.ok) incList();
+}
+async function mlSnap(){ show('mlout', await api('/api/ml/snapshot')); }
+async function mlHealth(){ show('mlout', await api('/api/ml/health')); }
+async function mlDrift(){ show('mlout', await api('/api/ml/drift')); }
+async function bidWin(){ show('bidout', await api('/api/bid/winrate')); }
+async function bidThr(){ show('bidout', await api('/api/bid/throttle')); }
+
+window.addEventListener('DOMContentLoaded', function(){
+  const m=me();
+  if(m && m.type==='advertiser'){ document.getElementById('madv').value = m.scope || ''; }
+});
+</script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>

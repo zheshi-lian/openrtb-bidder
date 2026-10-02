@@ -1,41 +1,21 @@
 @echo off
-cd /d "%~dp0"
-
-echo ===============================================
-echo  程序化广告平台 (openrtb-bidder) 启动器
-echo ===============================================
+chcp 65001 >nul
+REM ============================================================
+REM  zhuque ADX 唯一手动启动入口（与开机自启共用 start_stack.ps1，幂等不冲突）
+REM
+REM  服务架构（唯一链路，各层职责）：
+REM   1) MySQL267 / redisadx    - Windows 服务（数据库/缓存），下方 net start 兜底拉起
+REM   2) cloudflared 服务       - Windows 服务自启（dellai.xyz 隧道，token 远程管理）
+REM   3) ADX(8080)/媒体端(8081) - 本入口 - start_stack.ps1 拉起
+REM        开机路径：计划任务 ADX_Stack_AutoStart(ONSTART, SYSTEM, 无需登录)
+REM   4) 隧道不通时             - Get-Service cloudflared 查状态 / 重启服务；
+REM        勿手工 cloudflared tunnel run（会与服务的 token 隧道重复）
+REM ============================================================
+REM 兜底拉起 MySQL（服务未起时启动；已运行则静默跳过）
+net start MySQL267 >nul 2>&1
+net start redisadx >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start_stack.ps1"
 echo.
-echo [1/3] 检查 Node.js ...
-where node >nul 2>nul
-if errorlevel 1 (
-  echo [错误] 未检测到 Node.js，请先安装: https://nodejs.org (LTS 版)
-  pause
-  exit /b 1
-)
-node -v
-
-echo.
-echo [2/3] 安装依赖 (已安装会自动跳过) ...
-call npm install
-if errorlevel 1 (
-  echo [错误] 依赖安装失败，请检查网络后重试
-  pause
-  exit /b 1
-)
-
-echo.
-echo [3/3] 启动服务 ...
-echo -------------------------------------------------
-echo  前置条件: 请确保 MySQL 已运行，且存在数据库 zhuque
-echo  账号 test / 密码 test@fftime  (见 server.js 第10行)
-echo -------------------------------------------------
-echo  启动后访问:
-echo    广告主控制台 : http://127.0.0.1:8080/advertiser.html
-echo    媒体方全链路 : http://127.0.0.1:8080/publisher.html
-echo    媒体方收益   : http://127.0.0.1:8080/publisher_report.html
-echo    SDK 文件     : http://127.0.0.1:8080/pub_sdk.js
-echo  按 Ctrl+C 停止服务
-echo -------------------------------------------------
-echo.
-call npm start
+echo 本地: http://127.0.0.1:8080/media-demo.html
+echo 线上: https://dellai.xyz/media-demo.html
 pause

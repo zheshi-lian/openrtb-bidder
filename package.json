@@ -7,10 +7,13 @@
     "start": "node server.js",
     "seed": "node seed.js",
     "agent": "node intent_agent.js",
-    "agent:llm": "node intent_agent_llm.js"
+    "agent:llm": "node intent_agent_llm.js",
+    "verify": "node verify_gap_closure.js",
+    "smoke": "node smoke_test.js"
   },
   "dependencies": {
     "express": "^4.19.2",
+    "ioredis": "^6.0.0",
     "mysql2": "^3.11.0"
   }
 }

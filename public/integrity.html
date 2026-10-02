@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>集成自检 · 开发者变现</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1000px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#e8eefc}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}.row>div{flex:1;min-width:180px}
+ label{display:block;font-size:12px;color:#93a3c4;margin:8px 0 3px}
+ select,input{width:100%;padding:7px 9px;border:1px solid #26355c;border-radius:6px;box-sizing:border-box;background:#0d1730;color:#e8eefc}
+ button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:7px 9px;text-align:left;color:#e8eefc}
+ th{background:#0d1730;color:#93a3c4}
+ .ok{color:#34d399;font-weight:700} .bad{color:#f87171;font-weight:700}
+ code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>集成自检</h2>
+  <div class="hint">回答「为什么我的广告位没有广告」——逐项检查入驻、收款、广告单元、SDK 是否真的收到请求、是否真的有胜出。</div>
+  <div class="card">
+    <div class="row">
+      <div><label>广告单元 ad_unit_id</label><select id="au"><option value="">（不指定，按媒体整体检查）</option></select></div>
+      <div><label>媒体域名</label><input id="dom" readonly></div>
+      <div><button onclick="run()">开始自检</button></div>
+    </div>
+    <div id="out"></div>
+  </div>
+  <div class="card">
+    <h3>填充率</h3>
+    <div id="fr" class="hint">自检后显示（填充率 = 胜出次数 / 竞价请求次数）</div>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='开发者后台';</script>
+  <script src="/admin.js"></script>
+  <script>
+    function me(){ return (window.Auth && Auth.get()) || null; }
+    async function init(){
+      var m = me();
+      if (!m || m.type !== 'publisher') { document.getElementById('out').innerHTML = '<div class="hint">请先以开发者账号登录。</div>'; return; }
+      document.getElementById('dom').value = m.scope;
+      var rows = await (await fetch('/api/ad-units')).json().catch(function(){ return []; });
+      var sel = document.getElementById('au');
+      (rows || []).forEach(function (u) {
+        var o = document.createElement('option');
+        o.value = u.ad_unit_id; o.textContent = u.ad_unit_id + ' · ' + (u.name || '') + '（' + u.format + '）';
+        sel.appendChild(o);
+      });
+      if (!(rows || []).length) document.getElementById('out').innerHTML = '<div class="hint">你还没有广告单元，请先到「广告单元」创建。</div>';
+    }
+    async function run(){
+      var m = me(); if (!m) return;
+      var auid = document.getElementById('au').value;
+      var url = '/api/publisher/integrity' + (auid ? ('?ad_unit_id=' + encodeURIComponent(auid)) : '');
+      var d = await (await fetch(url)).json().catch(function(){ return {}; });
+      if (d.error) { document.getElementById('out').innerHTML = '<div class="bad">' + d.error + '</div>'; return; }
+      var h = '<table><thead><tr><th style="width:38px">结果</th><th>检查项</th><th>说明 / 处理建议</th></tr></thead><tbody>';
+      (d.checks || []).forEach(function (c) {
+        h += '<tr><td class="' + (c.ok ? 'ok' : 'bad') + '">' + (c.ok ? '✓' : '✗') + '</td><td>' + c.item + '</td><td>' + (c.hint || '') + '</td></tr>';
+      });
+      h += '</tbody></table>';
+      document.getElementById('out').innerHTML = h;
+      document.getElementById('fr').innerHTML = '竞价请求 <b>' + d.requests + '</b> 次 · 胜出 <b>' + d.wins + '</b> 次 · 填充率 <b>' + (d.fill_rate === null ? '—（暂无请求）' : (d.fill_rate * 100).toFixed(1) + '%') + '</b>';
+    }
+    init();
+  </script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>
+</body></html>

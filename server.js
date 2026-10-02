@@ -10,6 +10,8 @@ const ecpm = require('./ecpm_engine'); // eCPM' 引擎（对齐 BP_v7 §2.6）
 const bidModel = require('./bid_model'); // 在线转化预测（数据驱动出价）
 const creativeAb = require('./creative_ab'); // P1 创意 A/B 多版本 + Thompson Sampling 自动优选
 const ksDSP = require('./sdk/kuaishou-dsp/adapter'); // 快手磁力引擎 开放平台 · DSP/买量侧 适配脚手架
+const oeDSP = require('./sdk/oceanengine-dsp/adapter'); // 巨量引擎(OceanEngine/抖音) 开放平台 · DSP/买量侧 适配脚手架
+const genericDSP = require('./sdk/generic-dsp/adapter'); // 通用 OpenRTB 需求方（自包含，可持续出价）
 const security = require('./security'); // 生产化安全基线：密钥/鉴权/审计/CORS
 
 // ===== 补齐 AppLovin 差距的新增能力层（Tier 0 生产化 + Tier 1 技术竞争力）=====
@@ -26,7 +28,9 @@ const bidEng = require('./bid');             // 胜率模型 + bid shading + 限
 const metrics = require('./metrics');        // p50/p95/p99 分位数 + QPS + SLO
 
 const app = express();
-app.use(express.json({ limit: '1mb' }));
+// 素材上传走 JSON(base64)，会比原文件大约 +33%：原先 1mb 限制下原图/视频超过 ~750KB 就被 413 拒掉，
+// 且前端只看到 catch 里的报错。放宽到 10mb 以支撑真实素材文件。
+app.use(express.json({ limit: '10mb' }));
 
 // 安全响应头 + CORS 分区：第三方 SDK 可跨域调竞价/上报；管理面仅白名单域
 app.use(security.secureCors);
@@ -34,16 +38,28 @@ app.use(security.secureCors);
 // ===== 后台鉴权：本机经隧道公网可达(dellai.xyz)，管理面必须鉴权 =====
 // 注意：必须早于业务路由注册，否则会先命中 handler 而绕过鉴权
 const ADMIN_PREFIXES = [
-  '/report', '/ssp/report', '/api/report', '/api/reports', '/api/attribution',
+  '/report', '/ssp/report', '/api/report', '/api/reports',
   // 注意：/api/creatives(素材库) 由其路由自身用 requireAuth('admin','advertiser') 保护，
   // 不放进管理员前缀——否则前缀 requireAdmin 会先于路由执行、把广告主自己挡在素材库外。
-  '/api/dsp', '/api/demand-partners', '/api/console', '/api/ecpm',
+  // 注意：/api/dsp/register（外部需求方自助注册出价端点）必须匿名可用——类比媒体入驻，
+  // 这是 dsp.html 承诺的自助动作；原先挂在 /api/dsp 管理员前缀下 → 外部买方注册直接 401。
+  // 列表与删除仍要管理员（见各自路由上的 requireAdmin）。
+  '/api/demand-partners', '/api/console',
+  // 注意：/api/ecpm（eCPM' 演示：eval/rank/feedback/reset/evals）是公开营销演示接口，
+  // 只读写 sku_eval/sku_stats 演示表、不含任何账号/经营数据，必须匿名可访问——
+  // 与下方 /api/demo/report、/api/public/ecpm-score 同理，避免匿名访问 401/undefined。
   '/api/reward/log', '/metrics',
-  // 新增能力面：经营与身份数据一律不得匿名访问
-  '/api/billing', '/api/trust', '/api/incrementality', '/api/ml',
-  '/api/creative-auto', '/api/pacing', '/api/identity', '/api/brand-safety', '/api/bid'
+  // 经营与计费数据一律不得匿名访问
+  '/api/billing', '/api/trust'
 ];
 ADMIN_PREFIXES.forEach(p => app.use(p, security.requireAdmin('admin')));
+
+// 高级能力台 / 归因 等能力面：登录的 admin / 广告主 / 媒体都应可用。
+// 原先整段挂在 requireAdmin 下 → 非 admin 一律 401，advanced.html 每个按钮都是空响应，
+// 且被前端 .catch(()=>[]) 静默吞掉，看起来像"功能根本没做"。改为角色级鉴权，匿名仍被拒绝。
+const ROLE_PREFIXES = ['/api/brand-safety', '/api/pacing', '/api/identity', '/api/ml',
+  '/api/bid', '/api/attribution', '/api/incrementality'];
+ROLE_PREFIXES.forEach(p => app.use(p, security.requireAuth('admin', 'advertiser', 'publisher')));
 
 // 管理员登录：交换 httpOnly cookie，使现有 dashboard 页面无需改造即可通过鉴权
 // 接受三种凭据：① 旧版静态 ADMIN_TOKEN ② 账号体系签发的作用域令牌 ③（仅 token 换 cookie）
@@ -119,6 +135,13 @@ app.post('/api/account/login', async (req, res) => {
       return res.status(401).json({ error: '用户名或密码错误' });
     }
     loginReset(ip, username);
+    // ⑧ 两步验证：密码正确后还需校验 TOTP 动态码（对标 AppLovin 2-Step Verification）。
+    // 先发一个 5 分钟有效的 challenge，校验通过才签发真正的令牌——避免"知道密码就能直接拿到令牌"
+    if (Number(a.twofa) === 1 && a.totp_secret) {
+      const chal = '2fa_' + crypto.randomBytes(12).toString('hex');
+      await cache.set('2fa:' + chal, String(a.username), 300).catch(() => {});
+      return res.json({ need2fa: true, challenge: chal, hint: '请输入认证器 App 上的 6 位动态码' });
+    }
     const token = security.issueToken({ username: a.username, type: a.type, scope: a.scope });
     res.json({ ok: true, token, type: a.type, scope: a.scope, username: a.username, display: a.display });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -134,11 +157,27 @@ app.get('/api/accounts', security.requireAuth('admin'), async (_, res) => {
   try { const [rows] = await pool.query('SELECT id,type,username,scope,display,status,created_by,created_at FROM accounts ORDER BY id DESC'); res.json(rows); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
+// 账号维护（管理员）：改状态/显示名/作用域。停用由 requireAuth 中间件即时生效
+app.put('/api/accounts/:id', security.requireAuth('admin'), async (req, res) => {
+  const id = +req.params.id; const b = req.body || {};
+  try {
+    const set = [], val = [];
+    if (b.status != null) { set.push('status=?'); val.push(Number(b.status) ? 1 : 0); }
+    if (b.display != null) { set.push('display=?'); val.push(String(b.display).trim()); }
+    if (b.scope != null) { set.push('scope=?'); val.push(String(b.scope).trim()); }
+    if (!set.length) return res.status(400).json({ error: '无可更新字段' });
+    val.push(id);
+    const [r] = await pool.query('UPDATE accounts SET ' + set.join(',') + ' WHERE id=?', val);
+    if (!r.affectedRows) return res.status(404).json({ error: 'account not found' });
+    await security.logAudit(req, 'account:update', 'account#' + id, JSON.stringify(b).slice(0, 200));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 // 广告主自助开户（公开，对标 AppLovin 自助投放平台）：注册独立账号 + 作用域
 // 与媒体入驻同理——注册即开通独立账号，登录后仅看自己作用域
 app.post('/api/signup/advertiser', async (req, res) => {
-  const { username, password, advertiser, display } = req.body || {};
+  const { username, password, advertiser, display, app_category, target_cpm_cny, landing_url } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'username,password required' });
   if (String(password).length < 6) return res.status(400).json({ error: 'password 至少 6 位' });
   const scope = (advertiser || username).toString().trim();
@@ -146,8 +185,21 @@ app.post('/api/signup/advertiser', async (req, res) => {
   try {
     const [[dup]] = await pool.query('SELECT id FROM accounts WHERE username=?', [username]);
     if (dup) return res.status(409).json({ error: '用户名已存在' });
-    await pool.query('INSERT INTO accounts (type,username,pass_hash,scope,display,created_by) VALUES (?,?,?,?,?,?)',
-      ['advertiser', username, security.hashPwd(password), scope, display || scope, 'self-signup']);
+    await pool.query('INSERT INTO accounts (type,username,pass_hash,scope,display,created_by,api_key) VALUES (?,?,?,?,?,?,?)',
+      ['advertiser', username, security.hashPwd(password), scope, display || scope, 'self-signup', newAdvKey()]);
+    // ②⑥ 开户即建余额账户（初始 0 → 需充值后才参拍）与广告主 API key，避免"开户即可投但账户没钱"
+    await pool.query('INSERT IGNORE INTO adv_balance (advertiser,balance_micros) VALUES (?,0)', [scope]).catch(() => {});
+    // 开户资料（品类 / 目标CPM / 落地页）落库：建计划时自动回填，避免"开户填一遍、建计划再填一遍"
+    await pool.query(`CREATE TABLE IF NOT EXISTS advertiser_profile (
+      advertiser VARCHAR(128) PRIMARY KEY,
+      app_category VARCHAR(32) DEFAULT '',
+      target_cpm_cny DECIMAL(10,2) DEFAULT 6,
+      landing_url VARCHAR(256) DEFAULT '',
+      updated_at BIGINT DEFAULT 0)`).catch(() => {});
+    await pool.query(`INSERT INTO advertiser_profile (advertiser,app_category,target_cpm_cny,landing_url,updated_at)
+      VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE app_category=VALUES(app_category), target_cpm_cny=VALUES(target_cpm_cny),
+      landing_url=VALUES(landing_url), updated_at=VALUES(updated_at)`,
+      [scope, String(app_category || ''), Number(target_cpm_cny) || 6, String(landing_url || ''), Date.now()]).catch(() => {});
     const token = security.issueToken({ username, type: 'advertiser', scope });
     res.json({ ok: true, username, scope, token, account: { username, password }, note: '已开通广告主独立账号，可直接登录广告主后台（advertiser.html）' });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -160,6 +212,14 @@ const PORT = process.env.PORT || 8080;
 
 // 健康检查端点：浏览器/监控直接 GET 即可确认服务与隧道全链路通
 app.get('/health', (_, res) => res.json({ ok: true, ts: Date.now() }));
+
+// SDK 失败遥测：pub_sdk.js 用 new Image() beacon 上报（GET /sdk/error?slot=..&pub=..）。
+// 后端此前根本没有这条路由 → 404 被 beacon 静默吞掉，SDK 失败率数据全丢且无人知晓。
+app.get('/sdk/error', (req, res) => {
+  try { console.error('[sdk-error]', 'slot=' + String(req.query.slot || ''), 'pub=' + String(req.query.pub || '')); } catch (e) {}
+  res.setHeader('Content-Type', 'image/gif');
+  res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'));
+});
 
 // 反向代理：把 /ms/* 转发到媒体服务端(默认 8081)，便于只暴露 8080 一个端口上公网
 // 公网演示时浏览器只连 ADX 域名，媒体结算请求经此代理转发，无需再暴露第二个端口。
@@ -197,16 +257,23 @@ security.attachAudit(async (req, action, target, detail) => {
   await pool.query('INSERT INTO admin_audit (actor,action,target,detail,ip) VALUES (?,?,?,?,?)',
     [String(req.admin || 'anonymous').slice(0, 64), String(action).slice(0, 64), String(target).slice(0, 255), String(detail).slice(0, 255), String(req.ip || '').slice(0, 64)]).catch(() => {});
 });
+// 账号停用即时生效：令牌在有效期内签名依然有效，必须由中间件查库确认账号状态，
+// 否则后台「停用」只是改了个数字、账号照样能访问（前端假权限）。
+security.attachAccountLookup(async (username, type) => {
+  const [rows] = await pool.query('SELECT status FROM accounts WHERE username=? AND type=?', [String(username), String(type)]).catch(() => [[]]);
+  return (rows && rows[0]) || null;
+});
 
 // 需求方(DSP)注册表：可经 /ssp/demand 动态添加外部 DSP
-// 保留「自有」需求方 zhuque-dsp + 两个外部演示需求方，
+// ≥3 个真实接入的需求方（入站买方 / 来买我们媒体流量）：自有 zhuque-dsp + 巨量引擎(抖音) + 通用 OpenRTB 需求方。
+// 三者均为真实适配器实现（sim 模式离线可跑、real 模式走官方开放平台 OAuth 买量），
 // 竞价引擎（二价/eCPM'/意图匹配/deadline）原样保留，供演示多需求方拍卖。
-// 注：快手磁力引擎(kuaishou-dsp)已从公开投放链路移除——其模拟创意不应出现在对外落地页；
-//     如需在管理台单独演示磁力引擎买量，可经 /api/demand/kuaishou/* 调用，不影响公开页面。
+// 角色说明：快手/巨量是「买量（帮客户在外部平台投放）」的投放中台能力，经 /api/demand/{kuaishou,oceanengine}/* 演示，
+//           不作为本平台入站 DSP 买方参与拍卖（避免与「我们=卖方/广告交易平台」的定位混淆）。
 let DEMAND_PARTNERS = [
   { name: 'zhuque-dsp', type: 'http', url: `http://127.0.0.1:${PORT}/openrtb2/bid`, payoutRate: 0.70, isOwn: true },
-  { name: 'external-dsp-A', type: 'mock', priceMicros: 4000000, payoutRate: 0.65, isOwn: false, adm: '<div style="padding:10px;background:#e67e22;color:#fff">外部DSP-A 演示广告</div>', crid: 'ext-a' },
-  { name: 'external-dsp-B', type: 'mock', priceMicros: 4500000, payoutRate: 0.60, isOwn: false, adm: '<div style="padding:10px;background:#27ae60;color:#fff">外部DSP-B 演示广告</div>', crid: 'ext-b' }
+  { name: 'oceanengine-dsp', type: 'oceanengine', payoutRate: 0.60, isOwn: false },
+  { name: 'generic-dsp', type: 'generic', payoutRate: 0.58, isOwn: false }
 ];
 
 // SSP 账本（内存；生产落 ssp_pub_ledger）
@@ -257,7 +324,8 @@ function fpRisk(fp) {
 const OMID_JS = process.env.OMID_JS || 'http://127.0.0.1:8080/omid-session.js';
 
 // ===== 多广告形态：插屏 / 开屏 / 原生 / icon / push =====
-const AD_FORMATS = ['banner', 'rewarded', 'interstitial', 'splash', 'native', 'icon', 'push'];
+// ⑦ 补齐移动端常用容器：mrec(300×250 暂停/中插) 与 app_open(开屏，App 冷启动首屏)
+const AD_FORMATS = ['banner', 'mrec', 'rewarded', 'interstitial', 'splash', 'app_open', 'native', 'icon', 'push'];
 const ICON_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">' +
   '<rect width="120" height="120" rx="24" fill="#2563eb"/>' +
@@ -312,11 +380,34 @@ function buildIconHtml(o) {
 </a>`;
 }
 function safeJson(s) { try { return JSON.parse(s); } catch (e) { return {}; } }
+// 投放时段：把表单简单选项转成 pacing 的 168 位 daypart 掩码（7天×24小时）
+function scheduleToMask(s) {
+  s = String(s || '').toLowerCase();
+  if (!s || s.includes('all') || s.includes('全天')) return pacing.defaultMask();
+  let days = [0, 1, 2, 3, 4, 5, 6];
+  if (s.includes('工作日') || s.includes('weekday')) days = [1, 2, 3, 4, 5];
+  else if (s.includes('周末') || s.includes('weekend')) days = [0, 6];
+  let h0 = 0, h1 = 23;
+  const m = s.match(/(\d{1,2})\s*-\s*(\d{1,2})/);
+  if (m) { h0 = +m[1]; h1 = +m[2]; }
+  return pacing.daypartNormalize({ days, hours: Array.from({ length: Math.max(0, h1 - h0 + 1) }, (_, i) => h0 + i) });
+}
 // 素材库选取：按 campaign + 形态返回已上传创意（管理后台上传，优于合成占位）
-async function pickCreative(campaignId, format, ctx) {
+async function pickCreative(campaignId, format, ctx, pinnedId) {
   if (!campaignId) return null;
   const f = String(format || 'banner').toLowerCase();
   try {
+    if (pinnedId) {
+      const [[pin]] = await pool.query(
+        "SELECT id,title,type,content,media_url,landing_url,width,height,format FROM creatives WHERE id=? AND campaign_id=? AND status='active'",
+        [pinnedId, campaignId]);
+      if (pin) {
+        const pub = (ctx && ctx.publisher) || '';
+        const kw = (ctx && ctx.keyword) || '';
+        const sub = (s) => String(s || '').replace(/\$\{PUBLISHER\}/g, pub).replace(/\$\{KEYWORD\}/g, kw).replace(/\$\{CID\}/g, campaignId);
+        return { id: pin.id, title: sub(pin.title), type: pin.type, format: pin.format, content: sub(pin.content), mediaUrl: pin.media_url, landingUrl: sub(pin.landing_url), width: pin.width, height: pin.height, abTotal: 1 };
+      }
+    }
     const [rows] = await pool.query(
       "SELECT id,title,type,content,media_url,landing_url,width,height,format FROM creatives WHERE campaign_id=? AND status='active' AND (format=? OR format='any') ORDER BY (format = ?) DESC",
       [campaignId, f, f]);
@@ -385,7 +476,7 @@ function buildVast(o) {
 <VAST xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4.0">
   <Ad id="${o.cid}">
     <InLine>
-      <AdSystem version="1.0">linkos-adx</AdSystem>
+      <AdSystem version="1.0">linkos</AdSystem>
       <AdTitle><![CDATA[${o.title}]]></AdTitle>
       <Impression id="zhuque-imp"><![CDATA[${q('impression')}]]></Impression>
       <AdVerifications>
@@ -396,7 +487,7 @@ function buildVast(o) {
       </AdVerifications>
       <Creatives>
         <Creative id="${o.cid}" sequence="1" adId="${o.cid}">
-          <UniversalAdId idRegistry="Ad-ID">ADX-${o.cid}</UniversalAdId>
+          <UniversalAdId idRegistry="Ad-ID">LinkOS-${o.cid}</UniversalAdId>
           <Linear>
             <Duration>${o.duration || RW_DURATION}</Duration>
             <TrackingEvents>
@@ -499,6 +590,19 @@ async function init() {
       is_own TINYINT DEFAULT 0, status TINYINT DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     // 胜出记录补齐 publisher 维度（结算/报表按媒体方归因，重启后仍可追溯）
     await pool.query("ALTER TABLE bid_win_log ADD COLUMN publisher VARCHAR(128) DEFAULT ''").catch(() => {});
+    // 广告单元(Ad Unit)：对标 AppLovin MAX「先建 Ad Unit 拿 ID → 再埋进页面」。
+    // 媒体在后台把广告位登记成实体，SDK 用 data-ad-unit 上报，报表才能按广告单元拆收益。
+    await pool.query(`CREATE TABLE IF NOT EXISTS ad_units (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      ad_unit_id VARCHAR(32) NOT NULL UNIQUE,
+      publisher VARCHAR(128) NOT NULL DEFAULT '',
+      name VARCHAR(128) DEFAULT '',
+      format VARCHAR(16) DEFAULT 'banner',
+      floor_cny DECIMAL(10,2) DEFAULT 1.00,
+      status TINYINT DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX(publisher))`);
+    await pool.query("ALTER TABLE bid_win_log ADD COLUMN ad_unit_id VARCHAR(32) DEFAULT ''").catch(() => {});
     await pool.query('ALTER TABLE bid_win_log ADD COLUMN feat TEXT').catch(() => {});            // 在线模型特征向量(回流训练用)
     await pool.query('ALTER TABLE bid_win_log ADD COLUMN model_trained TINYINT DEFAULT 0').catch(() => {}); // 是否已用于模型训练
     await pool.query('ALTER TABLE bid_win_log ADD COLUMN consent VARCHAR(64) DEFAULT \'\'').catch(() => {}); // 隐私同意(GDPR/CCPA)透传
@@ -508,6 +612,8 @@ async function init() {
     await pool.query("ALTER TABLE adv_campaign ADD COLUMN goal_type VARCHAR(8) DEFAULT 'CPM'").catch(() => {});
     await pool.query('ALTER TABLE adv_campaign ADD COLUMN target_cpa_micros BIGINT DEFAULT 0').catch(() => {});
     await pool.query('ALTER TABLE adv_campaign ADD COLUMN target_roas DECIMAL(8,3) DEFAULT 1').catch(() => {});
+    await pool.query('ALTER TABLE adv_campaign ADD COLUMN creative_id INT DEFAULT 0').catch(() => {}); // 计划锁定的素材库创意（强关联出价/下发）
+    await pool.query('ALTER TABLE adv_campaign ADD COLUMN geo_country VARCHAR(8) DEFAULT \'\'').catch(() => {}); // 定向国家（空=不限）
     await pool.query(`CREATE TABLE IF NOT EXISTS daily_spend (
       campaign_id INT, d DATE, micros BIGINT DEFAULT 0, PRIMARY KEY(campaign_id,d))`).catch(() => {});
     await pool.query(`CREATE TABLE IF NOT EXISTS adv_ledger (
@@ -522,6 +628,99 @@ async function init() {
     await pool.query('ALTER TABLE creatives ADD COLUMN impressions INT DEFAULT 0').catch(() => {});
     await pool.query('ALTER TABLE creatives ADD COLUMN clicks INT DEFAULT 0').catch(() => {});
     await pool.query('ALTER TABLE creatives ADD COLUMN conversions INT DEFAULT 0').catch(() => {});
+
+    // ===== 商业化就绪补齐（对标 AppLovin / Mintegral）=====
+    // ① 填充率/胜率：分子是胜出(bid_win_log)，分母必须是「请求数」与「各需求方出价次数」
+    await pool.query(`CREATE TABLE IF NOT EXISTS bid_req_log (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, req_id VARCHAR(64) DEFAULT '',
+      publisher VARCHAR(128) DEFAULT '', ad_unit_id VARCHAR(32) DEFAULT '',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX(publisher), INDEX(ad_unit_id), INDEX(created_at))`).catch(() => {});
+    await pool.query(`CREATE TABLE IF NOT EXISTS bid_bid_log (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, req_id VARCHAR(64) DEFAULT '',
+      imp_id VARCHAR(64) DEFAULT '', partner VARCHAR(64) DEFAULT '',
+      price_micros BIGINT DEFAULT 0, won TINYINT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX(partner), INDEX(created_at))`).catch(() => {});
+    // ② 广告主账户余额 + 充值流水（对标 Mintegral「获取账户余额」）
+    await pool.query(`CREATE TABLE IF NOT EXISTS adv_balance (
+      advertiser VARCHAR(128) PRIMARY KEY, balance_micros BIGINT DEFAULT 0,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`).catch(() => {});
+    await pool.query(`CREATE TABLE IF NOT EXISTS adv_recharge (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, advertiser VARCHAR(128) DEFAULT '',
+      amount_micros BIGINT DEFAULT 0, operator VARCHAR(64) DEFAULT '',
+      note VARCHAR(255) DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+    // ⑥ 广告主 API key（对标 Mintegral 广告主可取 API key）
+    await pool.query("ALTER TABLE accounts ADD COLUMN api_key VARCHAR(64) DEFAULT ''").catch(() => {});
+    // ⑦ 应用实体（对标 AppLovin「先添加应用」：支持 App bundle，不只 domain）
+    await pool.query(`CREATE TABLE IF NOT EXISTS apps (
+      id INT AUTO_INCREMENT PRIMARY KEY, publisher VARCHAR(128) DEFAULT '',
+      platform VARCHAR(16) DEFAULT 'android', bundle VARCHAR(190) DEFAULT '',
+      name VARCHAR(128) DEFAULT '', status TINYINT DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX(publisher))`).catch(() => {});
+    await pool.query('ALTER TABLE ad_units ADD COLUMN app_id INT DEFAULT 0').catch(() => {});
+    // ③ 媒体收款信息（对标 AppLovin Payments）
+    await pool.query("ALTER TABLE publishers ADD COLUMN payee_name VARCHAR(128) DEFAULT ''").catch(() => {});
+    await pool.query("ALTER TABLE publishers ADD COLUMN payee_account VARCHAR(190) DEFAULT ''").catch(() => {});
+    await pool.query("ALTER TABLE publishers ADD COLUMN payee_type VARCHAR(32) DEFAULT ''").catch(() => {});
+    await pool.query("ALTER TABLE publishers ADD COLUMN invoice_title VARCHAR(190) DEFAULT ''").catch(() => {});
+    await pool.query("ALTER TABLE publishers ADD COLUMN tax_no VARCHAR(64) DEFAULT ''").catch(() => {});
+    // ④ 审核驳回原因
+    await pool.query("ALTER TABLE adv_campaign ADD COLUMN review_note VARCHAR(255) DEFAULT ''").catch(() => {});
+    // ⑧ 两步验证 TOTP
+    await pool.query("ALTER TABLE accounts ADD COLUMN totp_secret VARCHAR(64) DEFAULT ''").catch(() => {});
+    await pool.query('ALTER TABLE accounts ADD COLUMN twofa TINYINT DEFAULT 0').catch(() => {});
+    // 存量广告主按在投计划预算初始化余额，保证升级后既有投放不中断、之后按真实余额参拍
+    await pool.query(`INSERT IGNORE INTO adv_balance (advertiser,balance_micros)
+      SELECT advertiser, COALESCE(SUM(budget_micros),0) FROM adv_campaign WHERE advertiser<>'' GROUP BY advertiser`).catch(() => {});
+    // ===== 补齐 1-7：MMP / Waterfall / A-B / 频控 / 黑名单 / 尺寸 =====
+    // ① MMP：归因平台配置 + 外发回传日志（AppsFlyer / Adjust / Singular / Kochava / Tenjin / Branch 格式）
+    await pool.query(`CREATE TABLE IF NOT EXISTS mmp_configs (
+      id INT AUTO_INCREMENT PRIMARY KEY, advertiser VARCHAR(128) NOT NULL,
+      provider VARCHAR(32) DEFAULT 'appsflyer', postback_url VARCHAR(512) DEFAULT '',
+      enabled TINYINT DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+    await pool.query(`CREATE TABLE IF NOT EXISTS mmp_postback_log (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, provider VARCHAR(32) DEFAULT '',
+      advertiser VARCHAR(128) DEFAULT '', imp_id VARCHAR(64) DEFAULT '',
+      event VARCHAR(64) DEFAULT '', url VARCHAR(512) DEFAULT '', ok TINYINT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+    // ② Waterfall：需求源排序 + 分国家底价（scope=媒体域名 或 '*' 全局）
+    await pool.query(`CREATE TABLE IF NOT EXISTS waterfall_rules (
+      id INT AUTO_INCREMENT PRIMARY KEY, scope VARCHAR(128) DEFAULT '*',
+      ad_unit_id VARCHAR(32) DEFAULT '', country VARCHAR(8) DEFAULT '*',
+      demand_source VARCHAR(64) NOT NULL, position INT DEFAULT 0,
+      floor_cny DECIMAL(10,2) DEFAULT 0, enabled TINYINT DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX(scope, ad_unit_id, country))`).catch(() => {});
+    // ③ A/B 实验：bid_floor / demand_source / ecpm_weight 三组
+    await pool.query(`CREATE TABLE IF NOT EXISTS ab_experiments (
+      id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(128) DEFAULT '',
+      kind VARCHAR(24) DEFAULT 'bid_floor', config TEXT, status TINYINT DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+    await pool.query(`CREATE TABLE IF NOT EXISTS ab_exposure (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, exp_id INT DEFAULT 0,
+      variant_key VARCHAR(32) DEFAULT '', imp_id VARCHAR(64) DEFAULT '',
+      won TINYINT DEFAULT 0, price_micros BIGINT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX(exp_id, variant_key))`).catch(() => {});
+    // ④ 频控 / 刷新 / 尺寸（MREC 300x250 等）
+    await pool.query('ALTER TABLE ad_units ADD COLUMN freq_cap INT DEFAULT 0').catch(() => {});
+    await pool.query('ALTER TABLE ad_units ADD COLUMN freq_window_hours INT DEFAULT 24').catch(() => {});
+    await pool.query('ALTER TABLE ad_units ADD COLUMN refresh_interval INT DEFAULT 0').catch(() => {});
+    await pool.query('ALTER TABLE ad_units ADD COLUMN size VARCHAR(16) DEFAULT \'\'').catch(() => {});
+    // ⑤ 品牌安全黑名单：domain / keyword / bundle
+    await pool.query(`CREATE TABLE IF NOT EXISTS bs_blacklist (
+      id INT AUTO_INCREMENT PRIMARY KEY, kind VARCHAR(16) DEFAULT 'domain',
+      value VARCHAR(190) DEFAULT '', scope VARCHAR(128) DEFAULT '*',
+      enabled TINYINT DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX(kind, value))`).catch(() => {});
+
+    // 演示隔离：示例/测试计划标记 is_test，/notify 对其只记账不真扣预算与余额
+    // （此前每次演示竞价都按真实扣费，把 campaign #4 直接刷爆）
+    await pool.query('ALTER TABLE adv_campaign ADD COLUMN is_test TINYINT DEFAULT 0').catch(() => {});
+    await pool.query("UPDATE adv_campaign SET is_test=1 WHERE is_test=0 AND (advertiser='DemoBrand' OR name LIKE '%demo%' OR name LIKE '%示例%' OR name LIKE '%演示%' OR name LIKE '%测试%')").catch(() => {});
+    // 恢复被演示刷爆的示例计划预算，并保证其广告主余额充足（否则"测试计划也因没钱而不参拍"）
+    await pool.query('UPDATE adv_campaign SET budget_micros = GREATEST(budget_micros, 100000000) WHERE is_test=1').catch(() => {});
+    await pool.query(`INSERT INTO adv_balance (advertiser,balance_micros)
+      SELECT DISTINCT advertiser, 100000000 FROM adv_campaign WHERE is_test=1 AND advertiser<>''
+      ON DUPLICATE KEY UPDATE balance_micros = GREATEST(balance_micros, 100000000)`).catch(() => {});
     // 加载持久化的外部 DSP 合作方进入拍卖（真实需求方连接，重启自动恢复）
     try {
       const [ds] = await pool.query("SELECT name,url,payout_rate,is_own FROM dsp_partners WHERE status=1");
@@ -597,23 +796,33 @@ async function init() {
       ip VARCHAR(64) DEFAULT '',
       delivered TINYINT DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX(channel), INDEX(created_at)`);
+      INDEX(channel), INDEX(created_at))`);
     bidModel.attachPool(pool);
     await bidModel.loadAll();
     bidModel.startFlusher();
     bidModel.startSweeper();
     creativeAb.attachPool(pool);
 
-    // ===== 新增能力层初始化（失败不影响主流程：各自 try/catch 已内置）=====
-    trust.attachPool(pool); await trust.initTables();
-    pacing.attachPool(pool); await pacing.initTables();
-    billing.attachPool(pool); await billing.initTables();
-    brandSafety.attachPool(pool); await brandSafety.initTables();
-    identity.attachPool(pool); await identity.initTables(); await identity.load();
-    attribution.attachPool(pool); await attribution.init();
-    creativeAuto.attachPool(pool); await creativeAuto.init();
-    ml.attachPool(pool); await ml.init(); ml.startWorkers();
-    bidEng.attachPool(pool); await bidEng.init(); bidEng.startFlusher();
+    // ===== 新增能力层初始化 =====
+    // 关键修复：原先整段共用一个 try/catch——任何一条建表 SQL 报错都会让后面
+    // 所有模块（信任/节奏/计费/品牌安全/身份图谱/归因/创意自动化/ML/竞价工程）被整段跳过初始化，
+    // 表现为"高级能力台一片空白、按钮无响应"，而日志只有一句含糊的 init 报错。
+    // 现在逐模块独立 try/catch：单点失败只影响该模块，并在日志里点名是谁失败。
+    const CAP_MODULES = [
+      ['trust', trust], ['pacing', pacing], ['billing', billing], ['brandSafety', brandSafety],
+      ['identity', identity], ['attribution', attribution], ['creativeAuto', creativeAuto],
+      ['ml', ml], ['bidEng', bidEng],
+    ];
+    for (const [nm, mod] of CAP_MODULES) {
+      try {
+        if (mod.attachPool) mod.attachPool(pool);
+        if (mod.initTables) await mod.initTables();
+        if (mod.init) await mod.init();
+        if (nm === 'identity' && mod.load) await mod.load();
+        if (nm === 'ml' && mod.startWorkers) mod.startWorkers();
+        if (nm === 'bidEng' && mod.startFlusher) mod.startFlusher();
+      } catch (e) { console.error('[init] 能力模块 ' + nm + ' 初始化失败：' + e.message); }
+    }
     console.log('[platform] 信任层/节奏/计费/品牌安全/身份图谱/归因/创意自动化/ML/竞价工程 已就绪');
   } catch (e) { console.error('init', e.message); }
 }
@@ -785,7 +994,9 @@ app.post('/openrtb2/bid', async (req, res) => {
   };
   const bsSupply = brandSafety.classify(bsCtx);
   try {
-    const [rows] = await pool.query("SELECT * FROM adv_campaign WHERE status=1 AND (review_status IS NULL OR review_status='approved') AND budget_micros>=?", [floorMicros]);
+    // ② 余额不足不参拍：账户真实资金 <=0 的计划一律不参与竞价
+    // （否则会出现"广告已投放但账户没钱可扣"的挂账，是资金漏洞而非展示问题）
+    const [rows] = await pool.query("SELECT * FROM adv_campaign WHERE status=1 AND (review_status IS NULL OR review_status='approved') AND budget_micros>=? AND (advertiser='' OR advertiser NOT IN (SELECT advertiser FROM adv_balance WHERE balance_micros<=0))", [floorMicros]);
     let best = null, fallback = null;   // best=相关性达标；fallback=相关性不足但其它均合规（保证合法请求都有应答，不空跑库存）
     for (const c of rows) {
       if (Date.now() > deadline) { cache.incr('openrtb_deadline'); break; } // 硬 deadline：宁可少算候选，也不超时丢标
@@ -793,6 +1004,9 @@ app.post('/openrtb2/bid', async (req, res) => {
       const campCat = (c.app_category || '').toLowerCase();
       const catMatch = !campCat || campCat === 'all' || !ctxCat || campCat === ctxCat;
       if (!catMatch) continue;
+      // P0 定向国家：campaign 限定国家但与请求国家不符 → 不参竞
+      const geo = (c.geo_country || '').toUpperCase();
+      if (geo && ctx.country && geo !== String(ctx.country).toUpperCase()) continue;
       const rel = await relevanceFor(c, ctx);            // 异步缓存化相关性（不阻塞热路径）
       const score = rel.score;
       // P1 品牌安全：广告主策略（bcat/badv/GARM 分级）未通过 → 不参竞
@@ -835,7 +1049,10 @@ app.post('/openrtb2/bid', async (req, res) => {
       const bd = ml.mo.bidFor({
         pred, goal, floorMicros,
         maxBidMicros: Math.min(Number(c.target_cpm_micros) || 0, Number(c.budget_micros) || 0) * 3,
-        bidAdjust: (gate.bidAdjust || 1) * (1 + 0.5 * score),
+        // 学习化 eCPM：把「近 7 天点击→转化」表现折算成出价系数(0.7~1.3)真正乘进出价，
+        // 打通「转化数据 → 出价」闭环。此前 perfFactor 定义了却从未被调用（死代码），
+        // 导致"按历史转化自动校准出价"这最关键的一环是断的。
+        bidAdjust: (gate.bidAdjust || 1) * (1 + 0.5 * score) * (await perfFactor(c.id)),
       });
       // 一价拍卖（br.at=1）才需要 shading；二价下 shading 只会降低胜率
       const shaded = bidEng.shade({
@@ -861,7 +1078,13 @@ app.post('/openrtb2/bid', async (req, res) => {
     best = best || fallback;   // 兜底：相关性不足的合规库存也能应答，避免 demo/通用请求空跑
     if (!best) return res.json({ id: br.id, seatbid: [], nbr: 2 });   // nbr=2 无效竞价请求（无广告可投）
     // P1 创意引擎：该 campaign 有多个 active 创意时做 A/B 选版（Thompson Sampling 自动优选）
-    const cv = await creativeAb.pick(best.c.id).catch(() => null);
+    // 计划↔素材库 强关联：若计划锁定了 creative_id，优先下发该素材库创意（并绑定到本计划）
+    let cv = null;
+    if (best.c.creative_id) {
+      const [[pinned]] = await pool.query("SELECT id,title,type,content,media_url,landing_url,width,height,format FROM creatives WHERE id=? AND campaign_id=? AND status='active'", [best.c.creative_id, best.c.id]).catch(() => [[]]);
+      if (pinned) cv = pinned;
+    }
+    if (!cv) cv = await creativeAb.pick(best.c.id).catch(() => null);
     const adm = cv ? (cv.content || best.c.creative_html) : best.c.creative_html;
     const crid = cv ? String(cv.id) : String(best.c.id);      // crid=创意版本 id → 后续统计可归因
     const landing = (cv && cv.landing_url) || best.c.landing_url;
@@ -915,6 +1138,21 @@ app.post('/ssp/bid', async (req, res) => {
   if (!br.id) return res.status(400).json({ error: 'missing id' });
   const publisher = (br.site && br.site.domain) || 'unknown';
   const pub = await getPub(publisher);                 // 媒体方画像(含 supply crawler 回填的 cat/geo)
+  // ① 竞价请求留痕（填充率的分母）：无论最终有无填充，请求都要计数，否则算不出填充率
+  pool.query('INSERT INTO bid_req_log (req_id,publisher,ad_unit_id) VALUES (?,?,?)',
+    [String(br.id || ''), String(publisher),
+     String(((br.imp && br.imp[0] && br.imp[0].ext) ? br.imp[0].ext.ad_unit_id : '') || '').slice(0, 32)]).catch(() => {});
+  // ⑤ 品牌安全黑名单：命中即不参拍（pre-bid 屏蔽），而不是"先曝光再下架"
+  try {
+    const [bl] = await pool.query("SELECT kind,value FROM bs_blacklist WHERE enabled=1 AND scope IN ('*',?)", [publisher]);
+    const kw = String((br.site && br.site.keywords) || '');
+    const hit = (bl || []).find(function (x) {
+      if (x.kind === 'domain') return String(publisher).toLowerCase().indexOf(String(x.value).toLowerCase()) >= 0;
+      if (x.kind === 'keyword') return kw.toLowerCase().indexOf(String(x.value).toLowerCase()) >= 0;
+      return false;
+    });
+    if (hit) { cache.incr('bs_blacklist_blocked'); return res.json({ id: br.id, seatbid: [], nbr: 3 }); }
+  } catch (e) {}
   // P1 隐私同意(GDPR/CCPA)透传：从 OpenRTB regs / user.consent 取，落库用于合规审计
   const consent = (br.user && br.user.consent) || '';
   const regs = br.regs ? JSON.stringify(br.regs) : '';
@@ -954,15 +1192,59 @@ app.post('/ssp/bid', async (req, res) => {
   // 竞价总 deadline：到点即返回已到达的出价，p99 不再被最慢的 partner 决定
   // 库存范围开关：公开落地页广告位带 ownOnly 时，只让「自有」需求方参与，
   // 外部/Kuaishou 演示创意不进公开页面；管理台/演示页走完整多需求方竞价（竞价引擎逻辑不变）。
-  const partners = (imp.ext && imp.ext.ownOnly) ? DEMAND_PARTNERS.filter(p => p.isOwn) : DEMAND_PARTNERS;
+  let partners = (imp.ext && imp.ext.ownOnly) ? DEMAND_PARTNERS.filter(p => p.isOwn) : DEMAND_PARTNERS.slice();
+  // ② Waterfall：按 (scope, ad_unit, country) 的规则给需求源排序——默认并发拍卖，有规则则按 position 定序
+  try {
+    const auidW = String(((br.imp && br.imp[0] && br.imp[0].ext) ? br.imp[0].ext.ad_unit_id : '') || '');
+    const [wr] = await pool.query('SELECT demand_source,position FROM waterfall_rules WHERE enabled=1 AND scope IN (?,?) AND (ad_unit_id=? OR ad_unit_id="") ORDER BY position ASC, id ASC', [publisher, '*', auidW]);
+    if (wr && wr.length) {
+      const pos = {}; wr.forEach(function (r) { if (pos[r.demand_source] == null) pos[r.demand_source] = Number(r.position); });
+      partners = partners.slice().sort(function (a, b) {
+        const pa = pos[a.name] != null ? pos[a.name] : 999, pb = pos[b.name] != null ? pos[b.name] : 999;
+        return pa - pb;
+      });
+    }
+  } catch (e) {}
+  // ③ A/B：按请求 id 稳定分桶，demand_source 组直接裁剪参与方；bid_floor / ecpm_weight 由变体参数生效
+  let abExp = null, abVariant = null;
+  try {
+    const [exps] = await pool.query('SELECT * FROM ab_experiments WHERE status=1 ORDER BY id DESC LIMIT 1');
+    if (exps && exps[0]) {
+      abExp = exps[0];
+      const cfg = safeJson(abExp.config) || {};
+      const variants = cfg.variants || [];
+      if (variants.length) {
+        const h = crypto.createHash('sha1').update(String(br.id || '') + String(abExp.id)).digest('hex');
+        abVariant = variants[parseInt(h.slice(0, 8), 16) % variants.length];
+        if (abVariant && abExp.kind === 'demand_source' && Array.isArray(abVariant.demand_sources)) {
+          const allow = abVariant.demand_sources;
+          partners = partners.filter(function (p) { return allow.indexOf(p.name) >= 0; });
+        }
+        // bid_floor 组：把变体倍率写进转发请求的 bidfloor，让自有 DSP 真正按新底价过滤
+        // （此前只记录曝光、不改变行为，属于"假实验"）
+        if (abVariant && abExp.kind === 'bid_floor' && Number(abVariant.floor_mul) > 0) {
+          const mul = Number(abVariant.floor_mul);
+          (br.imp || []).forEach(function (x) {
+            if (!x) return;
+            const base = Number(x.bidfloor) > 0 ? Number(x.bidfloor) : 1.0;
+            x.bidfloor = Number((base * mul).toFixed(4));
+          });
+        }
+      }
+    }
+  } catch (e) {}
   const responses = await bidEng.deadlineAll(partners.map(async (p) => {
     if (p.type === 'mock') {
       const imp = (br.imp && br.imp[0]) || {};
       return { seatbid: [{ seat: p.name, bid: [{ id: 'b-mock', impid: imp.id, price: p.priceMicros, adm: p.adm, crid: p.crid, cid: 0, ext: { cid: 0 } }] }] };
     }
-    if (p.type === 'kuaishou') {
-      try { return await ksDSP.bid(br); }   // 快手买量：sim 返回模拟出价；real 走开放平台
-      catch (e) { console.error('kuaishou dsp err', e.message); return null; }
+    if (p.type === 'oceanengine') {
+      try { return await oeDSP.bid(br); }   // 巨量引擎买量：sim 模拟出价；real 走开放平台
+      catch (e) { console.error('oceanengine dsp err', e.message); return null; }
+    }
+    if (p.type === 'generic') {
+      try { return await genericDSP.bid(br); }   // 通用 OpenRTB 需求方：基于估值模型实时出价
+      catch (e) { console.error('generic dsp err', e.message); return null; }
     }
     try {
       const ctrl = new AbortController();
@@ -999,6 +1281,16 @@ app.post('/ssp/bid', async (req, res) => {
   if (!allBids.length) return res.json({ id: br.id, seatbid: [] });
   allBids.sort((a, b) => b.micros - a.micros);
   const best = allBids[0];
+  // ① 各需求方出价留痕（胜率的分母=参与次数）：只记 seat 名与价格，不记素材内容
+  (function () {
+    const rid = String(br.id || '');
+    for (let bi = 0; bi < allBids.length; bi++) {
+      const it = allBids[bi];
+      pool.query('INSERT INTO bid_bid_log (req_id,imp_id,partner,price_micros,won) VALUES (?,?,?,?,?)',
+        [rid, String((it.bid && it.bid.impid) || ''), String((it.partner && it.partner.name) || 'unknown'),
+         Number(it.micros) || 0, bi === 0 ? 1 : 0]).catch(() => {});
+    }
+  })();
   const second = allBids.length > 1 ? allBids[1].micros : best.micros;
   const winMicros = AUCTION.secondPrice ? Math.min(best.micros, second + 10000) : best.micros; // 清盘价
   const grossMicros = winMicros;                              // SSP 向需求方实收(清盘价)
@@ -1029,7 +1321,19 @@ app.post('/ssp/bid', async (req, res) => {
   // 每次胜出均落库（按媒体方归因），用于持久化结算/报表（重启不丢、按 publisher 追溯）
   // 落地特征向量（供在线模型回流训练）；外部 DSP 无 feat 时为 null
   const winFeat = (best.bid.ext && Array.isArray(best.bid.ext.feat)) ? JSON.stringify(best.bid.ext.feat) : null;
-  await pool.query('INSERT INTO bid_win_log (campaign_id,creative_id,imp_id,req_id,price_micros,publisher,consent,feat) VALUES (?,?,?,?,?,?,?,?)', [Number(bestCid) || 0, Number(best.bid.crid) || 0, String(best.bid.impid), String(br.id || ''), winMicros, publisher, consent, winFeat]).catch(() => {});
+  // 广告单元归因：取「本次胜出的那个 imp」上携带的 ad_unit_id（SDK 由 data-ad-unit 上报）
+  var winImp = null;
+  for (var wi = 0; wi < (br.imp || []).length; wi++) {
+    if (String((br.imp[wi] || {}).id) === String(best.bid.impid)) { winImp = br.imp[wi]; break; }
+  }
+  const adUnitId = String(((winImp && winImp.ext) ? winImp.ext.ad_unit_id : '') || '').slice(0, 32);
+  // ④ 频控 / 刷新 / 尺寸：按广告单元下发给 SDK 本地执行（服务端替客户端计数不可靠，只能下发策略）
+  // ③ A/B 曝光留痕：把本次曝光与结果记到所属变体，供 /api/ab/results 汇总
+  if (abExp && abVariant) {
+    pool.query('INSERT INTO ab_exposure (exp_id,variant_key,imp_id,won,price_micros) VALUES (?,?,?,?,?)',
+      [abExp.id, String(abVariant.key || 'A'), String(best.bid.impid), 1, winMicros]).catch(() => {});
+  }
+  await pool.query('INSERT INTO bid_win_log (campaign_id,creative_id,imp_id,req_id,price_micros,publisher,consent,feat,ad_unit_id) VALUES (?,?,?,?,?,?,?,?,?)', [Number(bestCid) || 0, Number(best.bid.crid) || 0, String(best.bid.impid), String(br.id || ''), winMicros, publisher, consent, winFeat, adUnitId]).catch(() => {});
   creativeAb.bump(String(best.bid.impid), 'impressions').catch(() => {}); // A/B：本次曝光计入所服务创意版本
   // 特征落库（离线训练样本源）：写入即与在线同一套 compute()，天然无 training-serving skew。
   // 采样写入，避免高 QPS 下把特征日志表打爆（采样率随负载自适应）
@@ -1054,7 +1358,7 @@ app.post('/ssp/bid', async (req, res) => {
     if (useVast) {
       let vast = buildVast({
         impid: rw.impid, cid: rw.cid,
-        title: bestCid ? ('ADX-' + bestCid + ' 激励视频') : 'rewarded-ad',
+        title: bestCid ? ('LinkOS-' + bestCid + ' 激励视频') : 'rewarded-ad',
         mediaUrl: RW_MEDIA, duration: RW_DURATION
       });
       // 第三方可见性验证（IAS / DoubleVerify / Moat / OMID）注入 VAST <AdVerifications>
@@ -1070,7 +1374,8 @@ app.post('/ssp/bid', async (req, res) => {
     await pool.query('INSERT IGNORE INTO rw_token (imp_id,campaign_id,publisher,device_fp) VALUES (?,?,?,?)', [rw.impid, rw.cid, publisher, rw.fp || '']).catch(() => {});
   } else if (fmt !== 'banner') {
     // 其它形态：插屏 / 开屏 / 原生 / icon / push（优先用素材库真实创意，否则合成占位）
-    const cr = await pickCreative(bestCid, fmt, { publisher, keyword: kw.join(',') });
+    const [[ccRow]] = await pool.query('SELECT creative_id FROM adv_campaign WHERE id=?', [bestCid]).catch(() => [[]]);
+    const cr = await pickCreative(bestCid, fmt, { publisher, keyword: kw.join(',') }, ccRow && ccRow.creative_id);
     if (creativeFits(cr, fmt)) {
       winBid.crid = String(cr.id); // A/B 归因到具体创意（而非仅 campaign）
       if (cr.type === 'vast') {
@@ -1090,7 +1395,7 @@ app.post('/ssp/bid', async (req, res) => {
     } else {
       const fa = buildFormatAd(fmt, {
         impid: best.bid.impid, cid: bestCid, publisher,
-        title: bestCid ? ('ADX-' + bestCid) : 'ad',
+        title: bestCid ? ('LinkOS-' + bestCid) : 'ad',
         body: '由 ADX 下发的 ' + fmt + ' 广告',
         mediaUrl: RW_MEDIA, duration: RW_DURATION
       });
@@ -1119,6 +1424,19 @@ app.post('/ssp/bid', async (req, res) => {
       participants.push({ seat: s.sp.name, type: 'supply', status: 'bid', topBidMicros: top, won: false });
     });
   }
+  // ④ 频控 / 刷新 / 尺寸下发：必须放在「形态处理」之后——
+  // 形态处理会用 best.bid.ext 重建 winBid.ext，放在它之前会被整段覆盖（已踩坑）。
+  try {
+    const [[au2]] = await pool.query('SELECT freq_cap,freq_window_hours,refresh_interval,size FROM ad_units WHERE ad_unit_id=? AND publisher=?', [adUnitId, publisher]);
+    if (au2) {
+      winBid.ext = Object.assign({}, winBid.ext, {
+        freq_cap: Number(au2.freq_cap) || 0,
+        freq_window_hours: Number(au2.freq_window_hours) || 24,
+        refresh_interval: Number(au2.refresh_interval) || 0,
+        size: au2.size || ''
+      });
+    }
+  } catch (e) {}
   res.json({ id: br.id, cur: 'CNY', seatbid: [{ seat: best.partner.name, bid: [winBid] }], ...(participants ? { participants } : {}) });
 });
 
@@ -1157,6 +1475,43 @@ app.get('/api/demand/kuaishou/oauth-callback', async (req, res) => {
   } catch (e) { res.status(500).send('授权错误: ' + e.message); }
 });
 
+// ===== 巨量引擎（OceanEngine/抖音）开放平台 · DSP/买量侧 接入 =====
+app.get('/api/demand/oceanengine/status', (_, res) => res.json(oeDSP.status()));
+app.post('/api/demand/oceanengine/buy', async (req, res) => {
+  try { const r = await oeDSP.buy(req.body || {}); res.json(r); }
+  catch (e) { res.status(501).json({ ok: false, error: e.message }); }
+});
+app.post('/api/demand/oceanengine/callback', (req, res) => {
+  const b = req.body || {};
+  const ok = oeDSP.verifyCallback(b, b.sign);
+  res.json({ ok, verified: ok, mode: oeDSP.MODE });
+});
+app.get('/api/demand/oceanengine/auth', (req, res) => {
+  if (oeDSP.MODE !== 'real') return res.json({ mode: 'sim', note: 'sim 模式无需授权；设 OE_MODE=real + OE_APP_ID/SECRET + OE_REDIRECT_URI 后访问此端点完成真实授权' });
+  res.redirect(oeDSP.authUrl(req.query.state));
+});
+app.get('/api/demand/oceanengine/oauth-callback', async (req, res) => {
+  try {
+    const j = await oeDSP.exchangeCode(req.query.code || '');
+    if (j && j.data && j.data.access_token) res.send('<h3>巨量引擎授权成功 ✓</h3><p>access_token 已保存。</p><p><a href="/media-demo.html">返回演示</a></p>');
+    else res.status(400).send('<h3>授权失败</h3><pre>' + JSON.stringify(j) + '</pre>');
+  } catch (e) { res.status(500).send('授权错误: ' + e.message); }
+});
+
+// ===== 通用 OpenRTB 需求方（自包含，可持续出价）=====
+app.get('/api/demand/generic/status', (_, res) => res.json(genericDSP.status()));
+
+// ===== 聚合：当前所有需求方接入状态 =====
+app.get('/api/demand/status', (_, res) => res.json({
+  partners: DEMAND_PARTNERS.map(p => ({ name: p.name, type: p.type, isOwn: !!p.isOwn, payoutRate: p.payoutRate })),
+  adapters: {
+    kuaishou: ksDSP.status(),
+    oceanengine: oeDSP.status(),
+    generic: genericDSP.status()
+  }
+}));
+
+
 // 媒体方曝光上报（由 pub_sdk.js 自动调用）
 const pubImpr = {};
 app.get('/ssp/imp', (req, res) => {
@@ -1174,6 +1529,32 @@ app.get('/ssp/click', async (req, res) => {
   if (!ex) return res.status(204).end(); // 反作弊：无对应曝光的点击直接忽略
   if (pubLedger[pub]) pubLedger[pub].clicks++;
   await pool.query('INSERT IGNORE INTO conv_log (type,campaign_id,publisher,imp_id) VALUES (?,?,?,?)', ['click', cid, pub, imp]).catch(() => {});
+  // ① MMP 外发回传：把点击带到广告主配置的归因平台（AppsFlyer / Adjust / Singular … 的 click 宏）。
+  // 宏替换：{impid} {clickid} {cid} {publisher}——无配置则不发，不影响主链路。
+  (function () {
+    pool.query('SELECT advertiser FROM adv_campaign WHERE id=?', [Number(cid) || 0]).then(function (r) {
+      const adv = (r && r[0] && r[0].advertiser) ? r[0].advertiser : '';
+      if (!adv) return null;
+      return pool.query('SELECT * FROM mmp_configs WHERE advertiser=? AND enabled=1', [adv]);
+    }).then(function (r2) {
+      const cfgs = (r2 && r2[0]) || [];
+      cfgs.forEach(function (c) {
+        const url = String(c.postback_url || '')
+          .replace(/\{impid\}/g, encodeURIComponent(imp))
+          .replace(/\{clickid\}/g, encodeURIComponent(imp))
+          .replace(/\{cid\}/g, String(cid || ''))
+          .replace(/\{publisher\}/g, encodeURIComponent(pub));
+        if (!/^https?:\/\//i.test(url)) return;
+        fetch(url, { method: 'GET' }).then(function (resp) {
+          pool.query('INSERT INTO mmp_postback_log (provider,advertiser,imp_id,event,url,ok) VALUES (?,?,?,?,?,?)',
+            [c.provider, c.advertiser, imp, 'click', url.slice(0, 512), resp.ok ? 1 : 0]).catch(function () {});
+        }).catch(function () {
+          pool.query('INSERT INTO mmp_postback_log (provider,advertiser,imp_id,event,url,ok) VALUES (?,?,?,?,?,0)',
+            [c.provider, c.advertiser, imp, 'click', url.slice(0, 512)]).catch(function () {});
+        });
+      });
+    }).catch(function () {});
+  })();
   creativeAb.bump(imp, 'clicks').catch(() => {}); // A/B：点击计入所服务创意版本
   // 多目标模型回流（pCTR）：点击即 CTR 塔的正样本
   ml.onClick(imp).catch(() => {});
@@ -1363,9 +1744,12 @@ app.post('/api/campaign/:id/topup', security.requireAdmin('topup'), async (req, 
 
 app.get('/api/console/overview', async (_, res) => {
   try {
+    // 注意：这里返回的是「计划预算 budget_micros」，不是账户充值余额(adv_balance)。
+    // 曾用名 balance_micros 会让运营误以为看到的是钱包余额——已正名，前端列名同步改为「计划预算(元)」。
+    // （别在 SQL 模板串里写 // 注释：MySQL 不认 //，会直接语法报错。）
     const [advRows] = await pool.query(`
       SELECT c.id, c.name, c.advertiser, c.app_category, c.review_status, c.status,
-             c.budget_micros AS balance_micros,
+             c.budget_micros,
              COALESCE(t.filled_micros,0) AS spend_micros,
              COALESCE(t.impressions,0) AS impressions,
              COALESCE(k.clicks,0) AS clicks,
@@ -1380,12 +1764,34 @@ app.get('/api/console/overview', async (_, res) => {
     const [[rw]] = await pool.query("SELECT COALESCE(SUM(status='GRANTED'),0) AS granted, COALESCE(SUM(status LIKE 'REJECT%'),0) AS rejected, COUNT(*) AS total FROM reward_log");
     const [pubRows] = await pool.query('SELECT domain,name,payout_rate,cat,geo FROM publishers ORDER BY domain DESC LIMIT 50');
     const [todayRows] = await pool.query('SELECT COUNT(*) AS impressions, COALESCE(SUM(price_micros),0) AS gross_micros FROM bid_win_log WHERE DATE(created_at)=CURDATE()');
+    // SSP 全局账本 + 分媒体账本：改为从 DB 实时聚合。
+    // 原先用进程内对象 sspLedger/pubLedger —— 重启即清零、与 DB 数字对不上，本质是"内存假账"。
+    const [sspAgg] = await pool.query(`
+      SELECT COUNT(*) wins, COALESCE(SUM(w.price_micros),0) gross,
+             COALESCE(SUM(ROUND(w.price_micros * COALESCE(p.payout_rate,0.7))),0) payout
+      FROM bid_win_log w LEFT JOIN publishers p ON p.domain=w.publisher`);
+    const ssp = { wins: Number(sspAgg[0].wins) || 0, grossMicros: Number(sspAgg[0].gross) || 0, payoutMicros: Number(sspAgg[0].payout) || 0 };
+    const [pubAgg] = await pool.query(`
+      SELECT w.publisher domain, COUNT(DISTINCT w.imp_id) wins,
+             COALESCE(SUM(w.price_micros),0) gross,
+             COALESCE(SUM(ROUND(w.price_micros * COALESCE(p.payout_rate,0.7))),0) payout,
+             COALESCE(k.clicks,0) clicks, COALESCE(v.conversions,0) conversions
+      FROM bid_win_log w
+      LEFT JOIN publishers p ON p.domain=w.publisher
+      LEFT JOIN (SELECT w2.publisher publisher, COUNT(*) clicks FROM conv_log c JOIN bid_win_log w2 ON w2.imp_id=c.imp_id WHERE c.type='click' GROUP BY w2.publisher) k ON k.publisher=w.publisher
+      LEFT JOIN (SELECT w3.publisher publisher, COUNT(*) conversions FROM conv_log c3 JOIN bid_win_log w3 ON w3.imp_id=c3.imp_id WHERE c3.type='conversion' GROUP BY w3.publisher) v ON v.publisher=w.publisher
+      GROUP BY w.publisher, k.clicks, v.conversions`);
+    const publishers = {};
+    pubAgg.forEach(r => {
+      publishers[r.domain] = { wins: Number(r.wins) || 0, grossMicros: Number(r.gross) || 0,
+        payoutMicros: Number(r.payout) || 0, clicks: Number(r.clicks) || 0, conversions: Number(r.conversions) || 0 };
+    });
     res.json({
       platform: {
         grossMicros: Number(tot.gross_micros), impressions: Number(tot.impressions),
         conversions: Number(conv.conversions), clicks: Number(conv.clicks),
         todayImpressions: Number(todayRows[0].impressions), todayGrossMicros: Number(todayRows[0].gross_micros),
-        ssp: sspLedger, publishers: pubLedger
+        ssp, publishers
       },
       reward: { granted: Number(rw.granted) || 0, rejected: Number(rw.rejected) || 0, total: Number(rw.total) || 0 },
       advertisers: advRows, publisherList: pubRows
@@ -1395,7 +1801,7 @@ app.get('/api/console/overview', async (_, res) => {
 
 // ===== DSP 赢价回收 =====
 app.post('/notify', async (req, res) => {
-  const { cid, crid, impid, reqid, price, win = true } = req.body || {};
+  const { cid, crid, impid, reqid, price, win = true, test } = req.body || {};
   if (!win) return res.json({ ok: true, counted: false });
   const imp = String(impid || '');
   if (!imp) return res.status(400).json({ error: 'impid required' });
@@ -1408,8 +1814,22 @@ app.post('/notify', async (req, res) => {
   const micros = Math.max(0, Number(price) || 0);
   const id = Number(cid) || 0;
   try {
+    // 演示隔离：显式 test=1，或该计划被标记为测试计划 → 只记流水、不真扣预算与账户余额。
+    // 否则每次演示竞价都会消耗真实预算（曾把示例计划直接刷爆，导致演示无广告可投）。
+    const [[crow]] = await pool.query('SELECT is_test FROM adv_campaign WHERE id=?', [id]).catch(() => [[]]);
+    if (Number(test) === 1 || (crow && Number(crow.is_test) === 1)) {
+      await pool.query('INSERT IGNORE INTO adv_ledger (campaign_id,imp_id,req_id,charge_micros,insufficient) VALUES (?,?,?,?,?)', [id, imp, reqId, 0, 0]).catch(() => {});
+      return res.json({ ok: true, counted: true, charged: 0, test: true, note: '测试流量：已记账，但不扣预算与余额' });
+    }
     // 仅扣广告主预算；胜出记录由 /ssp/bid 统一落库（含 publisher 维度），避免重复计
     const [up] = await pool.query('UPDATE adv_campaign SET budget_micros = budget_micros - ? WHERE id = ? AND budget_micros >= ?', [micros, id, micros]);
+    // ② 同步扣减广告主账户余额：budget 是「计划级限额」，balance 是「账户真实资金」
+    // 两者都要扣——只扣 budget 会出现"计划有额度但账户没钱仍在投"的资金漏洞
+    const [[cm]] = await pool.query('SELECT advertiser FROM adv_campaign WHERE id=?', [id]).catch(() => [[]]);
+    if (cm && cm.advertiser) {
+      await pool.query('UPDATE adv_balance SET balance_micros = balance_micros - ? WHERE advertiser=? AND balance_micros >= ?',
+        [micros, cm.advertiser, micros]).catch(() => {});
+    }
     // 余额不足时 UPDATE 影响 0 行：曝光已投放但扣不到款 → 记为挂账，由对账报表暴露
     const insufficient = up && Number(up.affectedRows) === 0 ? 1 : 0;
     await pool.query('INSERT IGNORE INTO adv_ledger (campaign_id,imp_id,req_id,charge_micros,insufficient) VALUES (?,?,?,?,?)', [id, imp, reqId, micros, insufficient]).catch(() => {});
@@ -1499,21 +1919,36 @@ app.post('/api/publisher/:domain/crawl', security.requireAdmin('pubcrawl'), asyn
 
 // ===== 广告主控制台 API =====
 app.post('/api/campaign', security.requireAuth('admin','advertiser'), async (req, res) => {
-  const { name, advertiser: advBody, budget_cny, country, app_category, creative_html, landing_url, target_cpm_cny, intent_tags } = req.body || {};
+  const { name, advertiser: advBody, budget_cny, country, app_category, creative_html, landing_url, target_cpm_cny, intent_tags,
+          goal_type, target_cpa_cny, target_roas, daily_cap_cny, geo_country, schedule, creative_id } = req.body || {};
   const advertiser = (req.account && req.account.t === 'advertiser') ? req.account.s : (advBody || '');
-  if (!name || !creative_html) return res.status(400).json({ error: 'name,creative_html required' });
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const cid = Number(creative_id) || 0;
+  const hasCreative = cid > 0 || (creative_html && String(creative_html).trim());
+  if (!hasCreative) return res.status(400).json({ error: '请在素材库选择创意，或填写兜底创意HTML' });
   const budget_micros = Math.round((budget_cny || 1000) * 1e6);
   const target_cpm_micros = Math.round((target_cpm_cny || 5) * 1e6);
-  const [r] = await pool.query('INSERT INTO adv_campaign (name,advertiser,budget_micros,country,app_category,creative_html,landing_url,target_cpm_micros,intent_tags,review_status) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    [name, advertiser || '', budget_micros, country || '', app_category || '', creative_html, landing_url || '', target_cpm_micros, intent_tags || '', 'pending']);
+  const daily_cap_micros = Math.round((daily_cap_cny || 0) * 1e6);
+  const target_cpa_micros = Math.round((target_cpa_cny || 0) * 1e6);
+  const roas = Number(target_roas) || 1;
+  const goal = String(goal_type || 'CPM').toUpperCase();
+  const [r] = await pool.query('INSERT INTO adv_campaign (name,advertiser,budget_micros,country,app_category,creative_html,landing_url,target_cpm_micros,intent_tags,review_status,goal_type,target_cpa_micros,target_roas,daily_cap_micros,geo_country,creative_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    [name, advertiser || '', budget_micros, country || '', app_category || '', creative_html || '', landing_url || '', target_cpm_micros, intent_tags || '', 'pending', goal, target_cpa_micros, roas, daily_cap_micros, geo_country || '', cid]);
+  // 计划↔素材库 强关联：把所选创意绑定到本计划（campaign_id），bidder 只取素材库
+  if (cid > 0) await pool.query('UPDATE creatives SET campaign_id=? WHERE id=? AND advertiser=?', [r.insertId, cid, advertiser]).catch(() => {});
+  // 投放时段：写入 campaign_delivery 的 daypart 掩码（空/全天=默认）
+  if (schedule && String(schedule).trim()) {
+    try { await pool.query('INSERT INTO campaign_delivery (campaign_id,mode,daypart,freq_cap) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE daypart=VALUES(daypart)', [r.insertId, 'SMOOTH', scheduleToMask(schedule), null]); }
+    catch (e) { console.error('[pacing]', e.message); }
+  }
   enrichCampaign(r.insertId).catch(e => console.error('[enrich]', e.message)); // 异步 LLM 抽意图
   res.json({ ok: true, id: r.insertId, llm_enrich: llm.ENABLED, review_status: 'pending' });
 });
 app.get('/api/campaigns', security.requireAuth('admin','advertiser'), async (req, res) => {
   const acc = req.account;
   const sql = acc.t === 'advertiser'
-    ? 'SELECT id,name,advertiser,budget_micros,status,country,app_category,target_cpm_micros,intent_tags,intent_profile,review_status FROM adv_campaign WHERE advertiser=?'
-    : 'SELECT id,name,advertiser,budget_micros,status,country,app_category,target_cpm_micros,intent_tags,intent_profile,review_status FROM adv_campaign';
+    ? 'SELECT id,name,advertiser,budget_micros,status,country,app_category,target_cpm_micros,intent_tags,intent_profile,review_status,review_note,goal_type,target_cpa_micros,target_roas,daily_cap_micros,geo_country,creative_id FROM adv_campaign WHERE advertiser=?'
+    : 'SELECT id,name,advertiser,budget_micros,status,country,app_category,target_cpm_micros,intent_tags,intent_profile,review_status,review_note,goal_type,target_cpa_micros,target_roas,daily_cap_micros,geo_country,creative_id FROM adv_campaign';
   const [rows] = await pool.query(sql, acc.t === 'advertiser' ? [acc.s] : []);
   res.json(rows.map(c => ({
     ...c, budget_cny: c.budget_micros / 1e6, target_cpm_cny: c.target_cpm_micros / 1e6,
@@ -1572,7 +2007,8 @@ app.get('/api/advertiser/me', security.requireAuth('advertiser'), async (req, re
       LEFT JOIN bid_win_log b ON b.campaign_id=a.id
       LEFT JOIN conv_log c ON c.campaign_id=a.id AND c.type='conversion'
       WHERE a.advertiser=?`, [adv]);
-    res.json({ advertiser: adv, campaigns: rows.map(c => ({ ...c, budget_cny: c.budget_micros / 1e6 })),
+    const [[prof]] = await pool.query('SELECT app_category,target_cpm_cny,landing_url FROM advertiser_profile WHERE advertiser=?', [adv]).catch(() => [[]]);
+    res.json({ advertiser: adv, profile: prof || null, campaigns: rows.map(c => ({ ...c, budget_cny: c.budget_micros / 1e6 })),
       stats: { impressions: Number(agg.impressions) || 0, spent_cny: Number(agg.spent_cny) || 0, gmv: Number(agg.gmv) || 0 } });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1587,8 +2023,26 @@ app.put('/api/campaign/:id/tags', security.requireAdmin('tags'), async (req, res
 // 素材审核通过（只有通过 approved 的素材才参拍）
 app.put('/api/campaign/:id/approve', security.requireAdmin('approve'), async (req, res) => {
   try {
-    await pool.query("UPDATE adv_campaign SET review_status='approved' WHERE id=?", [+req.params.id]);
+    await pool.query("UPDATE adv_campaign SET review_status='approved', review_note='' WHERE id=?", [+req.params.id]);
     res.json({ ok: true, review_status: 'approved' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// ④ 审核驳回（必须填原因）：与 approve 组成完整流转 pending → approved / rejected，
+// 广告主能在后台看到驳回原因并据此修改，而不是"一直 pending 不知道为什么"
+app.put('/api/campaign/:id/reject', security.requireAdmin('reject'), async (req, res) => {
+  const note = String((req.body && req.body.note) || '').trim();
+  if (!note) return res.status(400).json({ error: '驳回必须填写原因（广告主据此修改后重提）' });
+  try {
+    await pool.query("UPDATE adv_campaign SET review_status='rejected', review_note=? WHERE id=?", [note.slice(0, 255), +req.params.id]);
+    res.json({ ok: true, review_status: 'rejected' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// 审核队列（按状态拉待审/已驳回计划）
+app.get('/api/campaigns/review', security.requireAuth('admin'), async (req, res) => {
+  try {
+    const st = String(req.query.status || 'pending');
+    const [rows] = await pool.query('SELECT id,name,advertiser,app_category,landing_url,target_cpm_micros,review_status,review_note FROM adv_campaign WHERE review_status=? ORDER BY id DESC LIMIT 100', [st]);
+    res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1802,12 +2256,54 @@ app.post('/api/public/advertiser-open', (req, res) => {
 let _ruankaoLeadReady = false;
 async function ensureRuankaoLeadTable() {
   if (_ruankaoLeadReady) return;
+  // 线索表（含归因字段：把线索回连到 imp/计划/创意/媒体方，闭成 loop）
   await pool.query(`CREATE TABLE IF NOT EXISTS ruankao_lead (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY, contact VARCHAR(128), channel VARCHAR(32) DEFAULT 'direct',
-    source VARCHAR(128) DEFAULT '', ip VARCHAR(64) DEFAULT '', delivered TINYINT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX(channel), INDEX(created_at))`);
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    contact VARCHAR(128),
+    channel VARCHAR(32) DEFAULT 'direct',
+    source VARCHAR(128) DEFAULT '',
+    ip VARCHAR(64) DEFAULT '',
+    delivered TINYINT DEFAULT 0,
+    imp_id VARCHAR(64) DEFAULT '',
+    campaign_id INT DEFAULT 0,
+    creative_id INT DEFAULT 0,
+    publisher VARCHAR(128) DEFAULT '',
+    converted TINYINT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX(channel), INDEX(created_at), INDEX(imp_id), INDEX(campaign_id))`);
+  // 兼容已存在表：补齐归因列（幂等）
+  for (const col of [
+    "ALTER TABLE ruankao_lead ADD COLUMN imp_id VARCHAR(64) DEFAULT ''",
+    'ALTER TABLE ruankao_lead ADD COLUMN campaign_id INT DEFAULT 0',
+    'ALTER TABLE ruankao_lead ADD COLUMN creative_id INT DEFAULT 0',
+    "ALTER TABLE ruankao_lead ADD COLUMN publisher VARCHAR(128) DEFAULT ''",
+    'ALTER TABLE ruankao_lead ADD COLUMN converted TINYINT DEFAULT 0',
+  ]) await pool.query(col).catch(() => {});
+  // 落地页到达埋点（点击≠到达：算到达率 / 落地页质量）
+  await pool.query(`CREATE TABLE IF NOT EXISTS landing_view (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    imp_id VARCHAR(64) DEFAULT '',
+    campaign_id INT DEFAULT 0,
+    publisher VARCHAR(128) DEFAULT '',
+    channel VARCHAR(32) DEFAULT 'direct',
+    ip VARCHAR(64) DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX(imp_id), INDEX(campaign_id), INDEX(created_at))`);
+  // 线索跟进（运营闭环：新线索→已联系→成交/流失）
+  await pool.query(`CREATE TABLE IF NOT EXISTS ruankao_followup (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    lead_id BIGINT NOT NULL,
+    stage VARCHAR(32) DEFAULT '',
+    note VARCHAR(512) DEFAULT '',
+    operator VARCHAR(64) DEFAULT '',   // 原名 by 是 MySQL 保留字 → 建表语法错误（该表目前无其它引用，直接改名）
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX(lead_id))`);
   _ruankaoLeadReady = true;
 }
+
+// 软考留资闭环 + 归因回流：免登录、纯联系方式（无敏感数据）。
+// SDK 点击时已把 imp/cid/pub 透传到落地页 URL；留资时带回来，服务端以 bid_win_log 为唯一事实源归因，
+// 并把"留资=转化"回写 conv_log + 喂 多目标模型(ml) / 在线出价模型(bidModel) / 创意 A/B(creativeAb)。
 app.post('/api/public/ruankao-lead', async (req, res) => {
   const b = req.body || {};
   const contact = String(b.contact || '').trim();
@@ -1815,12 +2311,63 @@ app.post('/api/public/ruankao-lead', async (req, res) => {
   const channel = String(b.channel || 'direct').slice(0, 32);
   const source = String(b.source || '').slice(0, 128);
   const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim().slice(0, 64);
+  const imp = String(b.imp || '').slice(0, 64);
+  const valueCny = Math.max(0, Number(b.value) || 0);   // 可选：单条线索价值（元），用于 pLTV 回流
+  let campaign_id = 0, creative_id = 0, publisher = String(b.pub || '').slice(0, 128), converted = 0, convDup = false;
   try {
     await ensureRuankaoLeadTable();
-    const [r] = await pool.query('INSERT INTO ruankao_lead (contact,channel,source,ip) VALUES (?,?,?,?)', [contact, channel, source, ip]);
-    res.json({ ok: true, id: r.insertId, msg: '已记录。资料包也可直接用页内百度云提取码立即领取。' });
+    let win = null;
+    if (imp) {
+      const [rows] = await pool.query(
+        'SELECT campaign_id, creative_id, publisher FROM bid_win_log WHERE imp_id=? LIMIT 1', [imp]).catch(() => [[]]);
+      win = rows[0] || null;
+    }
+    if (win) { campaign_id = win.campaign_id || 0; creative_id = win.creative_id || 0; publisher = win.publisher || publisher; }
+    if (imp && win) {
+      const [[dup]] = await pool.query("SELECT 1 FROM conv_log WHERE type='conversion' AND imp_id=?", [imp]);
+      convDup = !!dup;
+      if (!convDup) {   // 同一 imp 不重复计转化（去重以 conv_log 为准）
+        await pool.query('INSERT INTO conv_log (type,campaign_id,publisher,imp_id,amount) VALUES (?,?,?,?,?)',
+          ['conversion', campaign_id, publisher, imp, valueCny]).catch(() => {});
+        ml.onConversion(imp, Math.round(valueCny * 1e6)).catch(() => {});
+        bidModel.trainConversion(imp).catch(() => {});
+        creativeAb.bump(imp, 'conversions').catch(() => {});
+      }
+      converted = 1;
+    }
+    const [r] = await pool.query(
+      'INSERT INTO ruankao_lead (contact,channel,source,ip,imp_id,campaign_id,creative_id,publisher,converted) VALUES (?,?,?,?,?,?,?,?,?)',
+      [contact, channel, source, ip, imp, campaign_id, creative_id, publisher, converted]);
+    res.json({
+      ok: true, id: r.insertId,
+      conv: converted === 1 && !convDup, dup: convDup,
+      campaign_id, publisher,
+      msg: '已记录。资料包也可直接用页内百度云提取码立即领取。',
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// 落地页到达埋点：SDK 点击→落地页；落地页 onload 时打一次（1×1 透明 GIF，供 <img> 直埋，不阻塞渲染）
+app.get('/api/public/landing-view', async (req, res) => {
+  try {
+    await ensureRuankaoLeadTable();
+    const imp = String(req.query.imp || '').slice(0, 64);
+    const channel = String(req.query.channel || 'direct').slice(0, 32);
+    const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim().slice(0, 64);
+    let campaign_id = 0, publisher = String(req.query.pub || '').slice(0, 128);
+    if (imp) {
+      const [rows] = await pool.query('SELECT campaign_id, publisher FROM bid_win_log WHERE imp_id=? LIMIT 1', [imp]).catch(() => [[]]);
+      const w = rows[0];
+      if (w) { campaign_id = w.campaign_id || 0; publisher = w.publisher || publisher; }
+    }
+    await pool.query('INSERT INTO landing_view (imp_id,campaign_id,publisher,channel,ip) VALUES (?,?,?,?,?)',
+      [imp, campaign_id, publisher, channel, ip]).catch(() => {});
+    res.set('Content-Type', 'image/gif');
+    res.set('Cache-Control', 'no-store');
+    res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')); // 1×1 透明像素
+  } catch (e) { res.status(204).end(); }
+});
+
 
 // 运营侧读软考线索（只看，导出/批量导入邮件群发工具用）
 app.get('/api/leads/ruankao', security.requireAuth('admin'), async (req, res) => {
@@ -1897,11 +2444,12 @@ app.post('/api/dsp/register', async (req, res) => {
     res.json({ ok: true, partners: DEMAND_PARTNERS.map(p => p.name) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-app.get('/api/dsp', async (_, res) => {
+// 需求方列表/删除属运营动作，仍要管理员；注册(/api/dsp/register)保持公开自助。
+app.get('/api/dsp', security.requireAdmin('admin'), async (_, res) => {
   try { const [rows] = await pool.query('SELECT name,url,payout_rate,type,is_own,status FROM dsp_partners WHERE status=1 ORDER BY id DESC'); res.json(rows); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
-app.delete('/api/dsp/:name', async (req, res) => {
+app.delete('/api/dsp/:name', security.requireAdmin('admin'), async (req, res) => {
   const n = req.params.name;
   try { await pool.query('UPDATE dsp_partners SET status=0 WHERE name=?', [n]); DEMAND_PARTNERS = DEMAND_PARTNERS.filter(p => p.name !== n); res.json({ ok: true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
@@ -1964,11 +2512,31 @@ async function publisherReport(key) {
   const [[ck]] = await pool.query("SELECT COUNT(*) clicks FROM conv_log WHERE type='click' AND publisher=?", [domain]);
   const [[cv]] = await pool.query("SELECT COUNT(*) conversions, COALESCE(SUM(amount),0) gmv FROM conv_log WHERE type='conversion' AND publisher=?", [domain]);
   const gross = Number(w.gross) || 0; const payout = Math.round(gross * rate);
+  // 按广告单元拆解（对标 AppLovin Advanced Reporting 的「广告资源表现」）
+  let adUnits = [];
+  try {
+    const [defs] = await pool.query('SELECT ad_unit_id,name,format,floor_cny,status FROM ad_units WHERE publisher=? ORDER BY id DESC', [domain]);
+    const [stat] = await pool.query('SELECT ad_unit_id, COUNT(*) wins, COALESCE(SUM(price_micros),0) gross FROM bid_win_log WHERE publisher=? GROUP BY ad_unit_id', [domain]);
+    const map = {}; stat.forEach(function (s) { map[String(s.ad_unit_id || '')] = s; });
+    adUnits = defs.map(function (d) {
+      const s = map[d.ad_unit_id] || { wins: 0, gross: 0 };
+      const g = Number(s.gross) || 0;
+      return { ad_unit_id: d.ad_unit_id, name: d.name, format: d.format, status: Number(d.status) === 1 ? 'active' : 'paused',
+        wins: Number(s.wins) || 0, gross_cny: g / 1e6, payout_cny: Math.round(g * rate) / 1e6 };
+    });
+    // 未挂广告单元的裸埋点曝光单独归一行，避免历史数据凭空消失
+    const bare = map[''];
+    if (bare && Number(bare.wins) > 0) {
+      adUnits.push({ ad_unit_id: '', name: '（未标注广告单元）', format: '-', status: 'active',
+        wins: Number(bare.wins), gross_cny: Number(bare.gross) / 1e6, payout_cny: Math.round(Number(bare.gross) * rate) / 1e6 });
+    }
+  } catch (e) { adUnits = []; }
   return {
     publisher: { domain, name: p.name, payout_rate: rate },
     wins: Number(w.wins), gross_cny: gross / 1e6, payout_cny: payout / 1e6, ssp_margin_cny: (gross - payout) / 1e6,
     rewarded_granted: Number(rw.granted) || 0, rewarded_total: Number(rw.total) || 0,
-    clicks: Number(ck.clicks) || 0, conversions: Number(cv.conversions) || 0, gmv: Number(cv.gmv) || 0
+    clicks: Number(ck.clicks) || 0, conversions: Number(cv.conversions) || 0, gmv: Number(cv.gmv) || 0,
+    ad_units: adUnits
   };
 }
 // 内部：管理员也可按 api_key 查某媒体（保留原语义）
@@ -1987,13 +2555,490 @@ app.get('/api/publisher/report', (req, res, next) => {
   catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
+// ===== ⑧ 两步验证 TOTP（对标 AppLovin 2-Step Verification）=====
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function b32Encode(buf) {
+  let bits = 0, value = 0, out = '';
+  for (const b of buf) { value = (value << 8) | b; bits += 8; while (bits >= 5) { out += B32[(value >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits > 0) out += B32[(value << (5 - bits)) & 31];
+  return out;
+}
+function b32Decode(s) {
+  let bits = 0, value = 0, key = [];
+  for (const ch of String(s || '').toUpperCase()) {
+    const i = B32.indexOf(ch); if (i < 0) continue;
+    value = (value << 5) | i; bits += 5;
+    if (bits >= 8) { key.push((value >>> (bits - 8)) & 255); bits -= 8; }
+  }
+  return Buffer.from(key);
+}
+function totpAt(secret, t) {
+  const counter = Math.floor(t / 1000 / 30);
+  const msg = Buffer.alloc(8);
+  msg.writeUInt32BE(Math.floor(counter / 4294967296), 0);
+  msg.writeUInt32BE(counter >>> 0, 4);
+  const h = crypto.createHmac('sha1', b32Decode(secret)).update(msg).digest();
+  const off = h[h.length - 1] & 15;
+  const code = ((h[off] & 127) << 24) | ((h[off + 1] & 255) << 16) | ((h[off + 2] & 255) << 8) | (h[off + 3] & 255);
+  return String(code % 1000000).padStart(6, '0');
+}
+// 允许 ±1 个时间窗（30s）漂移，避免手机与服务器轻微时钟差导致永远登不上
+function totpValid(secret, code) {
+  const c = String(code || '').trim();
+  if (!/^\d{6}$/.test(c)) return false;
+  const now = Date.now();
+  return totpAt(secret, now - 30000) === c || totpAt(secret, now) === c || totpAt(secret, now + 30000) === c;
+}
+// 绑定：生成密钥（只做一次），返回 otpauth 供认证器扫码
+app.post('/api/account/2fa/setup', security.requireAuth('admin', 'advertiser', 'publisher'), async (req, res) => {
+  try {
+    const secret = b32Encode(crypto.randomBytes(10));
+    await pool.query('UPDATE accounts SET totp_secret=? WHERE username=? AND type=?', [secret, req.account.u, req.account.t]);
+    res.json({ ok: true, secret, otpauth: 'otpauth://totp/LinkOS:' + encodeURIComponent(req.account.u) + '?secret=' + secret + '&issuer=LinkOS' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/account/2fa/enable', security.requireAuth('admin', 'advertiser', 'publisher'), async (req, res) => {
+  try {
+    const [[a]] = await pool.query('SELECT totp_secret FROM accounts WHERE username=? AND type=?', [req.account.u, req.account.t]);
+    if (!a || !a.totp_secret) return res.status(400).json({ error: '请先调用 /api/account/2fa/setup 生成密钥' });
+    if (!totpValid(a.totp_secret, (req.body || {}).code)) return res.status(400).json({ error: '动态码不正确或已过期' });
+    await pool.query('UPDATE accounts SET twofa=1 WHERE username=? AND type=?', [req.account.u, req.account.t]);
+    res.json({ ok: true, twofa: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/account/2fa/disable', security.requireAuth('admin', 'advertiser', 'publisher'), async (req, res) => {
+  try {
+    const [[a]] = await pool.query('SELECT totp_secret FROM accounts WHERE username=? AND type=?', [req.account.u, req.account.t]);
+    if (!a || !a.totp_secret || !totpValid(a.totp_secret, (req.body || {}).code)) return res.status(400).json({ error: '动态码不正确' });
+    await pool.query('UPDATE accounts SET twofa=0, totp_secret="" WHERE username=? AND type=?', [req.account.u, req.account.t]);
+    res.json({ ok: true, twofa: false });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// 登录第二步：用 challenge + 动态码换真正令牌
+app.post('/api/account/login/2fa', async (req, res) => {
+  const { challenge, code } = req.body || {};
+  if (!challenge || !code) return res.status(400).json({ error: 'challenge,code required' });
+  try {
+    const u = await cache.get('2fa:' + String(challenge)).catch(() => null);
+    if (!u) return res.status(401).json({ error: 'challenge 无效或已过期，请重新登录' });
+    const [[a]] = await pool.query('SELECT * FROM accounts WHERE username=?', [String(u)]);
+    if (!a || a.status !== 1 || !a.totp_secret) return res.status(401).json({ error: '账号不可用' });
+    if (!totpValid(a.totp_secret, code)) {
+      security.logAudit(req, 'LOGIN_2FA_FAIL', String(u), '');
+      return res.status(401).json({ error: '动态码不正确或已过期' });
+    }
+    await cache.set('2fa:' + String(challenge), '', 1).catch(() => {}); // 一次性
+    const token = security.issueToken({ username: a.username, type: a.type, scope: a.scope });
+    res.json({ ok: true, token, type: a.type, scope: a.scope, username: a.username, display: a.display });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ① 填充率 / 胜率（对标 AppLovin Advanced Reporting）=====
+function rate(n, d) { return d > 0 ? Number((n / d).toFixed(4)) : null; }
+app.get('/api/reports/supply-quality', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  try {
+    const acc = req.account;
+    const w = (acc.t === 'publisher') ? ' WHERE publisher=?' : '';
+    const args = (acc.t === 'publisher') ? [acc.s] : [];
+    const [reqs] = await pool.query('SELECT publisher, ad_unit_id, COUNT(*) reqs, MAX(created_at) last_req FROM bid_req_log' + w + ' GROUP BY publisher, ad_unit_id', args);
+    const [wins] = await pool.query('SELECT publisher, ad_unit_id, COUNT(*) wins, COALESCE(SUM(price_micros),0) gross FROM bid_win_log' + w + ' GROUP BY publisher, ad_unit_id', args);
+    const map = {}; wins.forEach(x => { map[x.publisher + '|' + (x.ad_unit_id || '')] = x; });
+    res.json(reqs.map(r => {
+      const x = map[r.publisher + '|' + (r.ad_unit_id || '')] || { wins: 0, gross: 0 };
+      return { publisher: r.publisher, ad_unit_id: r.ad_unit_id, requests: Number(r.reqs),
+        wins: Number(x.wins), fill_rate: rate(Number(x.wins), Number(r.reqs)),
+        gross_cny: Number(x.gross) / 1e6, last_request_at: r.last_req };
+    }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/reports/demand-quality', security.requireAuth('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT partner, COUNT(*) bids, COALESCE(SUM(won),0) wins, ROUND(AVG(price_micros)/1e6,4) avg_cpm_cny FROM bid_bid_log GROUP BY partner ORDER BY bids DESC");
+    res.json(rows.map(r => ({ partner: r.partner, bids: Number(r.bids), wins: Number(r.wins),
+      win_rate: rate(Number(r.wins), Number(r.bids)), avg_cpm_cny: Number(r.avg_cpm_cny) || 0 })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ② 广告主余额 / 充值（对标 Mintegral「获取账户余额」）=====
+app.get('/api/advertiser/balance', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  try {
+    const adv = (req.account.t === 'advertiser') ? req.account.s : String(req.query.advertiser || '').trim();
+    if (!adv) return res.status(400).json({ error: 'advertiser 必填' });
+    const [[b]] = await pool.query('SELECT balance_micros FROM adv_balance WHERE advertiser=?', [adv]);
+    const [logs] = await pool.query('SELECT amount_micros,operator,note,created_at FROM adv_recharge WHERE advertiser=? ORDER BY id DESC LIMIT 20', [adv]);
+    res.json({ advertiser: adv, balance_cny: ((b && Number(b.balance_micros)) || 0) / 1e6,
+      recharges: logs.map(x => ({ amount_cny: Number(x.amount_micros) / 1e6, operator: x.operator, note: x.note, created_at: x.created_at })) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/advertiser/recharge', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  const b = req.body || {};
+  const adv = (req.account.t === 'advertiser') ? req.account.s : String(b.advertiser || '').trim();
+  const micros = Math.round((Number(b.amount_cny) || 0) * 1e6);
+  if (!adv) return res.status(400).json({ error: 'advertiser 必填' });
+  if (micros <= 0) return res.status(400).json({ error: 'amount_cny 必须 > 0' });
+  try {
+    await pool.query('INSERT INTO adv_balance (advertiser,balance_micros) VALUES (?,?) ON DUPLICATE KEY UPDATE balance_micros=balance_micros+VALUES(balance_micros)', [adv, micros]);
+    await pool.query('INSERT INTO adv_recharge (advertiser,amount_micros,operator,note) VALUES (?,?,?,?)', [adv, micros, req.account.u || '', String(b.note || '').slice(0, 200)]);
+    const [[row]] = await pool.query('SELECT balance_micros FROM adv_balance WHERE advertiser=?', [adv]);
+    await security.logAudit(req, 'advertiser:recharge', adv, 'amount_cny=' + (micros / 1e6));
+    res.json({ ok: true, advertiser: adv, balance_cny: Number(row.balance_micros) / 1e6 });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ③ 媒体收款信息（对标 AppLovin Payments）=====
+app.get('/api/publisher/payment', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  try {
+    const dom = (req.account.t === 'publisher') ? req.account.s : String(req.query.domain || '').trim();
+    if (!dom) return res.status(400).json({ error: 'domain 必填' });
+    const [[p]] = await pool.query('SELECT domain,name,payee_name,payee_type,payee_account,invoice_title,tax_no FROM publishers WHERE domain=?', [dom]);
+    if (!p) return res.status(404).json({ error: 'publisher not found' });
+    res.json(p);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/publisher/payment', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  const b = req.body || {};
+  const dom = (req.account.t === 'publisher') ? req.account.s : String(b.domain || '').trim();
+  if (!dom) return res.status(400).json({ error: 'domain 必填' });
+  try {
+    if (req.account.t === 'publisher' && dom !== req.account.s) return res.status(403).json({ error: '无权修改他人收款信息' });
+    await pool.query('UPDATE publishers SET payee_name=?,payee_type=?,payee_account=?,invoice_title=?,tax_no=? WHERE domain=?',
+      [String(b.payee_name || '').trim(), String(b.payee_type || '').trim(), String(b.payee_account || '').trim(),
+       String(b.invoice_title || '').trim(), String(b.tax_no || '').trim(), dom]);
+    await security.logAudit(req, 'publisher:payment', dom, '');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ⑤ 集成自检：回答"为什么我的广告位没广告" =====
+app.get('/api/publisher/integrity', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  try {
+    const auid = String(req.query.ad_unit_id || '').trim();
+    const dom = (req.account.t === 'publisher') ? req.account.s : String(req.query.domain || '').trim();
+    const checks = [];
+    const [[p]] = await pool.query('SELECT domain,name,payout_rate,payee_account FROM publishers WHERE domain=?', [dom]);
+    checks.push({ item: '媒体已入驻', ok: !!p, hint: p ? (p.domain + '（分成 ' + p.payout_rate + '）') : '未入驻，请先自助开户取 api_key' });
+    checks.push({ item: '收款信息已填写', ok: !!(p && p.payee_account), hint: (p && p.payee_account) ? '已填写' : '未填写 → 有收益也无法结算' });
+    if (auid) {
+      const [[u]] = await pool.query('SELECT ad_unit_id,name,format,status FROM ad_units WHERE ad_unit_id=? AND publisher=?', [auid, dom]);
+      checks.push({ item: '广告单元存在且归属本媒体', ok: !!u, hint: u ? (u.name + '（' + u.format + '）') : 'ad_unit_id 不存在或不属于你' });
+      if (u) checks.push({ item: '广告单元已启用', ok: Number(u.status) === 1, hint: Number(u.status) === 1 ? '启用中' : '已暂停 → 不会参拍' });
+    } else {
+      const [us] = await pool.query('SELECT COUNT(*) n FROM ad_units WHERE publisher=?', [dom]);
+      checks.push({ item: '已创建广告单元', ok: Number((us[0] || {}).n) > 0, hint: '共 ' + Number((us[0] || {}).n) + ' 个（指定 ad_unit_id 可精确诊断）' });
+    }
+    const rqArgs = auid ? [dom, auid] : [dom];
+    const [rq] = await pool.query('SELECT COUNT(*) n, MAX(created_at) last FROM bid_req_log WHERE publisher=?' + (auid ? ' AND ad_unit_id=?' : ''), rqArgs);
+    const reqN = Number((rq[0] || {}).n) || 0;
+    checks.push({ item: '近期收到竞价请求（SDK 已接入）', ok: reqN > 0,
+      hint: reqN > 0 ? ('共 ' + reqN + ' 次，最近 ' + (rq[0] || {}).last) : '未收到请求 → 检查页面是否贴了 pub_sdk.js 与 data-ad-unit' });
+    const [wn] = await pool.query('SELECT COUNT(*) n, COALESCE(SUM(price_micros),0) gross FROM bid_win_log WHERE publisher=?' + (auid ? ' AND ad_unit_id=?' : ''), rqArgs);
+    const winN = Number((wn[0] || {}).n) || 0;
+    checks.push({ item: '有胜出（真的填充了广告）', ok: winN > 0,
+      hint: winN > 0 ? (winN + ' 次，收入 ' + (Number((wn[0] || {}).gross) / 1e6).toFixed(4) + ' 元')
+        : (reqN > 0 ? '有请求但无胜出 → 通常底价过高或该品类暂无匹配需求' : '—') });
+    res.json({ domain: dom, ad_unit_id: auid || '', requests: reqN, wins: winN, fill_rate: rate(winN, reqN), checks });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ⑥ 广告主 API key（对标 Mintegral 广告主取 API key）=====
+function newAdvKey() { return 'ak_' + crypto.randomBytes(16).toString('hex'); }
+app.get('/api/advertiser/key', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  try {
+    const adv = (req.account.t === 'advertiser') ? req.account.s : String(req.query.advertiser || '').trim();
+    if (!adv) return res.status(400).json({ error: 'advertiser 必填' });
+    const [[a]] = await pool.query("SELECT api_key FROM accounts WHERE type='advertiser' AND scope=?", [adv]);
+    res.json({ advertiser: adv, api_key: (a && a.api_key) || '' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/advertiser/key/rotate', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  try {
+    const adv = (req.account.t === 'advertiser') ? req.account.s : String((req.body && req.body.advertiser) || '').trim();
+    if (!adv) return res.status(400).json({ error: 'advertiser 必填' });
+    const k = newAdvKey();
+    await pool.query("UPDATE accounts SET api_key=? WHERE type='advertiser' AND scope=?", [k, adv]);
+    await security.logAudit(req, 'advertiser:key:rotate', adv, '');
+    res.json({ ok: true, api_key: k });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ⑦ 应用实体（对标 AppLovin「先添加应用」：支持 App bundle，不只 domain）=====
+app.post('/api/apps', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  const b = req.body || {};
+  const pub = (req.account.t === 'publisher') ? req.account.s : String(b.publisher || '').trim();
+  if (!pub) return res.status(400).json({ error: 'publisher(域名) 必填' });
+  if (!String(b.bundle || '').trim()) return res.status(400).json({ error: 'bundle(包名 / 站点标识) 必填' });
+  try {
+    const [r] = await pool.query('INSERT INTO apps (publisher,platform,bundle,name,status) VALUES (?,?,?,?,1)',
+      [pub, String(b.platform || 'android').toLowerCase(), String(b.bundle).trim(), String(b.name || '').trim() || String(b.bundle).trim()]);
+    res.json({ ok: true, id: r.insertId });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/apps', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  try {
+    const rows = (req.account.t === 'publisher')
+      ? (await pool.query('SELECT * FROM apps WHERE publisher=? ORDER BY id DESC', [req.account.s]))[0]
+      : (await pool.query('SELECT * FROM apps ORDER BY id DESC LIMIT 200'))[0];
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/apps/:id', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  const id = +req.params.id;
+  try {
+    if (req.account.t === 'publisher') {
+      const [[mine]] = await pool.query('SELECT id FROM apps WHERE id=? AND publisher=?', [id, req.account.s]);
+      if (!mine) return res.status(403).json({ error: '无权删除他人的应用' });
+    }
+    await pool.query('DELETE FROM apps WHERE id=?', [id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ① MMP 归因集成（AppsFlyer / Adjust / Singular / Kochava / Tenjin / Branch）=====
+// 两个方向：点击时外发 click/impression 给 MMP；MMP 回传转化时由 /api/track/mmp-postback 入账。
+app.get('/api/mmp/config', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  try {
+    const adv = (req.account.t === 'advertiser') ? req.account.s : String(req.query.advertiser || '').trim();
+    if (!adv) return res.status(400).json({ error: 'advertiser 必填' });
+    const [rows] = await pool.query('SELECT * FROM mmp_configs WHERE advertiser=? ORDER BY id DESC', [adv]);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/mmp/config', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  const b = req.body || {};
+  const adv = (req.account.t === 'advertiser') ? req.account.s : String(b.advertiser || '').trim();
+  if (!adv) return res.status(400).json({ error: 'advertiser 必填' });
+  if (!String(b.postback_url || '').trim()) return res.status(400).json({ error: 'postback_url 必填' });
+  try {
+    const [r] = await pool.query('INSERT INTO mmp_configs (advertiser,provider,postback_url,enabled) VALUES (?,?,?,?)',
+      [adv, String(b.provider || 'appsflyer').toLowerCase(), String(b.postback_url).trim().slice(0, 512), 1]);
+    res.json({ ok: true, id: r.insertId });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/mmp/config/:id', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  const id = +req.params.id; const b = req.body || {};
+  try {
+    const [[row]] = await pool.query('SELECT advertiser FROM mmp_configs WHERE id=?', [id]);
+    if (!row) return res.status(404).json({ error: 'not found' });
+    if (req.account.t === 'advertiser' && row.advertiser !== req.account.s) return res.status(403).json({ error: '无权修改他人配置' });
+    const set = [], val = [];
+    if (b.provider != null) { set.push('provider=?'); val.push(String(b.provider).toLowerCase()); }
+    if (b.postback_url != null) { set.push('postback_url=?'); val.push(String(b.postback_url).trim().slice(0, 512)); }
+    if (b.enabled != null) { set.push('enabled=?'); val.push(Number(b.enabled) ? 1 : 0); }
+    if (!set.length) return res.status(400).json({ error: '无可更新字段' });
+    val.push(id);
+    await pool.query('UPDATE mmp_configs SET ' + set.join(',') + ' WHERE id=?', val);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/mmp/config/:id', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  const id = +req.params.id;
+  try {
+    const [[row]] = await pool.query('SELECT advertiser FROM mmp_configs WHERE id=?', [id]);
+    if (!row) return res.status(404).json({ error: 'not found' });
+    if (req.account.t === 'advertiser' && row.advertiser !== req.account.s) return res.status(403).json({ error: '无权删除他人配置' });
+    await pool.query('DELETE FROM mmp_configs WHERE id=?', [id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// MMP → 本平台：S2S 转化回传（公开端点；以 bid_win_log 为唯一事实源，无对应曝光直接拒）
+app.all('/api/track/mmp-postback', async (req, res) => {
+  const q = Object.assign({}, req.query || {}, req.body || {});
+  const imp = String(q.impid || q.clickid || q.imp || '').trim();
+  if (!imp) return res.status(400).json({ error: 'impid/clickid required' });
+  try {
+    const [[win]] = await pool.query('SELECT campaign_id FROM bid_win_log WHERE imp_id=?', [imp]);
+    if (!win) return res.status(404).json({ error: 'unknown impression' });
+    const [[dup]] = await pool.query("SELECT 1 FROM conv_log WHERE type='conversion' AND imp_id=?", [imp]);
+    if (dup) return res.json({ ok: true, dup: true });
+    await pool.query("INSERT INTO conv_log (type,campaign_id,publisher,imp_id) VALUES ('conversion',?,'',?)", [Number(win.campaign_id) || 0, imp]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ② Waterfall：需求源排序 + 分国家底价 =====
+app.get('/api/waterfall', security.requireAuth('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM waterfall_rules ORDER BY scope, country, position, id');
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/waterfall', security.requireAuth('admin'), async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.demand_source || '').trim()) return res.status(400).json({ error: 'demand_source 必填' });
+  try {
+    const [r] = await pool.query('INSERT INTO waterfall_rules (scope,ad_unit_id,country,demand_source,position,floor_cny,enabled) VALUES (?,?,?,?,?,?,?)',
+      [String(b.scope || '*').trim(), String(b.ad_unit_id || '').trim(), String(b.country || '*').trim(),
+       String(b.demand_source).trim(), Number(b.position) || 0, Number(b.floor_cny) || 0, 1]);
+    res.json({ ok: true, id: r.insertId });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/waterfall/:id', security.requireAuth('admin'), async (req, res) => {
+  const id = +req.params.id; const b = req.body || {};
+  try {
+    const set = [], val = [];
+    ['scope', 'ad_unit_id', 'country', 'demand_source'].forEach(k => { if (b[k] != null) { set.push(k + '=?'); val.push(String(b[k]).trim()); } });
+    if (b.position != null) { set.push('position=?'); val.push(Number(b.position)); }
+    if (b.floor_cny != null) { set.push('floor_cny=?'); val.push(Number(b.floor_cny)); }
+    if (b.enabled != null) { set.push('enabled=?'); val.push(Number(b.enabled) ? 1 : 0); }
+    if (!set.length) return res.status(400).json({ error: '无可更新字段' });
+    val.push(id);
+    await pool.query('UPDATE waterfall_rules SET ' + set.join(',') + ' WHERE id=?', val);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/waterfall/:id', security.requireAuth('admin'), async (req, res) => {
+  try { await pool.query('DELETE FROM waterfall_rules WHERE id=?', [+req.params.id]); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ③ A/B 实验（bid_floor / demand_source / ecpm_weight 三组）=====
+app.get('/api/ab/experiments', security.requireAuth('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM ab_experiments ORDER BY id DESC');
+    res.json(rows.map(r => ({ ...r, config: safeJson(r.config) })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/ab/experiments', security.requireAuth('admin'), async (req, res) => {
+  const b = req.body || {};
+  if (!String(b.name || '').trim()) return res.status(400).json({ error: 'name 必填' });
+  if (!['bid_floor', 'demand_source', 'ecpm_weight'].includes(b.kind)) return res.status(400).json({ error: 'kind 必须是 bid_floor / demand_source / ecpm_weight' });
+  try {
+    const [r] = await pool.query('INSERT INTO ab_experiments (name,kind,config,status) VALUES (?,?,?,?)',
+      [String(b.name).trim(), b.kind, JSON.stringify(b.config || {}), 1]);
+    res.json({ ok: true, id: r.insertId });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/ab/experiments/:id', security.requireAuth('admin'), async (req, res) => {
+  const id = +req.params.id; const b = req.body || {};
+  try {
+    const set = [], val = [];
+    if (b.name != null) { set.push('name=?'); val.push(String(b.name).trim()); }
+    if (b.config != null) { set.push('config=?'); val.push(JSON.stringify(b.config)); }
+    if (b.status != null) { set.push('status=?'); val.push(Number(b.status) ? 1 : 0); }
+    if (!set.length) return res.status(400).json({ error: '无可更新字段' });
+    val.push(id);
+    await pool.query('UPDATE ab_experiments SET ' + set.join(',') + ' WHERE id=?', val);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// 实验结果：按变体汇总曝光 / 胜出 / 收入
+app.get('/api/ab/results', security.requireAuth('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query(`SELECT exp_id, variant_key, COUNT(*) exposures,
+      COALESCE(SUM(won),0) wins, COALESCE(SUM(price_micros),0)/1e6 revenue_cny
+      FROM ab_exposure GROUP BY exp_id, variant_key ORDER BY exp_id, variant_key`);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ⑤ 品牌安全黑名单（domain / keyword / bundle）=====
+app.get('/api/bs/blacklist', security.requireAuth('admin'), async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM bs_blacklist ORDER BY id DESC');
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/bs/blacklist', security.requireAuth('admin'), async (req, res) => {
+  const b = req.body || {};
+  if (!['domain', 'keyword', 'bundle'].includes(b.kind)) return res.status(400).json({ error: 'kind 必须是 domain / keyword / bundle' });
+  if (!String(b.value || '').trim()) return res.status(400).json({ error: 'value 必填' });
+  try {
+    const [r] = await pool.query('INSERT INTO bs_blacklist (kind,value,scope,enabled) VALUES (?,?,?,1)',
+      [b.kind, String(b.value).trim().slice(0, 190), String(b.scope || '*').trim()]);
+    res.json({ ok: true, id: r.insertId });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/bs/blacklist/:id', security.requireAuth('admin'), async (req, res) => {
+  try { await pool.query('DELETE FROM bs_blacklist WHERE id=?', [+req.params.id]); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ===== ⑥ LLM 意图引擎状态（首页要显示真实接入状态，不能嘴上说 LLM 实际是 heuristic）=====
+app.get('/api/config/llm', async (req, res) => {
+  const hot = String(process.env.LLM_HOT_PATH || '0') !== '0';
+  res.json({ llm_enabled: !!llm.ENABLED, provider: llm.ENABLED ? 'configured' : 'none', hot_path: hot,
+    note: hot ? 'LLM 已接入竞价热路径' : 'LLM 已配置但未进热路径（默认回落启发式，避免 p99 抖动）' });
+});
+
+// ===== 广告单元（Ad Unit）：对标 AppLovin MAX「建 Ad Unit → 拿 ID → 埋 SDK」=====
+// 一个角色一条路：开发者在后台登记广告位实体，SDK 用 data-ad-unit 上报，
+// 胜出日志记 ad_unit_id，报表即可按广告单元拆收益（否则所有广告位混成一坨）。
+// ad_unit_id 是公开标识（同 AppLovin 的广告单元 ID，会明文出现在页面里），非密钥，无需加密随机。
+function genAdUnitId() { return 'au_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+app.post('/api/ad-units', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  const b = req.body || {};
+  const pub = (req.account.t === 'publisher') ? req.account.s : String(b.publisher || '').trim();
+  if (!pub) return res.status(400).json({ error: 'publisher(域名) 必填' });
+  const fmt = String(b.format || 'banner').toLowerCase();
+  const floor = Number(b.floor_cny);
+  const adUnitId = genAdUnitId();
+  try {
+    // ④⑦ 频控 / 刷新 / 尺寸一并落库：这些是 SDK 侧执行策略，必须随广告单元一起配置
+    await pool.query('INSERT INTO ad_units (ad_unit_id,publisher,app_id,name,format,floor_cny,status,freq_cap,freq_window_hours,refresh_interval,size) VALUES (?,?,?,?,?,?,1,?,?,?,?)',
+      [adUnitId, pub, Number(b.app_id) || 0, String(b.name || '').trim() || ('广告单元-' + fmt), fmt, (floor >= 0 ? floor : 1),
+       Number(b.freq_cap) || 0, Number(b.freq_window_hours) || 24, Number(b.refresh_interval) || 0, String(b.size || '').slice(0, 16)]);
+    res.json({
+      ok: true, ad_unit_id: adUnitId, publisher: pub, format: fmt,
+      snippet: '<div class="ad-slot" data-ad-unit="' + adUnitId + '" data-format="' + fmt + '" data-floor="' + (floor >= 0 ? floor : 1) + '"></div>\n<script src="' + PUBLIC_BASE + '/pub_sdk.js"></script>'
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/ad-units', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  try {
+    const rows = (req.account.t === 'publisher')
+      ? (await pool.query('SELECT * FROM ad_units WHERE publisher=? ORDER BY id DESC', [req.account.s]))[0]
+      : (await pool.query('SELECT * FROM ad_units ORDER BY id DESC LIMIT 200'))[0];
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/ad-units/:id', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  const id = +req.params.id; const b = req.body || {};
+  try {
+    if (req.account.t === 'publisher') {
+      const [[mine]] = await pool.query('SELECT id FROM ad_units WHERE id=? AND publisher=?', [id, req.account.s]);
+      if (!mine) return res.status(403).json({ error: '无权修改他人的广告单元' });
+    }
+    const set = [], val = [];
+    if (b.name != null) { set.push('name=?'); val.push(String(b.name).trim()); }
+    if (b.format != null) { set.push('format=?'); val.push(String(b.format).toLowerCase()); }
+    if (b.floor_cny != null) { set.push('floor_cny=?'); val.push(Number(b.floor_cny)); }
+    if (b.status != null) { set.push('status=?'); val.push(Number(b.status) ? 1 : 0); }
+    // ④⑦ 频控 / 刷新 / 尺寸
+    if (b.freq_cap != null) { set.push('freq_cap=?'); val.push(Number(b.freq_cap)); }
+    if (b.freq_window_hours != null) { set.push('freq_window_hours=?'); val.push(Number(b.freq_window_hours)); }
+    if (b.refresh_interval != null) { set.push('refresh_interval=?'); val.push(Number(b.refresh_interval)); }
+    if (b.size != null) { set.push('size=?'); val.push(String(b.size).slice(0, 16)); }
+    if (!set.length) return res.status(400).json({ error: '无可更新字段' });
+    val.push(id);
+    await pool.query('UPDATE ad_units SET ' + set.join(',') + ' WHERE id=?', val);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/ad-units/:id', security.requireAuth('admin', 'publisher'), async (req, res) => {
+  const id = +req.params.id;
+  try {
+    if (req.account.t === 'publisher') {
+      const [[mine]] = await pool.query('SELECT id FROM ad_units WHERE id=? AND publisher=?', [id, req.account.s]);
+      if (!mine) return res.status(403).json({ error: '无权删除他人的广告单元' });
+    }
+    await pool.query('DELETE FROM ad_units WHERE id=?', [id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ===== P1 隐私与测量：多触点归因 + SKAN 聚合回传 =====
 // 多触点归因：给定 impid，返回 曝光→点击→转化 全链路触点，并按指定模型分配功劳
 // model: last_touch | first_touch | linear | time_decay | position_based | data_driven | compare
 app.get('/api/attribution', async (req, res) => {
-  const imp = String(req.query.impid || '');
+  let imp = String(req.query.impid || '');
   const model = String(req.query.model || 'last_touch');
-  if (!imp) return res.status(400).json({ error: 'impid required' });
+  // 未指定 impid 时回退到最近一次曝光：此前前端「拉取归因样本」无参调用恒定 400，
+  // 用户只会看到报错。留空也能看样例，有曝光即可用。
+  if (!imp) {
+    const [[last]] = await pool.query('SELECT imp_id FROM bid_win_log ORDER BY id DESC LIMIT 1').catch(() => [[]]);
+    imp = last ? String(last.imp_id) : '';
+    if (!imp) return res.status(400).json({ error: 'impid required（平台暂无曝光记录，请先跑一次竞价演示）' });
+  }
   try {
     const [[win]] = await pool.query('SELECT campaign_id, publisher, price_micros, created_at FROM bid_win_log WHERE imp_id=?', [imp]);
     if (!win) return res.status(404).json({ error: 'no impression' });
@@ -2188,6 +3233,10 @@ app.post('/api/ml/model', async (req, res) => {
 app.get('/api/ml/models', (_, res) => res.json(ml.registry.list()));
 
 // ===== 创意自动化：可玩广告 / 视频 / DCO / 本地化 =====
+// 创意自动化 = 广告主投放链路的一环（对标 AppLovin 创意自动化）：管理员或广告主本人可调用。
+// 原先整段挂在 ADMIN_PREFIXES 下，广告主点任何按钮都 401 → 需求侧漏斗断点。
+app.use('/api/creative-auto', security.requireAuth('admin', 'advertiser'));
+
 app.post('/api/creative-auto/generate', async (req, res) => {
   try { res.json(creativeAuto.generate(req.body || {})); }
   catch (e) { res.status(500).json({ error: e.message }); }
@@ -2274,6 +3323,20 @@ app.get('/metrics/slo', (_, res) => res.json({
 }));
 
 app.use('/landing', express.static('landing'));   // 平台自托管落地页：广告主 landing_url 可指向 /landing/<项目>/，不再依赖外部托管
+app.use('/sdk-files', express.static(path.join(__dirname, 'sdk'))); // 原生 SDK 源码可下载（iOS/Android/各 DSP 适配）
+
+// 营销首页：/、/home、/home.html 统一指向 public/home.html（/index.html 仍保留为 Prebid 演示）
+// 禁用静态资源缓存：前端 JS/HTML 改完后必须让浏览器立即拉新文件，否则会跑旧代码导致会话/角色错乱
+// （例如管理员登录后仍被旧 login.html 显示成广告主）。仅作用于未被 API 路由匹配的静态/首页请求。
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+const HOME_HTML = path.join(__dirname, 'public', 'home.html');
+app.get(['/', '/home', '/home.html'], (req, res) => res.sendFile(HOME_HTML));
+
 app.use(express.static('public'));
 init().then(() => {
   const srv = app.listen(PORT, () =>

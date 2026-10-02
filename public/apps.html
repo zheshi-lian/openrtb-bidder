@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>应用 · 开发者变现</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1000px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#cdd8f2}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ .row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:150px}
+ label{display:block;font-size:12px;color:#93a3c4;margin:8px 0 3px}
+ input,select{width:100%;padding:7px 9px;border:1px solid #2f4170;border-radius:6px;box-sizing:border-box;background:#0d1730;color:#e8eefc}
+ button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;margin-top:10px}
+ button.bad{background:#c0392b}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left}
+ th{background:#132043;color:#93a3c4}
+ .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#15203a;color:#7fd1ff}
+ code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>应用（App / 站点）</h2>
+  <div class="hint" id="who">—</div>
+
+  <div class="card">
+    <h3>① 添加应用（对标 AppLovin「先添加应用」：App 按包名接入，Web 按域名）</h3>
+    <div class="row">
+      <div><label>平台</label><select id="ap-plat"><option>android</option><option>ios</option><option>web</option></select></div>
+      <div><label>包名 / 站点标识 bundle</label><input id="ap-bundle" placeholder="如 com.example.app"></div>
+      <div><label>应用名</label><input id="ap-name" placeholder="如 我的 App"></div>
+    </div>
+    <button onclick="createApp()">添加应用</button>
+    <div class="hint" id="ap-msg"></div>
+    <table id="aptbl"><thead><tr><th>id</th><th>平台</th><th>bundle</th><th>名称</th><th>广告单元数</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>在变现链路中的位置</h3>
+    <div class="hint">
+      入驻 → <b>① 添加应用</b> → ② 到「广告单元」为该应用建广告位（banner / 激励 / 插屏…）→ ③ 到「入驻与接入」拿埋点码贴进页面
+      → ④ 到「集成自检」验证是否真的收到请求与胜出 → ⑤ 到「收益报表」看收益。
+    </div>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='开发者后台';</script>
+  <script src="/admin.js"></script>
+  <script>
+    function whoami(){
+      var me = (window.Auth && Auth.get()) || null;
+      var w = document.getElementById('who');
+      if (me && me.type === 'publisher') { w.textContent = '当前开发者：' + me.scope + '（登录账号 ' + me.username + '）'; return true; }
+      w.innerHTML = '尚未登录开发者账号 · <a href="/login.html">去登录</a> 或 <a href="/register.html#publisher">去入驻</a>';
+      return false;
+    }
+    async function loadApps(){
+      if (!whoami()) return;
+      const apps = await (await fetch('/api/apps')).json().catch(function(){ return []; });
+      const units = await (await fetch('/api/ad-units')).json().catch(function(){ return []; });
+      const tb = document.querySelector('#aptbl tbody'); tb.innerHTML = '';
+      (apps || []).forEach(function (a) {
+        const n = (units || []).filter(function (u) { return Number(u.app_id) === Number(a.id); }).length;
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + a.id + '</td><td><span class="tag">' + a.platform + '</span></td>' +
+          '<td><code>' + a.bundle + '</code></td><td>' + (a.name || '') + '</td><td>' + n + '</td>' +
+          '<td><button class="bad" onclick="delApp(' + a.id + ')">删</button></td>';
+        tb.appendChild(tr);
+      });
+      if (!(apps || []).length) tb.innerHTML = '<tr><td colspan="6">还没有应用，请先添加</td></tr>';
+    }
+    async function createApp(){
+      const m = document.getElementById('ap-msg');
+      if (!whoami()) { m.textContent = '请先登录开发者账号'; return; }
+      const bundle = document.getElementById('ap-bundle').value.trim();
+      if (!bundle) { m.textContent = '请填写 bundle（包名 / 站点标识）'; return; }
+      const r = await fetch('/api/apps', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: document.getElementById('ap-plat').value, bundle: bundle, name: document.getElementById('ap-name').value.trim() }) });
+      const d = await r.json().catch(function(){ return {}; });
+      m.textContent = r.ok ? ('已添加应用 #' + d.id + ' ✓ 接着去「广告单元」为它建广告位') : ('失败：' + (d.error || JSON.stringify(d)));
+      if (r.ok) loadApps();
+    }
+    async function delApp(id){
+      if (!confirm('删除该应用？（已建的广告单元不会删除，仅解除归属）')) return;
+      await fetch('/api/apps/' + id, { method: 'DELETE' });
+      loadApps();
+    }
+    whoami(); loadApps();
+  </script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>
+</body></html>

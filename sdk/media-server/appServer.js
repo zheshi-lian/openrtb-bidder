@@ -16,6 +16,19 @@
  */
 const http = require('http');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+// 极简 .env 加载（本仓库不装 dotenv）：让 PUB_API_KEY / ADMIN_TOKEN 集中配置、不硬编码
+try {
+  const p = path.join(__dirname, '..', '..', '.env');
+  if (fs.existsSync(p)) {
+    for (const line of fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '').trim();
+    }
+  }
+} catch (e) {}
 
 const ADX = process.env.ADX_BASE || 'http://127.0.0.1:8080';
 const PUB = process.env.PUBLISHER || 'dellai.xyz';
@@ -36,6 +49,7 @@ async function settle(impid, cid, watchedMs, durationMs, opts) {
   const body = {
     impid, cid, publisher: PUB,
     watchedMs: Number(watchedMs), durationMs: Number(durationMs), ts,
+    device_fp: (opts && opts.device_fp) || '',
     sig: (opts && opts.badSig) ? 'deadbeef' : hmac(impid, cid, watchedMs, durationMs, ts)
   };
   const r = await fetch(ADX + '/s2s/reward', {
@@ -47,9 +61,12 @@ async function settle(impid, cid, watchedMs, durationMs, opts) {
 /** 启动时自动向 ADX 索取媒体服务端密钥（无需手工填写） */
 async function fetchApiKey() {
   if (API_KEY) return API_KEY;
+  // 密钥中心如意茄子严谨后台鉴权，这里带上管理员令牌（或直接用 PUB_API_KEY，推荐后者）
   try {
-    const r = await fetch(`${ADX}/api/publisher/${encodeURIComponent(PUB)}/key`).then(x => x.json());
+    const headers = process.env.ADMIN_TOKEN ? { 'x-admin-token': process.env.ADMIN_TOKEN } : {};
+    const r = await fetch(`${ADX}/api/publisher/${encodeURIComponent(PUB)}/key`, { headers }).then(x => x.json());
     if (r && r.api_key) { API_KEY = r.api_key; return API_KEY; }
+    if (r && r.error === 'unauthorized') console.warn('[media-server] 取密钥被拒：请设置 PUB_API_KEY 或 ADMIN_TOKEN');
   } catch (e) {}
   return '';
 }
@@ -73,10 +90,16 @@ const server = http.createServer(async (req, res) => {
   // SDK 上报观看证据 → 服务端签名 → ADX 裁决 → 下发奖励
   if (req.url === '/api/reward' && req.method === 'POST') {
     const b = await readBody(req);
-    const { impid, cid, watchedMs, durationMs, userId } = b;
+    const { impid, cid, watchedMs, durationMs, userId, device_fp } = b;
     if (!impid || !watchedMs || !durationMs) return json(res, 400, { ok: false, reason: 'MISSING_FIELDS' });
+    if (!API_KEY) { await fetchApiKey(); }   // ADX 晚于本服务启动时也能补齐密钥
     if (!API_KEY) return json(res, 500, { ok: false, reason: 'NO_API_KEY' });
-    const r = await settle(impid, cid, watchedMs, durationMs);
+    let r = await settle(impid, cid, watchedMs, durationMs, { device_fp });
+    // 自愈：密钥可能因 ADX 端轮换而失效（BAD_S2S_SIGNATURE/UNKNOWN_PUBLISHER），重拉一次后重试
+    if (r.json && (r.json.why === 'BAD_S2S_SIGNATURE' || r.json.why === 'UNKNOWN_PUBLISHER')) {
+      API_KEY = await fetchApiKey();
+      if (API_KEY) r = await settle(impid, cid, watchedMs, durationMs, { device_fp });
+    }
     if (r.json && r.json.ok && r.json.granted) {
       const u = userId || 'demo_user';
       ledger[u] = (ledger[u] || 0) + 1;             // ★ 只有 ADX 裁决通过才下发

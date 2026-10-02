@@ -20,7 +20,7 @@
 
 ## 2. 竞品对标矩阵
 
-| 能力项 | AppLovin (Max/AdColony) | Unity LevelPlay | Taboola / 磁力引擎 | **LinkOS ADX** | 状态 |
+| 能力项 | AppLovin (Max/AdColony) | Unity LevelPlay | Taboola / 磁力引擎 | **LinkOS** | 状态 |
 |---|---|---|---|---|---|
 | 三方角色拆分 | ✓ 独立门户（Advertiser / Publisher / Partner Ops） | ✓ Advertiser Console + Publisher | ✓ 分角色 | ✓ admin/advertiser/publisher | 对齐 |
 | 自助开户 | ✓ 邮箱注册 + 资质审核 | ✓ | ✓ | ✓ 两个入口 + 审核态 `review_status` | 对齐 |

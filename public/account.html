@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>账号与权限 · 平台运营</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1180px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#e8eefc}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ .row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:140px}
+ label{display:block;font-size:12px;color:#93a3c4;margin:8px 0 3px}
+ input,select{width:100%;padding:7px 9px;border:1px solid #26355c;border-radius:6px;box-sizing:border-box;background:#0d1730;color:#e8eefc}
+ button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;margin-top:10px}
+ button.ghost{background:#5b6b82} button.bad{background:#c0392b}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left;color:#e8eefc}
+ th{background:#0d1730;color:#93a3c4}
+ .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#16203a;color:#7fd1ff;border:1px solid #26355c}
+ .tag.off{background:#3a1d24;color:#f87171;border-color:#4a2630} .tag.on{background:#16321f;color:#34d399;border-color:#234a35}
+ code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>账号与权限</h2>
+  <div class="hint">一个账号 = 一个角色 + 一个数据作用域。权限由后端 <code>requireAuth</code> 强制；停用即时生效（令牌未过期也会被拦）。</div>
+
+  <div class="card">
+    <h3>① 开通账号</h3>
+    <div class="row">
+      <div><label>角色 type</label><select id="f-type">
+        <option value="advertiser">广告主</option>
+        <option value="publisher">开发者（媒体）</option>
+        <option value="admin">平台运营（管理员）</option>
+      </select></div>
+      <div><label>登录用户名</label><input id="f-user" placeholder="如 ruankao_adv"></div>
+      <div><label>密码（≥6 位）</label><input id="f-pass" type="password" placeholder="登录密码"></div>
+      <div><label>作用域 scope</label><input id="f-scope" placeholder="广告主填名称 / 媒体填域名"></div>
+      <div><label>显示名</label><input id="f-disp" placeholder="如 软考高项"></div>
+    </div>
+    <button onclick="createAccount()">开通</button>
+    <div class="hint" id="f-msg"></div>
+  </div>
+
+  <div class="card">
+    <h3>② 账号清单</h3>
+    <table id="tbl"><thead><tr><th>id</th><th>角色</th><th>用户名</th><th>作用域</th><th>显示名</th><th>状态</th><th>创建者</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>③ 角色与作用域（口径）</h3>
+    <table><thead><tr><th>角色</th><th>后台入口</th><th>作用域 scope 取值</th><th>能看到什么</th></tr></thead><tbody>
+      <tr><td><span class="tag">广告主</span></td><td>/advertiser.html</td><td>广告主名称（如 软考高项）</td><td>只看自己名下的计划、素材、消耗</td></tr>
+      <tr><td><span class="tag" style="background:#16321f;color:#34d399;border-color:#234a35">开发者</span></td><td>/publisher_report.html</td><td>域名（如 example.com）</td><td>只看自己域名的广告单元、曝光与收益</td></tr>
+      <tr><td><span class="tag" style="background:#2a2410;color:#fbbf24;border-color:#4a3f1a">平台运营</span></td><td>/console.html</td><td>*（全量）</td><td>全部数据 + 账号与权限管理</td></tr>
+    </tbody></table>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='平台运营';</script>
+  <script src="/admin.js"></script>
+  <script>
+    var ROLE = { admin: '平台运营', advertiser: '广告主', publisher: '开发者' };
+    async function createAccount(){
+      var m = document.getElementById('f-msg'); m.textContent = '开通中…';
+      var body = { type: document.getElementById('f-type').value,
+        username: document.getElementById('f-user').value.trim(),
+        password: document.getElementById('f-pass').value,
+        scope: document.getElementById('f-scope').value.trim(),
+        display: document.getElementById('f-disp').value.trim() };
+      if (!body.username || !body.password || !body.scope) { m.textContent = '用户名 / 密码 / 作用域 必填（作用域决定数据可见范围，务必填准）'; return; }
+      try {
+        var r = await fetch('/api/account/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        var d = await r.json().catch(function(){ return {}; });
+        m.textContent = r.ok ? ('已开通 ✓ ' + body.username + '（' + ROLE[body.type] + '，作用域 ' + body.scope + '）') : ('失败：' + (d.error || JSON.stringify(d)));
+        if (r.ok) load();
+      } catch (e) { m.textContent = 'ERR ' + e.message; }
+    }
+    async function load(){
+      var rows = await (await fetch('/api/accounts')).json().catch(function(){ return []; });
+      if (rows && rows.error) { document.querySelector('#tbl tbody').innerHTML = '<tr><td colspan="8">' + rows.error + '（需平台运营账号）</td></tr>'; return; }
+      var tb = document.querySelector('#tbl tbody'); tb.innerHTML = '';
+      (rows || []).forEach(function (a) {
+        var tr = document.createElement('tr');
+        var on = Number(a.status) === 1;
+        tr.innerHTML = '<td>' + a.id + '</td>' +
+          '<td>' + (ROLE[a.type] || a.type) + '</td>' +
+          '<td><code>' + a.username + '</code></td>' +
+          '<td>' + (a.scope || '') + '</td>' +
+          '<td>' + (a.display || '') + '</td>' +
+          '<td><span class="tag ' + (on ? 'on' : 'off') + '">' + (on ? '启用' : '已停用') + '</span></td>' +
+          '<td>' + (a.created_by || '-') + '</td>' +
+          '<td><button class="' + (on ? 'ghost' : '') + '" onclick="setStatus(' + a.id + ',' + (on ? 0 : 1) + ')">' + (on ? '停用' : '启用') + '</button></td>';
+        tb.appendChild(tr);
+      });
+    }
+    async function setStatus(id, st){
+      if (st === 0 && !confirm('停用后该账号立即失去访问能力（令牌未过期也会被拦截）。确认停用？')) return;
+      await fetch('/api/accounts/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: st }) });
+      load();
+    }
+    load();
+  </script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>
+</body></html>

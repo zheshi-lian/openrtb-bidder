@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>统一登录 · ADX 三方后台</title>
+<title>统一登录 · LinkOS 三方后台</title>
 <style>
   :root{--bg:#0b1220;--card:#131f38;--card2:#0d1730;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24;--danger:#f87171}
   *{box-sizing:border-box}
@@ -47,7 +47,7 @@
   <div class="brand">
     <div class="logo">L</div>
     <div>
-      <h1>LinkOS ADX 登录</h1>
+      <h1>LinkOS 登录</h1>
       <p class="sub">管理员 / 广告主 / 媒体 三套后台共用一套账号，登录后只看自己作用域的数据。</p>
     </div>
   </div>
@@ -85,7 +85,7 @@
       <button class="d" type="button" onclick="fill('demomedia','demo123')">媒体 demomedia / demo123</button>
     </div>
     <div style="margin-top:9px">
-      <a href="/advertiser_signup.html">广告主自助开户</a> · <a href="/register.html#publisher">媒体入驻</a> · <a href="/register.html#advertiser">需求侧申请</a>
+      <a href="/register.html#advertiser">广告主自助开户</a> · <a href="/register.html#publisher">媒体入驻</a> · <a href="/register.html#advertiser">需求侧申请</a>
     </div>
   </div>
 
@@ -126,14 +126,29 @@ function defaultHome(type){
   if(type==='publisher') return '/publisher_report.html';
   return '/console.html';
 }
-function load(k){return localStorage.getItem(k)||sessionStorage.getItem(k)||'';}
-function wipe(){['auth_token','auth_role','auth_scope','auth_user'].forEach(k=>{localStorage.removeItem(k);sessionStorage.removeItem(k);});}
+// 统一会话真源：linkos_admin（JSON{token,type,scope,username}）是 admin.js/console_top.js 读取的唯一真源。
+// 此前 login.html 只写 auth_* 旧键，导致在 console 页 Auth.get() 优先命中旧 linkos_admin（如残留的广告主会话），
+// 出现「管理员登录却显示成广告主」「广告主身份切不出去」的错乱。这里让 login.html 与后台页共用同一套会话键。
+function readLinkos(){ try{ return JSON.parse(localStorage.getItem('linkos_admin')||sessionStorage.getItem('linkos_admin')||'null'); }catch(e){ return null; } }
+// 必须同时写 localStorage 与 sessionStorage：admin.js/nav.js 读 linkos_admin 是「localStorage 优先」，
+// 若只写其一（如未勾记住我时只写 sessionStorage），本地残留的旧会话（在 localStorage）会胜出 → 角色错乱。
+// 与 admin.js 的 writeSession 保持一致：两个存储都写，确保无论旧值落在哪都能被覆盖。
+function writeLinkos(o,rem){ try{ var j=JSON.stringify(o||{}); localStorage.setItem('linkos_admin',j); sessionStorage.setItem('linkos_admin',j); }catch(e){} }
+function load(k){
+  if(k==='auth_role'){ var l=readLinkos(); if(l&&l.type) return l.type; }
+  if(k==='auth_user'){ var l2=readLinkos(); if(l2&&l2.username) return l2.username; }
+  return localStorage.getItem(k)||sessionStorage.getItem(k)||'';
+}
+function wipe(){['auth_token','auth_role','auth_scope','auth_user'].forEach(k=>{localStorage.removeItem(k);sessionStorage.removeItem(k);}); localStorage.removeItem('linkos_admin'); sessionStorage.removeItem('linkos_admin');}
 function saveSession(k,v,rem){(rem?localStorage:sessionStorage).setItem(k,v);}
 // 已登录则直接给入口，不再要求重复输密码
 function alreadyIn(){
-  const t=load('auth_token'); if(!t) return;
+  const l=readLinkos();
+  const t=(l&&l.token)||load('auth_token'); if(!t) return;
+  const type=(l&&l.type)||load('auth_role')||'';
+  const user=(l&&l.username)||load('auth_user')||'?';
   const m=$('m'); m.className='msg info';
-  m.innerHTML='已登录为 <b>'+(load('auth_user')||'?')+'</b>（'+(load('auth_role')||'')+'）· <a href="'+defaultHome(load('auth_role'))+'">进入后台</a> · <a href="#" id="sw">切换账号</a>';
+  m.innerHTML='已登录为 <b>'+user+'</b>（'+type+'）· <a href="'+defaultHome(type)+'">进入后台</a> · <a href="#" id="sw">切换账号</a>';
   const sw=$('sw'); if(sw) sw.onclick=e=>{e.preventDefault();wipe();location.reload();};
 }
 async function doLogin(){
@@ -163,6 +178,7 @@ async function doLogin(){
 }
 function loginAs(token,type,scope,user,rem){
   saveSession('auth_token',token,rem);saveSession('auth_role',type,rem);saveSession('auth_scope',scope,rem);saveSession('auth_user',user,rem);
+  writeLinkos({token:token,type:type,scope:scope,username:user},rem);
   fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}).catch(()=>{});
   const m=$('m');m.className='msg ok';
   m.textContent='登录成功（'+(type==='admin'?'管理员':type==='advertiser'?'广告主':'媒体')+'），正在进入后台…';

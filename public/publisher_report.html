@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="zh">
 <head><meta charset="utf-8" /><title>媒体方收益报表</title>
-<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:30px;background:#f5f6f8;color:#222}
- h2{font-size:18px} table{width:100%;border-collapse:collapse;margin-top:14px;background:#fff}
- td,th{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left}
- .card{background:#fff;padding:14px;border-radius:8px;margin:10px 0;box-shadow:0 1px 3px #0001}
- input{padding:6px;width:320px} button{padding:6px 14px;cursor:pointer}
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:30px;background:#0b1020;color:#e8eefc}
+ h2{font-size:18px;color:#e8eefc} table{width:100%;border-collapse:collapse;margin-top:14px;background:#16203a}
+ td,th{border:1px solid #26355c;padding:8px;font-size:13px;text-align:left;color:#e8eefc}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:10px 0;border:1px solid #26355c}
+ input{padding:6px;width:320px;background:#0d1730;color:#e8eefc;border:1px solid #26355c} button{padding:6px 14px;cursor:pointer;background:#3b82f6;color:#fff;border:0}
  .kpi{display:flex;gap:16px;flex-wrap:wrap} .kpi div{background:#0a0f1d;color:#e5e9f2;border:1px solid #26304a;border-radius:8px;padding:10px 14px} .kpi b{font-size:18px;color:#7fd1ff}
- .hint{font-size:12px;color:#666}</style></head>
+ .hint{font-size:12px;color:#93a3c4}</style></head>
 <body>
 <div id="ctop"></div>
   <h2>媒体方(Publisher)收益报表</h2>
@@ -27,12 +27,12 @@
     }
     async function load(){
       const k = apikey.value.trim();
-      if (k) {
-        const d = await (await fetch('/api/publisher/report?api_key='+encodeURIComponent(k))).json();
-        if (d.error) { kpi.innerHTML = '<div style="color:#c00">'+d.error+'</div>'; return; }
-        fillKpi(d);
-        kpi.insertAdjacentHTML('beforeend', `<div>完播发奖 <b>${d.rewarded_granted}/${d.rewarded_total}</b></div><div>点击 <b>${d.clicks}</b></div><div>转化 <b>${d.conversions}</b></div><div>GMV <b>${d.gmv}</b></div>`);
-      } else { loadGlobal(); }
+      // 有 api_key 用它；没填但已登录媒体账号时，不带 key 直接请求——后端按 token 作用域只返回自己的数据。
+      const r = await fetch(k ? ('/api/publisher/report?api_key='+encodeURIComponent(k)) : '/api/publisher/report');
+      const d = await r.json().catch(()=>({}));
+      if (!r.ok || d.error) { kpi.innerHTML = '<div style="color:#c00">'+(d.error||('HTTP '+r.status))+'</div>'; return; }
+      fillKpi(d);
+      kpi.insertAdjacentHTML('beforeend', `<div>完播发奖 <b>${d.rewarded_granted}/${d.rewarded_total}</b></div><div>点击 <b>${d.clicks}</b></div><div>转化 <b>${d.conversions}</b></div><div>GMV <b>${d.gmv}</b></div>`);
     }
     async function loadGlobal(){
       try {
@@ -44,7 +44,11 @@
         tr.innerHTML=`<td>${p.publisher}</td><td>${p.wins}</td><td>${p.gross_cny.toFixed(4)}</td><td>${p.payout_cny.toFixed(4)}</td><td>${p.ssp_margin_cny.toFixed(4)}</td>`;
         tb.appendChild(tr); });
     }
-    loadGlobal(); setInterval(loadGlobal, 5000);
+    // 已登录媒体账号 → 默认看"自己"的报表（按 token 作用域），不再一上来就打管理员全局口，
+    // 否则媒体只会一直看到"全局 SSP 视图需管理员令牌"。管理员或想看全局再点「刷新全局」。
+    if (window.Auth && Auth.role && Auth.role() === 'publisher') { load(); setInterval(load, 5000); }
+    else { loadGlobal(); setInterval(loadGlobal, 5000); }
   </script>
+<script src="/console_nav.js"></script>
 <script src="/console_top.js"></script>
 </body></html>

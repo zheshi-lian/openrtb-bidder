@@ -27,7 +27,7 @@ import WebKit
 public final class RewardedAdSdk {
 
     public struct Config {
-        public let adxBase: String            // 例 "https://calendar.dellai.xyz"
+        public let adxBase: String            // 例 "https://dellai.xyz"（留空则默认 https://dellai.xyz）
         public let siteDomain: String         // 须与 ADX 注册的 publisher 域名一致
         public let appServerRewardUrl: String // App 服务端接口：由它做 S2S 签名回调
         public init(adxBase: String, siteDomain: String, appServerRewardUrl: String) {
@@ -55,6 +55,7 @@ public final class RewardedAdSdk {
 
     // ---------- 竞价：向 ADX 请求激励视频（OpenRTB） ----------
     public func load(cfg: Config, keywords: String, completion: @escaping (Result<Ad, Error>) -> Void) {
+        let base = cfg.adxBase.isEmpty ? "https://dellai.xyz" : cfg.adxBase
         let impid = "rw_ios_\(Int(Date().timeIntervalSince1970 * 1000))"
         let body: [String: Any] = [
             "id": impid,
@@ -62,7 +63,7 @@ public final class RewardedAdSdk {
             "imp": [["id": impid, "bidfloor": 2.0, "ext": ["cat": "gaming", "ad_type": "rewarded"]]],
             "device": ["geo": ["country": "CN"]]
         ]
-        guard let url = URL(string: cfg.adxBase + "/ssp/bid"),
+        guard let url = URL(string: base + "/ssp/bid"),
               let data = try? JSONSerialization.data(withJSONObject: body) else {
             completion(.failure(NSError(domain: "sdk", code: -1, userInfo: [NSLocalizedDescriptionKey: "bad request"])))
             return

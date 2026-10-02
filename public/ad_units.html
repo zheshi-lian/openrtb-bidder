@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>广告单元 · 开发者变现</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1100px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#cdd8f2}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ .row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:150px}
+ label{display:block;font-size:12px;color:#93a3c4;margin:8px 0 3px}
+ input,select{width:100%;padding:7px 9px;border:1px solid #2f4170;border-radius:6px;box-sizing:border-box;background:#0d1730;color:#e8eefc}
+ button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;margin-top:10px}
+ button.ghost{background:#1f2942} button.bad{background:#c0392b}
+ pre{background:#0a0f1d;color:#7ee787;padding:10px;border-radius:6px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-all;margin-top:10px}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left}
+ th{background:#132043;color:#93a3c4}
+ .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#15203a;color:#7fd1ff}
+ code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>广告单元（Ad Unit）</h2>
+  <div class="hint" id="who">—</div>
+
+  <div class="card">
+    <h3>① 新建广告单元（先建 Ad Unit 拿 ID，再埋进页面）</h3>
+    <div class="row">
+      <div><label>名称</label><input id="au-name" placeholder="如 首页-激励视频"></div>
+      <div><label>广告格式 format</label><select id="au-format">
+        <option>banner</option><option>rewarded</option><option>interstitial</option>
+        <option>splash</option><option>native</option><option>icon</option><option>push</option>
+      </select></div>
+      <div><label>底价 floor（元 / 千次）</label><input id="au-floor" type="number" value="1" min="0" step="0.5"></div>
+      <div><label>归属应用</label><select id="au-app"><option value="0">（不绑定）</option></select></div>
+      <div><label>频控上限（次/窗口，0=不限）</label><input id="au-cap" type="number" value="0" min="0"></div>
+      <div><label>窗口（小时）</label><input id="au-win" type="number" value="24" min="1"></div>
+      <div><label>自动刷新（秒，0=不刷新，仅 banner/MREC）</label><input id="au-ri" type="number" value="0" min="0"></div>
+      <div><label>尺寸（MREC 填 300x250）</label><input id="au-size" placeholder="如 300x250"></div>
+    </div>
+    <button onclick="createUnit()">创建并生成埋点代码</button>
+    <pre id="au-snippet" style="display:none"></pre>
+    <div class="hint" id="au-msg"></div>
+    <div class="hint">应用请到「应用」模块添加（变现链路：先添加应用，再为应用建广告位）。</div>
+  </div>
+
+  <div class="card">
+    <h3>② 我的广告单元</h3>
+    <table id="tbl"><thead><tr><th>ad_unit_id</th><th>名称</th><th>格式</th><th>底价</th><th>应用</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+    <div class="hint">把 <code>data-ad-unit</code> 埋进页面后，曝光与收益会归到对应单元；报表在「收益报表」按单元拆解。</div>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='开发者后台';</script>
+  <script src="/admin.js"></script>
+  <script>
+    var appNames = {};
+    function whoami(){
+      var me = (window.Auth && Auth.get()) || null;
+      var w = document.getElementById('who');
+      if (me && me.type === 'publisher') { w.textContent = '当前开发者：' + me.scope + '（登录账号 ' + me.username + '）'; return true; }
+      w.innerHTML = '尚未登录开发者账号 · <a href="/login.html">去登录</a> 或 <a href="/register.html#publisher">去入驻</a>';
+      return false;
+    }
+    // 只加载应用下拉（应用的新增/删除归「应用」模块，避免一个实体两处维护）
+    async function loadAppOptions(){
+      if (!whoami()) return;
+      var rows = await (await fetch('/api/apps')).json().catch(function(){ return []; });
+      var sel = document.getElementById('au-app');
+      sel.innerHTML = '<option value="0">（不绑定）</option>';
+      (rows || []).forEach(function (a) {
+        appNames[a.id] = a.name || a.bundle;
+        var o = document.createElement('option'); o.value = a.id;
+        o.textContent = (a.name || a.bundle) + '（' + a.platform + '）';
+        sel.appendChild(o);
+      });
+    }
+    async function createUnit(){
+      var m = document.getElementById('au-msg'), sn = document.getElementById('au-snippet');
+      m.textContent = '创建中…'; sn.style.display = 'none';
+      if (!whoami()) { m.textContent = '请先登录开发者账号'; return; }
+      try {
+        var r = await fetch('/api/ad-units', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: document.getElementById('au-name').value.trim(),
+            format: document.getElementById('au-format').value,
+            floor_cny: Number(document.getElementById('au-floor').value) || 1,
+            app_id: Number(document.getElementById('au-app').value) || 0,
+            freq_cap: Number(document.getElementById('au-cap').value) || 0,
+            freq_window_hours: Number(document.getElementById('au-win').value) || 24,
+            refresh_interval: Number(document.getElementById('au-ri').value) || 0,
+            size: document.getElementById('au-size').value.trim() }) });
+        var d = await r.json().catch(function(){ return {}; });
+        if (!r.ok || !d.ok) { m.textContent = '创建失败：' + (d.error || JSON.stringify(d)); return; }
+        sn.style.display = 'block'; sn.textContent = d.snippet;
+        m.textContent = '已创建 ' + d.ad_unit_id + ' ✓ 复制上方代码贴到页面即可（SDK 会自动带上 data-ad-unit）';
+        load();
+      } catch (e) { m.textContent = 'ERR ' + e.message; }
+    }
+    async function load(){
+      if (!whoami()) return;
+      var rows = await (await fetch('/api/ad-units')).json().catch(function(){ return []; });
+      var tb = document.querySelector('#tbl tbody'); tb.innerHTML = '';
+      (rows || []).forEach(function (u) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td><code>' + u.ad_unit_id + '</code></td><td>' + (u.name || '') + '</td>' +
+          '<td><span class="tag">' + u.format + '</span></td><td>' + u.floor_cny + '</td>' +
+          '<td>' + (u.app_id ? (appNames[u.app_id] || ('#' + u.app_id)) : '—') + '</td>' +
+          '<td>' + (Number(u.status) === 1 ? '启用' : '暂停') + '</td>' +
+          '<td><button class="ghost" onclick="toggle(' + u.id + ',' + Number(u.status) + ')">' + (Number(u.status) === 1 ? '暂停' : '启用') + '</button> ' +
+          '<button class="bad" onclick="del(' + u.id + ')">删</button></td>';
+        tb.appendChild(tr);
+      });
+    }
+    async function toggle(id, cur){
+      await fetch('/api/ad-units/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: cur === 1 ? 0 : 1 }) });
+      load();
+    }
+    async function del(id){
+      if (!confirm('删除该广告单元？已埋的页面将失去归因（历史曝光仍保留在报表里）。')) return;
+      await fetch('/api/ad-units/' + id, { method: 'DELETE' });
+      load();
+    }
+    whoami(); loadAppOptions(); load();
+  </script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>
+</body></html>

@@ -1,8 +1,7 @@
-<!doctype html>
-<html lang="zh-CN">
-<head>
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
 <meta charset="utf-8">
-<title>ADX 控制台 · 广告主 / 媒体看板</title>
+<title>运营控制台 · 广告主 / 媒体看板</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   *{box-sizing:border-box}
@@ -26,11 +25,10 @@
   .muted{color:#64748b}
 </style>
 </head>
-<body>
-<div id="ctop"></div>
+<body><div id="ctop" class="ctop bar"></div>
 <header>
   <div>
-    <h1>ADX 控制台</h1>
+    <h1>运营控制台</h1>
     <div class="sub" id="ts">加载中…（每 5 秒自动刷新）</div>
   </div>
   <div class="sub" id="live">—</div>
@@ -40,7 +38,7 @@
 
 <div class="box">
   <h3>广告主 / 广告计划</h3>
-  <table id="advTable"><thead><tr><th>ID</th><th>计划</th><th>广告主</th><th>类目</th><th>状态</th><th>余额(元)</th><th>已消耗(元)</th><th>曝光</th><th>点击</th><th>转化</th><th>充值</th></tr></thead><tbody></tbody></table>
+  <table id="advTable"><thead><tr><th>ID</th><th>计划</th><th>广告主</th><th>类目</th><th>状态</th><th>计划预算(元)</th><th>已消耗(元)</th><th>曝光</th><th>点击</th><th>转化</th><th>充值</th></tr></thead><tbody></tbody></table>
 </div>
 
 <div class="box">
@@ -93,7 +91,7 @@ var BASE = location.origin;
       tb.innerHTML = (d.advertisers || []).map(function (c) {
         return '<tr><td>' + c.id + '</td><td>' + c.name + '</td><td>' + c.advertiser + '</td><td>' + (c.app_category || '-') +
           '</td><td><span class="tag' + (String(c.review_status) === 'approved' ? '' : ' off') + '">' + c.review_status + '</span></td>' +
-          '<td>' + yuan(c.balance_micros) + '</td><td>' + yuan(c.spend_micros) + '</td><td>' + c.impressions + '</td><td>' + c.clicks +
+          '<td>' + yuan(c.budget_micros) + '</td><td>' + yuan(c.spend_micros) + '</td><td>' + c.impressions + '</td><td>' + c.clicks +
           '</td><td>' + c.conversions + '</td>' +
           '<td><input id="amt' + c.id + '" value="100"><button onclick="topup(' + c.id + ')">充值</button></td></tr>';
       }).join('');
@@ -152,6 +150,8 @@ var BASE = location.origin;
   loadAccounts();
   setInterval(load, 5000);
 </script>
+<script src="/console_nav.js"></script>
 <script src="/console_top.js"></script>
-</body>
-</html>
+
+
+</body></html>

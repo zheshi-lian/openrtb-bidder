@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>原生 App SDK 接入 · 开发者变现</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1040px;margin:0 auto;padding:18px 22px}
+ h2{font-size:19px;margin:0 0 4px;color:#e8eefc} h3{margin:18px 0 8px;font-size:15px;color:#e8eefc}
+ .hint{font-size:12.5px;color:#93a3c4;margin:6px 0 0;line-height:1.6}
+ .card{background:#16203a;padding:16px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+ .tab{padding:7px 14px;border:1px solid #26355c;border-radius:20px;cursor:pointer;font-size:13px;background:#0d1730;color:#93a3c4}
+ .tab.on{background:#27ae60;color:#fff;border-color:#27ae60}
+ pre{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:8px;overflow:auto;font-size:12px;line-height:1.5}
+ .dl{display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;cursor:pointer;text-decoration:none;font-size:13px;margin:4px 6px 4px 0}
+ .dl.alt{background:#7c3aed} .dl.alt2{background:#0891b2}
+ .grid{display:flex;gap:14px;flex-wrap:wrap}.grid>div{flex:1;min-width:260px}
+ .note{font-size:12px;color:#fbbf24;background:#1f2a1a;border:1px solid #3a4a2a;padding:9px 12px;border-radius:6px;margin:10px 0}
+ ul{font-size:13px;line-height:1.8;padding-left:20px;color:#e8eefc}
+ code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>原生 App SDK 接入（iOS / Android）</h2>
+  <div class="hint">对标 AppLovin MAX / 巨量引擎「变现 SDK」：在 App 内植入 SDK，即可让平台在你
+    的流量上竞价售卖激励视频、插屏、开屏、原生等广告。SDK 遵循<b>客户端不可信原则</b>——只负责拉取、
+    播放、上报，是否发奖由你的服务端 S2S 回调平台裁决。</div>
+
+  <div class="card">
+    <h3>① 下载 SDK 源码</h3>
+    <div class="grid">
+      <div>
+        <p class="hint">iOS（Swift，含 VAST 4.0 解析 + AVPlayer 播放 + S2S 发奖）</p>
+        <a class="dl" href="/sdk-files/ios/RewardedAdSdk.swift" download>⬇ RewardedAdSdk.swift</a>
+      </div>
+      <div>
+        <p class="hint">Android（Kotlin，含 VAST 解析 + VideoView 播放 + S2S 发奖）</p>
+        <a class="dl alt" href="/sdk-files/android/RewardedAdSdk.kt" download>⬇ RewardedAdSdk.kt</a>
+      </div>
+      <div>
+        <p class="hint">Web / 落地页 接入（对标 PUB_SDK）</p>
+        <a class="dl alt2" href="/pub_sdk.js" download>⬇ pub_sdk.js</a>
+      </div>
+    </div>
+    <div class="note">演示示例为「激励视频」原生 SDK 工程化原型；插屏/开屏/原生/icon/push 等多种形态由
+      同一 SDK 按平台返回的 <code>ad_format</code> 自动分发渲染（见源码 <code>showAny</code> 分支）。</div>
+  </div>
+
+  <div class="card">
+    <h3>② 支持的广告形态</h3>
+    <div class="grid">
+      <div><ul>
+        <li><b>激励视频 rewarded</b>：VAST 4.0 视频，完播后 S2S 发奖</li>
+        <li><b>插屏 interstitial</b> / <b>开屏 splash</b>：WebView(HTML) 渲染</li>
+      </ul></div>
+      <div><ul>
+        <li><b>原生 native</b>：返回结构化 JSON，由 App 自渲染样式</li>
+        <li><b>icon / push</b>：推送系统下发，不经 SDK 渲染</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>③ 接入步骤</h3>
+    <div class="tabs">
+      <div class="tab on" onclick="sw(this,'ios')">iOS (Swift)</div>
+      <div class="tab" onclick="sw(this,'and')">Android (Kotlin)</div>
+      <div class="tab" onclick="sw(this,'s2s')">服务端 S2S 发奖</div>
+    </div>
+    <div id="ios">
+      <p class="hint">1) 将 <code>RewardedAdSdk.swift</code> 加入 Xcode 工程；2) 在需要展示的位置调用：</p>
+<pre>import UIKit
+let cfg = RewardedAdSdk.Config(
+    adxBase: "https://你的平台域名",         // 留空默认 dellai.xyz
+    siteDomain: "你的媒体域名",              // 须与平台注册一致
+    appServerRewardUrl: "https://你的服务端/reward")  // S2S 回调
+
+RewardedAdSdk.shared.load(cfg: cfg, keywords: "休闲游戏,激励视频") { result in
+    switch result {
+    case .success(let ad):
+        RewardedAdSdk.shared.show(from: self, ad: ad) { granted, reward in
+            granted ? print("发奖:", reward) : print("拒绝:", reward)
+        }
+    case .failure(let e): print("加载失败", e)
+    }
+}</pre>
+    </div>
+    <div id="and" style="display:none">
+      <p class="hint">1) 将 <code>RewardedAdSdk.kt</code> 加入工程（包名 <code>com.zhuque.adsdk</code>）；2) 调用：</p>
+<pre>val cfg = RewardedAdSdk.Config(
+    adxBase = "https://你的平台域名",
+    siteDomain = "你的媒体域名",
+    appServerRewardUrl = "https://你的服务端/reward"
+)
+RewardedAdSdk.load(cfg, "休闲游戏,激励视频", object : RewardedAdSdk.LoadCallback {
+    override fun onLoaded(ad: RewardedAdSdk.Ad) {
+        RewardedAdSdk.show(videoView, ad, object : RewardedAdSdk.RewardCallback {
+            override fun onGranted(reward: String) { /* 发道具 */ }
+            override fun onDenied(reason: String) { /* 不给 */ }
+        })
+    }
+    override fun onFailed(reason: String) {}
+})</pre>
+    </div>
+    <div id="s2s" style="display:none">
+      <p class="hint">SDK 不会自己发奖。App 服务端收到观看证据后，用 <code>api_key</code> 做 HMAC-SHA256 签名，
+        再回调平台 <code>POST /s2s/reward</code>，由平台裁决是否发奖：</p>
+<pre>// 请求体
+{ "impid": "...", "cid": "...", "publisher": "...",
+  "watchedMs": 30000, "durationMs": 30000, "ts": 1690000000000, "sig": "HMAC_SHA256(...)" }
+
+// sig = HMAC_SHA256(api_key, "impid|cid|watchedMs|durationMs|ts")
+// 平台返回 { ok:true, reward:"金币x100" } 或 { ok:false, reason:"RATIO_LOW" }</pre>
+      <p class="hint">平台侧校验：完播率 ≥ <code>RW_MIN_RATIO(0.95)</code> 且观看时长不超过视频 1.5 倍，否则拒绝发奖（防伪造刷量）。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>④ 联调自检</h3>
+    <p class="hint">植入 SDK 后，回到「<a href="/integrity.html">集成自检</a>」查看填充率、是否有胜出、设备频控是否命中；
+      需要更细的排查可到「<a href="/ad_units.html">广告单元</a>」设置频控上限与时段。</p>
+  </div>
+</div>
+
+<script>window.AUTH_TITLE='开发者后台';</script>
+<script src="/admin.js"></script>
+<script>
+  function sw(el, id){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on')); el.classList.add('on');
+    ['ios','and','s2s'].forEach(x=>document.getElementById(x).style.display = (x===id?'block':'none')); }
+</script>
+<script src="/console_nav.js"></script>
+<script src="/console_top.js"></script>

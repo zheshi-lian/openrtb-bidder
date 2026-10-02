@@ -36,7 +36,7 @@ import java.util.concurrent.Executors
 object RewardedAdSdk {
 
     data class Config(
-        val adxBase: String,            // 例 "https://calendar.dellai.xyz"
+        val adxBase: String,            // 例 "https://dellai.xyz"（留空则默认 https://dellai.xyz）
         val siteDomain: String,         // 须与 ADX 注册的 publisher 域名一致
         val appServerRewardUrl: String  // App 服务端接口：由它做 S2S 签名回调
     )
@@ -65,6 +65,7 @@ object RewardedAdSdk {
 
     // ---------- 竞价：向 ADX 请求激励视频（OpenRTB） ----------
     fun load(cfg: Config, keywords: String, cb: LoadCallback) {
+        val adxBase = if (cfg.adxBase.isBlank()) "https://dellai.xyz" else cfg.adxBase.removeSuffix("/")
         io.execute {
             try {
                 val impid = "rw_and_${System.currentTimeMillis()}"
@@ -78,7 +79,7 @@ object RewardedAdSdk {
                     }))
                     put("device", JSONObject().put("geo", JSONObject().put("country", "CN")))
                 }
-                val res = JSONObject(postJson(cfg.adxBase + "/ssp/bid", body.toString()))
+                val res = JSONObject(postJson(adxBase + "/ssp/bid", body.toString()))
                 val bids = res.optJSONArray("seatbid")?.optJSONObject(0)?.optJSONArray("bid")
                 val bid = bids?.optJSONObject(0) ?: run { fail(cb, "NO_FILL"); return@execute }
                 val adm = bid.optString("adm", "")

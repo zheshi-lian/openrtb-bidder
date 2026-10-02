@@ -5,13 +5,14 @@
 const fs = require('fs');
 const path = require('path');
 
-// 极简 .env 加载（免装 dotenv）
+// 极简 .env 加载（免装 dotenv）。.env 为权威配置：显式覆盖同名 OS 环境变量，
+// 便于本地/演示用 .env 锁定关键开关（如 LLM_LIVE_MATCH=0），不受遗留 OS 环境变量干扰。
 try {
   const envPath = path.join(__dirname, '.env');
   if (fs.existsSync(envPath)) {
     fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
       const m = line.match(/^\s*([\w.-]+)\s*=\s*(.*)\s*$/);
-      if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+      if (m) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
     });
   }
 } catch (e) {}
@@ -23,30 +24,99 @@ const PROVIDERS = {
   sensenova: { baseURL: 'https://token.sensenova.cn/v1', model: 'sensenova-6.8-flash-lite', keyEnv: 'SENSENOVA_API_KEY' },
 };
 
-const cfg = PROVIDERS[process.env.LLM_PROVIDER || 'dashscope'] || PROVIDERS.dashscope;
-const API_KEY = process.env[cfg.keyEnv] || '';
-const MODEL = process.env.LLM_MODEL || cfg.model;
-const ENABLED = !!API_KEY;                                   // 是否真接了 LLM
-const LIVE_MATCH = ENABLED && process.env.LLM_LIVE_MATCH !== '0'; // 竞价热路径是否用 LLM 评分
+// 主供应商：LLM_PROVIDER 指定；未指定则用 dashscope(通义千问/Qwen)
+const PRIMARY = PROVIDERS[process.env.LLM_PROVIDER || 'dashscope'] || PROVIDERS.dashscope;
+// 多供应商回退：主供应商额度耗尽/故障时，自动切换到其它已配置 Key 的供应商，避免单点失效
+function availableProviders() {
+  const list = [];
+  if (process.env[PRIMARY.keyEnv]) list.push(PRIMARY);
+  for (const k of Object.keys(PROVIDERS)) {
+    const p = PROVIDERS[k];
+    if (p !== PRIMARY && process.env[p.keyEnv]) list.push(p);
+  }
+  return list;
+}
+const PROVIDER_LIST = availableProviders();
+const ENABLED = PROVIDER_LIST.length > 0;                  // 是否至少配置了一个可用 LLM
+const LIVE_MATCH = ENABLED && process.env.LLM_LIVE_MATCH === '1'; // 竞价热路径是否用 LLM 评分（默认关，仅创建/演示时用 LLM，更稳更省）
+const MODEL = process.env.LLM_MODEL || PRIMARY.model;
+const PROVIDER = PRIMARY;
+
+// 每个供应商独立熔断器：连续 3 次失败熔断 60s，避免单供应商抖动拖垮竞价
+const providerState = {};
+function pstate(keyEnv) { return providerState[keyEnv] || (providerState[keyEnv] = { failures: 0, brokenUntil: 0 }); }
 
 async function chat(system, user, jsonMode = true) {
-  if (!API_KEY) return null;
-  const body = {
-    model: MODEL,
-    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-    temperature: 0.2,
-  };
-  if (jsonMode) body.response_format = { type: 'json_object' };
-  const r = await fetch(`${cfg.baseURL}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`LLM ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const j = await r.json();
-  const content = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
-  if (!jsonMode) return content;
-  return parseJsonRobust(content);
+  if (!ENABLED) return null;
+  const candidates = PROVIDER_LIST.filter(p => Date.now() >= pstate(p.keyEnv).brokenUntil);
+  if (!candidates.length) return null; // 全部熔断中：快速回落启发式，避免拖垮竞价
+  let lastErr = null;
+  for (const p of candidates) {
+    const st = pstate(p.keyEnv);
+    const model = process.env.LLM_MODEL || p.model;
+    const body = {
+      model,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      temperature: 0.2,
+    };
+    if (jsonMode) body.response_format = { type: 'json_object' };
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3500);
+    try {
+      const r = await fetch(`${p.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env[p.keyEnv]}` },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      if (!r.ok) { st.failures++; if (st.failures >= 3) st.brokenUntil = Date.now() + 60000; lastErr = `LLM ${r.status} (${p.keyEnv})`; continue; }
+      st.failures = 0;
+      const j = await r.json();
+      const content = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+      return jsonMode ? parseJsonRobust(content) : content;
+    } catch (e) {
+      st.failures++; if (st.failures >= 3) st.brokenUntil = Date.now() + 60000; lastErr = e.message + ` (${p.keyEnv})`; continue;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  console.error('[llm] 所有供应商均不可用, last=', lastErr);
+  return null;
+}
+
+// ===== Embedding：用于"异步缓存化"相关性（热路径不阻塞）=====
+// 仅 OpenAI / DashScope 支持 embeddings；优先用它们，仍走多供应商回退与熔断。
+const EMBED_SUPPORT = { openai: 'text-embedding-3-small', dashscope: 'text-embedding-v2' };
+function embedProviders() { return PROVIDER_LIST.filter(p => EMBED_SUPPORT[p.keyEnv]); }
+async function embed(text) {
+  if (!text) return null;
+  const ps = embedProviders(); if (!ps.length) return null; // 无 embedding 供应商 → 回落启发式
+  for (const p of ps) {
+    const st = pstate(p.keyEnv);
+    if (Date.now() < st.brokenUntil) continue;
+    const model = process.env.EMBED_MODEL || EMBED_SUPPORT[p.keyEnv];
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3500);
+    try {
+      const r = await fetch(`${p.baseURL}/embeddings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env[p.keyEnv]}` },
+        body: JSON.stringify({ model, input: String(text).slice(0, 4000) }), signal: ctrl.signal,
+      });
+      if (!r.ok) { st.failures++; if (st.failures >= 3) st.brokenUntil = Date.now() + 60000; continue; }
+      st.failures = 0;
+      const j = await r.json();
+      const v = j.data && j.data[0] && j.data[0].embedding;
+      if (Array.isArray(v) && v.length) return v;
+    } catch (e) { st.failures++; if (st.failures >= 3) st.brokenUntil = Date.now() + 60000; continue; }
+    finally { clearTimeout(timer); }
+  }
+  return null;
+}
+function cosine(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let d = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { d += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return (na && nb) ? d / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
 }
 
 // 容错解析：去 ```json 围栏、截取首尾 {} 之间的内容，避免 Sensenova 在 JSON 前后夹带说明文字
@@ -133,4 +203,4 @@ async function scoreRelevance(profile, ctx) {
   return heuristicRelevance(profile.tags, ctx);
 }
 
-module.exports = { ENABLED, LIVE_MATCH, PROVIDER: cfg, MODEL, extractDemandIntent, extractSupplyTags, scoreRelevance, heuristicRelevance, chat };
+module.exports = { ENABLED, LIVE_MATCH, PROVIDER, MODEL, extractDemandIntent, extractSupplyTags, scoreRelevance, heuristicRelevance, chat, embed, cosine };

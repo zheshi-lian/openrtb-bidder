@@ -2,34 +2,49 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8" />
-<title>竞价效果演示 - Prebid.js 真实接入 (zhuque DSP)</title>
-<script
-  src="https://cdn.jsdelivr.net/npm/prebid.js@10/dist/prebid.min.js"
-  onerror="window.__prebidFailed=true"></script>
+<title>竞价效果演示 - Prebid.js 真实接入 (linkos DSP)</title>
+<!-- Prebid 加载顺序：① 自托管 /vendor/prebid.js（已放置）→ ② CDN → 都失败才算失败。
+     现状：/vendor/prebid.js 为 prebid.js 11.38.0 的 dist/not-for-prod 预构建包（未压缩，3.4MB）。
+     生产建议：按需构建精简版（gulp build --modules=...），体积可降到几百 KB；
+     路径不要写成 npm 根下的 dist/prebid.min.js——那个路径 404。 -->
+<script src="/vendor/prebid.js" onerror="window.__prebidLocalFailed=true"></script>
+<script>
+  (function () {
+    if (window.__prebidLocalFailed && !window.pbjs) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/prebid.js@11.38.0/dist/not-for-prod/prebid.js';
+      s.onerror = function () { window.__prebidFailed = true; };
+      document.head.appendChild(s);
+      window.__prebidSrc = 'CDN(回退)';
+    } else {
+      window.__prebidSrc = window.__prebidLocalFailed ? '未加载' : '自托管 /vendor/prebid.js';
+    }
+  })();
+</script>
 <style>
-  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 40px; background: #f5f6f8; color: #222; }
-  h2 { font-size: 18px; }
-  .slot { width: 300px; height: 250px; border: 2px dashed #bbb; display: flex; align-items: center;
-          justify-content: center; color: #999; background: #fff; overflow: hidden; border-radius: 8px; }
-  .meta { font-size: 12px; color: #666; margin-top: 10px; white-space: pre-wrap; line-height: 1.6; }
-  button { margin-top: 12px; padding: 6px 14px; cursor: pointer; }
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 40px; background: #0b1020; color: #e8eefc; }
+  h2 { font-size: 18px; color: #e8eefc; }
+  .slot { width: 300px; height: 250px; border: 2px dashed #2f4170; display: flex; align-items: center;
+          justify-content: center; color: #93a3c4; background: #16203a; overflow: hidden; border-radius: 8px; }
+  .meta { font-size: 12px; color: #93a3c4; margin-top: 10px; white-space: pre-wrap; line-height: 1.6; }
+  button { margin-top: 12px; padding: 6px 14px; cursor: pointer; background: #3b82f6; color: #fff; border: 0; }
 </style>
 </head>
 <body>
-  <h2>广告位演示（Prebid.js 真实接入 → zhuque bidder）</h2>
+  <h2>广告位演示（Prebid.js 真实接入 → linkos bidder）</h2>
   <div id="slot" class="slot">加载中…</div>
   <div id="meta" class="meta"></div>
   <button onclick="requestAd()">重新竞价</button>
 
   <script>
-    var PREBID_BIDDER = 'zhuque';
+    var PREBID_BIDDER = 'linkos';
 
     // ===== 路径 A：Prebid.js 真实接入（运行时注册自定义 bidder adapter）=====
     window.pbjs = window.pbjs || {};
     window.pbjs.que = window.pbjs.que || [];
     window.pbjs.que.push(function () {
       if (window.__prebidFailed) return; // 加载失败则跳过，走回退路径
-      window.pbjs.registerBidAdapter(function zhuqueAdapter() {
+      window.pbjs.registerBidAdapter(function linkosAdapter() {
         return {
           callBids: function (bidderRequest, addBidResponse, done) {
             var openRTB = {
@@ -77,7 +92,7 @@
                       height: rtb.h || 250,
                       ttl: 600,
                       netRevenue: false,
-                      creativeId: rtb.crid || 'zhuque',
+                      creativeId: rtb.crid || 'linkos',
                       ad: rtb.adm,
                       campaignId: rtb.cid,
                       priceMicros: rtb.price,
@@ -101,7 +116,9 @@
       slot.innerHTML = bid.ad;
       notifyWin(bid);
       meta.textContent =
-        (via === 'prebid' ? 'Prebid.js 竞价 + 渲染成功 ✅' : '直连回退：OpenRTB 竞价 + 渲染成功 ✅') + '\n' +
+        (via === 'prebid'
+          ? ('Prebid.js 竞价 + 渲染成功 ✅（Prebid 来源：' + (window.__prebidSrc || '未知') + '）')
+          : ('直连回退：OpenRTB 竞价 + 渲染成功 ✅（Prebid 未生效：' + (window.__prebidFailed ? '本地与 CDN 均未加载到' : '未启用') + '）')) + '\n' +
         'bidder: ' + PREBID_BIDDER + '\n' +
         'cpm: ' + (bid.cpm != null ? bid.cpm.toFixed(4) : (bid.priceMicros / 1e6).toFixed(4)) + ' 元 (CNY)\n' +
         'creativeId: ' + bid.creativeId + '   campaignId: ' + bid.campaignId + '\n' +
@@ -111,18 +128,21 @@
     }
 
     function notifyWin(bid) {
+      // 去重身份 = (impid, reqid)：Prebid bidId 每次拍卖唯一；直连路径显式传 reqid，
+      // 避免固定 slot 名复用被误判为重放 → 漏扣费（对齐 /notify 服务端约定）
       fetch('/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cid: bid.campaignId, crid: bid.creativeId,
-          impid: bid.bidId, price: bid.priceMicros, win: true
+          impid: bid.bidId, reqid: (bid.requestId || bid.bidId || ''),
+          price: bid.priceMicros, win: true
         })
       });
     }
 
     function refreshReport() {
-      fetch('/report').then(function (r) { return r.json(); }).then(function (d) {
+      fetch('/api/demo/report').then(function (r) { return r.json(); }).then(function (d) {
         var meta = document.getElementById('meta');
         meta.textContent += '\n\n— 竞价闭环报表 —\n' +
           'campaign: #' + d.campaign.id + ' ' + d.campaign.name + '\n' +
@@ -149,7 +169,7 @@
           if (rtb) {
             renderAndWin({
               ad: rtb.adm, cpm: rtb.price / 1e6, creativeId: rtb.crid,
-              campaignId: rtb.cid, bidId: rtb.id, priceMicros: rtb.price
+              campaignId: rtb.cid, bidId: req.id, requestId: req.id, priceMicros: rtb.price
             }, 'direct');
           } else {
             document.getElementById('slot').textContent = '暂无广告';
@@ -185,5 +205,7 @@
 
     requestAd();
   </script>
+<script src="/console_nav.js"></script>
+<script src="/nav.js"></script>
 </body>
 </html>
