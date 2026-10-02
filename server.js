@@ -1528,7 +1528,14 @@ app.get('/ssp/click', async (req, res) => {
   const [[ex]] = await pool.query('SELECT 1 FROM bid_win_log WHERE imp_id=?', [imp]);
   if (!ex) return res.status(204).end(); // 反作弊：无对应曝光的点击直接忽略
   if (pubLedger[pub]) pubLedger[pub].clicks++;
-  await pool.query('INSERT IGNORE INTO conv_log (type,campaign_id,publisher,imp_id) VALUES (?,?,?,?)', ['click', cid, pub, imp]).catch(() => {});
+  // 点击去重 + 归因窗口：conv_log 没有唯一键，INSERT IGNORE 实际不会去重（同一 imp 可重复计点击）。
+  // 改为按该广告主的可配规则判定后再写。
+  const clickCfg = await getAttribCfg(await advertiserOfImp(imp));
+  const [[clickWin]] = await pool.query('SELECT TIMESTAMPDIFF(DAY, created_at, NOW()) AS age_days FROM bid_win_log WHERE imp_id=?', [imp]);
+  const clickInWindow = clickWin && Number(clickWin.age_days) <= Number(clickCfg.window_days);
+  if (clickInWindow && !(await attribDup(clickCfg.dedup_rule, imp, 'click'))) {
+    await pool.query('INSERT INTO conv_log (type,campaign_id,publisher,imp_id) VALUES (?,?,?,?)', ['click', cid, pub, imp]).catch(() => {});
+  }
   // ① MMP 外发回传：把点击带到广告主配置的归因平台（AppsFlyer / Adjust / Singular … 的 click 宏）。
   // 宏替换：{impid} {clickid} {cid} {publisher}——无配置则不发，不影响主链路。
   (function () {
@@ -1568,10 +1575,18 @@ app.post('/api/track/conversion', async (req, res) => {
   if (!imp) return res.status(400).json({ error: 'impid required' });
   const amt = Number(amount) || 0;
   if (amt < 0 || amt > 1e7) return res.status(400).json({ error: 'amount out of range' }); // 反作弊：金额区间校验，防刷 GMV
-  const [[win]] = await pool.query('SELECT 1 FROM bid_win_log WHERE imp_id=?', [imp]);
+  // 归因窗口 + 去重：改为按该广告主的可配规则判定。
+  // 原先：完全没有时间校验（一年后的转化照样归因），且去重规则写死、点击不去重。
+  const [[win]] = await pool.query('SELECT TIMESTAMPDIFF(DAY, created_at, NOW()) AS age_days FROM bid_win_log WHERE imp_id=?', [imp]);
   if (!win) return res.status(400).json({ error: 'unknown impression' }); // 反作弊：转化必须对应真实曝光
-  const [[dup]] = await pool.query("SELECT 1 FROM conv_log WHERE type='conversion' AND imp_id=?", [imp]);
-  if (dup) return res.json({ ok: true, amount: 0, dup: true }); // 同一 imp 不重复计转化
+  const cfg = await getAttribCfg(await advertiserOfImp(imp));
+  if (Number(win.age_days) > Number(cfg.window_days)) {
+    return res.json({ ok: true, amount: 0, rejected: 'ATTRIBUTION_WINDOW_EXPIRED',
+      window_days: cfg.window_days, age_days: Number(win.age_days) });
+  }
+  if (await attribDup(cfg.dedup_rule, imp, 'conversion')) {
+    return res.json({ ok: true, amount: 0, dup: true, rule: cfg.dedup_rule });
+  }
   if (pubLedger[pub]) pubLedger[pub].conversions++;
   try {
     await pool.query('INSERT INTO conv_log (type,campaign_id,publisher,imp_id,amount) VALUES (?,?,?,?,?)', ['conversion', cid ? +cid : null, pub, imp, amt]);
@@ -2846,10 +2861,14 @@ app.all('/api/track/mmp-postback', async (req, res) => {
   const imp = String(q.impid || q.clickid || q.imp || '').trim();
   if (!imp) return res.status(400).json({ error: 'impid/clickid required' });
   try {
-    const [[win]] = await pool.query('SELECT campaign_id FROM bid_win_log WHERE imp_id=?', [imp]);
+    const [[win]] = await pool.query('SELECT campaign_id, TIMESTAMPDIFF(DAY, created_at, NOW()) AS age_days FROM bid_win_log WHERE imp_id=?', [imp]);
     if (!win) return res.status(404).json({ error: 'unknown impression' });
-    const [[dup]] = await pool.query("SELECT 1 FROM conv_log WHERE type='conversion' AND imp_id=?", [imp]);
-    if (dup) return res.json({ ok: true, dup: true });
+    // MMP 回传同样受归因窗口与去重规则约束（原先只做 imp 去重、无窗口）
+    const mmpCfg = await getAttribCfg(await advertiserOfImp(imp));
+    if (Number(win.age_days) > Number(mmpCfg.window_days)) {
+      return res.json({ ok: true, dup: false, rejected: 'ATTRIBUTION_WINDOW_EXPIRED', window_days: mmpCfg.window_days, age_days: Number(win.age_days) });
+    }
+    if (await attribDup(mmpCfg.dedup_rule, imp, 'conversion')) return res.json({ ok: true, dup: true, rule: mmpCfg.dedup_rule });
     await pool.query("INSERT INTO conv_log (type,campaign_id,publisher,imp_id) VALUES ('conversion',?,'',?)", [Number(win.campaign_id) || 0, imp]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -3029,6 +3048,85 @@ app.delete('/api/ad-units/:id', security.requireAuth('admin', 'publisher'), asyn
 // ===== P1 隐私与测量：多触点归因 + SKAN 聚合回传 =====
 // 多触点归因：给定 impid，返回 曝光→点击→转化 全链路触点，并按指定模型分配功劳
 // model: last_touch | first_touch | linear | time_decay | position_based | data_driven | compare
+// ===== 归因配置：归因窗口 + 去重规则（可配置）=====
+// 原先问题（与业界口径不符）：
+//   ① 转化入账完全没有时间校验——一年后的转化照样归因（只有硬编码的衰减半衰期常量）；
+//   ② 去重只有 imp 级且不可配；
+//   ③ 点击根本不去重（conv_log 无唯一键，INSERT IGNORE 无冲突可忽略）。
+// 现在：按广告主可配，回退到全局默认 '*'；窗口外的转化拒绝入账；去重规则可选。
+const ATTR_DEFAULT = { window_days: 7, dedup_rule: 'imp' };
+let attribCfgCache = { ts: 0, map: {} };
+async function ensureAttribCfgTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS attribution_config (
+    advertiser VARCHAR(128) PRIMARY KEY,
+    window_days INT DEFAULT 7,
+    dedup_rule VARCHAR(16) DEFAULT 'imp',
+    updated_at BIGINT DEFAULT 0)`).catch(() => {});
+}
+async function getAttribCfg(adv) {
+  const key = String(adv || '*');
+  const now = Date.now();
+  if (now - attribCfgCache.ts < 60000 && attribCfgCache.map[key]) return attribCfgCache.map[key];
+  await ensureAttribCfgTable();
+  let row = null;
+  if (key !== '*') {
+    const [[r1]] = await pool.query('SELECT window_days,dedup_rule FROM attribution_config WHERE advertiser=?', [key]).catch(() => [[]]);
+    row = r1 || null;
+  }
+  if (!row) {
+    const [[r2]] = await pool.query("SELECT window_days,dedup_rule FROM attribution_config WHERE advertiser='*'").catch(() => [[]]);
+    row = r2 || null;
+  }
+  const cfg = {
+    window_days: (row && Number(row.window_days)) || ATTR_DEFAULT.window_days,
+    dedup_rule: (row && row.dedup_rule) || ATTR_DEFAULT.dedup_rule,
+    source: row ? 'db' : 'default',
+  };
+  attribCfgCache.map[key] = cfg; attribCfgCache.ts = now;
+  return cfg;
+}
+/** 去重判定：返回 true 表示「已存在、应丢弃」 */
+async function attribDup(rule, imp, type) {
+  if (rule === 'none') return false;
+  if (rule === 'imp_day') {
+    const [[d]] = await pool.query('SELECT 1 FROM conv_log WHERE type=? AND imp_id=? AND created_at >= CURDATE()', [type, imp]).catch(() => [[]]);
+    return !!d;
+  }
+  const [[d]] = await pool.query('SELECT 1 FROM conv_log WHERE type=? AND imp_id=?', [type, imp]).catch(() => [[]]);
+  return !!d;
+}
+/** 取某次曝光所属广告主（用于解析该广告主的归因配置） */
+async function advertiserOfImp(imp) {
+  try {
+    const [[w]] = await pool.query('SELECT campaign_id FROM bid_win_log WHERE imp_id=?', [imp]);
+    if (!w || !w.campaign_id) return '';
+    const [[c]] = await pool.query('SELECT advertiser FROM adv_campaign WHERE id=?', [w.campaign_id]);
+    return (c && c.advertiser) || '';
+  } catch (e) { return ''; }
+}
+
+app.get('/api/attribution/config', security.requireAuth('admin', 'advertiser'), async (req, res) => {
+  const adv = (req.account && req.account.t === 'advertiser') ? req.account.s : '*';
+  try { res.json({ advertiser: adv, ...(await getAttribCfg(adv)) }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/attribution/config', security.requireAdmin('admin'), async (req, res) => {
+  const { advertiser, window_days, dedup_rule } = req.body || {};
+  const scope = String(advertiser || '*');
+  const wd = Number(window_days);
+  const rule = String(dedup_rule || 'imp');
+  if (!Number.isFinite(wd) || wd < 1 || wd > 90) return res.status(400).json({ error: 'window_days 需为 1-90' });
+  if (['imp', 'imp_day', 'none'].indexOf(rule) < 0) return res.status(400).json({ error: 'dedup_rule 需为 imp / imp_day / none' });
+  try {
+    await ensureAttribCfgTable();
+    await pool.query(`INSERT INTO attribution_config (advertiser,window_days,dedup_rule,updated_at) VALUES (?,?,?,?)
+      ON DUPLICATE KEY UPDATE window_days=VALUES(window_days), dedup_rule=VALUES(dedup_rule), updated_at=VALUES(updated_at)`,
+      [scope, wd, rule, Date.now()]);
+    attribCfgCache = { ts: 0, map: {} };   // 立即失效缓存
+    res.json({ ok: true, advertiser: scope, window_days: wd, dedup_rule: rule });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/attribution', async (req, res) => {
   let imp = String(req.query.impid || '');
   const model = String(req.query.model || 'last_touch');

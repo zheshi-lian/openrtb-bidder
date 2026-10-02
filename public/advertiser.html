@@ -149,7 +149,17 @@
         const rvBtn = '';   // 审核统一在运营「审核台」(/review.html) 进行：广告主后台不提供通过/驳回，避免一个动作两处入口
         tr.innerHTML=`<td>${c.id}</td><td>${c.name}</td><td>${c.advertiser}</td><td>${c.budget_cny.toFixed(2)}</td><td>${c.target_cpm_cny.toFixed(2)}</td><td>${c.country||'*'}</td><td>${c.app_category||'*'}</td><td>${c.intent_tags}</td><td>${c.goal_type||'CPM'}</td><td>${c.geo_country||'*'}</td><td>${c.creative_id?('#'+c.creative_id):'兜底'}</td><td>${prof}</td><td>${rvCell}</td><td><button onclick="reExtract(${c.id},this)">LLM重抽</button>${rvBtn}</td>`;
         tb.appendChild(tr); });
-      if (Auth.role()==='advertiser') {
+      // ⑦ 投放与看数：「我的概览」按广告主作用域统计。
+      // 原先只在 advertiser 角色下渲染、其它角色静默跳过（连 catch 都不提示），
+      // 管理员登录后看到一排 Campaign 却没有概览，会被当成功能缺失 → 这里按角色显式说明去向。
+      var roleNow = (Auth.role ? Auth.role() : '') || '';
+      if (roleNow === 'publisher') {
+        stats.textContent = '「我的概览」是广告主视角：当前是开发者身份，你的收益数据请到 收益报表 /publisher_report.html 查看。';
+      } else if (roleNow === 'admin') {
+        stats.textContent = '「我的概览」按广告主作用域统计：当前是管理员身份，平台全局数据请到 运营控制台 /console.html；要看某个广告主的概览，请用该广告主账号登录。';
+      } else if (!roleNow) {
+        stats.textContent = '「我的概览」按广告主作用域统计：请先用广告主账号登录（当前未登录）。';
+      } else if (roleNow === 'advertiser') {
         fetch('/api/advertiser/me').then(r=>r.json()).then(d=>{
           if (d && d.stats) {
             // ⑦ 投放与看数就在这里（不是缺失）。曝光/花费为 0 时把原因直接说出来，
@@ -161,7 +171,7 @@
               : '';
             stats.textContent = `我的概览 → 计划数 ${d.campaigns.length}｜曝光 ${d.stats.impressions}｜花费 ¥${d.stats.spent_cny.toFixed(2)}｜GMV ¥${d.stats.gmv.toFixed(2)}${why}`;
           }
-        }).catch(()=>{});
+        }).catch(function(e){ stats.textContent = '我的概览加载失败：' + e.message; });
       }
     }
     async function loadAcct(){

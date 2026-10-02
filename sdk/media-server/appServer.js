@@ -35,8 +35,52 @@ const PUB = process.env.PUBLISHER || 'dellai.xyz';
 const PORT = Number(process.env.PORT || 8081);
 let API_KEY = process.env.PUB_API_KEY || '';
 
-// 用户奖励账本（demo：内存；生产替换为数据库，并加幂等去重）
-const ledger = {};
+// ===== 用户奖励账本：由「内存」改为「落库」=====
+// 原先 `const ledger = {}` 是内存对象：重启即清零、多实例不一致，代码注释自认 demo。
+// 现在落到 MySQL，并补上幂等去重（同一 impid 只结算一次，防重放/重试重复发奖）：
+//   media_ledger(user_id, balance)  —— 用户奖励余额
+//   media_settled(imp_id)           —— 已结算幂等表
+const mysql = require('mysql2/promise');
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER || 'test',
+  password: process.env.DB_PASSWORD || 'test@fftime',
+  database: process.env.DB_NAME || 'zhuque',
+  waitForConnections: true, connectionLimit: 5,
+});
+async function initLedgerTables() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS media_ledger (
+    user_id VARCHAR(128) PRIMARY KEY,
+    balance INT DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS media_settled (
+    imp_id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(128) DEFAULT '',
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+}
+/** 幂等：该 impid 是否已结算过 */
+async function alreadySettled(impid) {
+  const [[r]] = await pool.query('SELECT 1 FROM media_settled WHERE imp_id=?', [String(impid)]).catch(() => [[]]);
+  return !!r;
+}
+async function balanceOf(userId) {
+  const [[row]] = await pool.query('SELECT balance FROM media_ledger WHERE user_id=?', [String(userId)]).catch(() => [[]]);
+  return (row && Number(row.balance)) || 0;
+}
+/** 记账：同一 impid 只加一次，返回最新余额 */
+async function credit(userId, impid) {
+  await pool.query('INSERT IGNORE INTO media_settled (imp_id,user_id) VALUES (?,?)', [String(impid), String(userId)]).catch(() => {});
+  await pool.query(`INSERT INTO media_ledger (user_id,balance) VALUES (?,1)
+    ON DUPLICATE KEY UPDATE balance=balance+1`, [String(userId)]).catch(() => {});
+  return balanceOf(userId);
+}
+async function ledgerAll() {
+  const [rows] = await pool.query('SELECT user_id,balance FROM media_ledger ORDER BY balance DESC LIMIT 200').catch(() => [[]]);
+  const out = {};
+  (rows || []).forEach(r => { out[r.user_id] = Number(r.balance); });
+  return out;
+}
 
 function hmac(impid, cid, watchedMs, durationMs, ts) {
   return crypto.createHmac('sha256', API_KEY)
@@ -102,14 +146,18 @@ const server = http.createServer(async (req, res) => {
     }
     if (r.json && r.json.ok && r.json.granted) {
       const u = userId || 'demo_user';
-      ledger[u] = (ledger[u] || 0) + 1;             // ★ 只有 ADX 裁决通过才下发
-      return json(res, 200, { ok: true, reward: '复活道具×1', balance: ledger[u], adx: r.json });
+      // ★ 只有 ADX 裁决通过才下发；且同一 impid 只发一次（幂等），余额落库而非内存
+      if (await alreadySettled(impid)) {
+        return json(res, 200, { ok: true, reward: '复活道具×1', balance: await balanceOf(u), dup: true, adx: r.json });
+      }
+      const balance = await credit(u, impid);
+      return json(res, 200, { ok: true, reward: '复活道具×1', balance, adx: r.json });
     }
     return json(res, 200, { ok: false, reason: (r.json && r.json.why) || 'ADX_DENIED', adx: r.json });
   }
 
   // 查看奖励账本
-  if (req.url === '/api/ledger') return json(res, 200, { ledger, apiKeyPrefix: API_KEY.slice(0, 12) + '...' });
+  if (req.url === '/api/ledger') return json(res, 200, { ledger: await ledgerAll(), persisted: true, apiKeyPrefix: API_KEY.slice(0, 12) + '...' });
 
   // 自检：演示 ADX 对各类非法调用的裁决
   if (req.url === '/api/selftest') {
@@ -152,9 +200,11 @@ const server = http.createServer(async (req, res) => {
   json(res, 404, { error: 'not found', endpoints: ['POST /api/reward', 'GET /api/ledger', 'GET /api/selftest'] });
 });
 
+initLedgerTables().catch(e => console.warn('[media-server] 账本建表失败（将退化为不记账）：' + e.message));
 fetchApiKey().then(k => {
   server.listen(PORT, () => {
     console.log(`[media-server] http://127.0.0.1:${PORT}  ADX=${ADX}  publisher=${PUB}`);
+    console.log('[media-server] 奖励账本：已落库 media_ledger / media_settled（幂等），不再用内存');
     console.log(`[media-server] api_key=${k ? k.slice(0, 14) + '...' : '(未取得，请确认 publisher 已入驻)'}`);
     console.log('[media-server] 自检: curl http://127.0.0.1:' + PORT + '/api/selftest');
   });
