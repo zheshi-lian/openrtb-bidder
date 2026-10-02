@@ -3,6 +3,7 @@ node_modules/
 .env
 .env.local
 .rtb_secret
+*.err
 .DS_Store
 ks_token.json
 backups/
