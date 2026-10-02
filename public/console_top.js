@@ -97,6 +97,11 @@ window.ConsoleTop = (function () {
     var acctItems = (m.acct || []).map(function (a) {
       return '<a class="ct-menu-it" href="' + a[0] + '">' + a[1] + '</a>';
     }).join('');
+    // 已经在本角色工作台时，不再显示"进入我的XX台"——否则点了只是刷新当前页，看着像按钮没用。
+    var homeLabel = me.type === 'advertiser' ? '我的广告主投放台'
+      : (me.type === 'publisher' ? '我的开发者变现台' : '我的运营台');
+    var homeItem = (location.pathname === m.home) ? ''
+      : ('<a class="ct-menu-it" href="' + m.home + '">' + homeLabel + '</a>');
 
     h.innerHTML =
       '<div class="ct-in">' +
@@ -104,7 +109,7 @@ window.ConsoleTop = (function () {
         '<span class="ct-tabs">' + tabs + '</span>' +
         '<span class="ct-sp"></span>' +
         '<a class="ct-home" href="/home.html" title="回到官网首页">官网首页</a>' +
-        '<button class="ct-acc-btn" onclick="ConsoleTop.toggle(event)" title="账号与权限">' +
+        '<button class="ct-acc-btn" title="账号与权限">' +
           '<span class="ct-dot" style="background:' + m.tone + '"></span>' +
           '<span class="ct-accname">' + esc(me.username) + '</span>' +
           '<span class="ct-caret">▾</span>' +
@@ -113,13 +118,22 @@ window.ConsoleTop = (function () {
           '<div class="ct-menu-hd">' + esc(m.label) + ' · ' + esc(me.username) + '</div>' +
           '<div class="ct-menu-row">数据作用域：<b>' + esc(me.scope || '*') + '</b></div>' +
           '<div class="ct-menu-row ct-menu-dim">只能看到该作用域内的数据</div>' +
-          '<a class="ct-menu-it" href="' + m.home + '">' + (me.type === 'advertiser' ? '我的广告主投放台' : (me.type === 'publisher' ? '我的开发者变现台' : '我的运营台')) + '</a>' +
+          homeItem +
           acctItems +
           '<a class="ct-menu-it" href="/home.html">返回官网首页</a>' +
           '<a class="ct-menu-it" href="/login.html">切换 / 登录其他账号</a>' +
           '<button class="ct-menu-it ct-menu-out" onclick="ConsoleTop.logout()">登出</button>' +
         '</div>' +
       '</div>';
+    // 账号菜单开合改由 JS 绑定，并在菜单内部阻止冒泡：
+    // 否则点菜单里的项会冒泡到下方 document 的关闭逻辑，菜单刚打开就被关掉（表现=点了没反应）。
+    var accBtn = h.querySelector('.ct-acc-btn');
+    if (accBtn) accBtn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var mm = document.getElementById('ct-menu'); if (mm) mm.classList.toggle('open');
+    });
+    var mn = document.getElementById('ct-menu');
+    if (mn) mn.addEventListener('click', function (e) { e.stopPropagation(); });
   }
   function toggle(e) {
     if (e) { e.preventDefault(); e.stopPropagation(); }

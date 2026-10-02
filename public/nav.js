@@ -60,7 +60,21 @@
     '#linkos-nav .menu a{display:block;color:#cfd6e4;text-decoration:none;padding:6px 12px;border-radius:4px;white-space:nowrap}' +
     '#linkos-nav .menu a:hover{background:#323a4d;color:#fff}' +
     '#linkos-nav .menu a.on{background:#3b82f6;color:#fff;font-weight:600}' +
-    '#linkos-nav .gdesc{font-size:11px;color:#8a93a6;padding:4px 12px 2px;line-height:1.35;border-bottom:1px solid #3a4358;margin-bottom:2px}';
+    '#linkos-nav .gdesc{font-size:11px;color:#8a93a6;padding:4px 12px 2px;line-height:1.35;border-bottom:1px solid #3a4358;margin-bottom:2px}' +
+    /* 右上角账号菜单（切换账号 / 登出）：登录后必须能退出，否则用户被困在当前账号里 */
+    '#linkos-nav .navm{position:relative}' +
+    '#linkos-nav .navm-btn{background:linear-gradient(92deg,#3b82f6,#22d3ee);color:#04122a;border:0;border-radius:5px;' +
+    'padding:4px 11px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap;font-family:inherit}' +
+    '#linkos-nav .navm-caret{font-size:10px}' +
+    '#linkos-nav .navm-menu{display:none;position:absolute;right:0;top:calc(100% + 4px);min-width:200px;background:#262d3d;' +
+    'border:1px solid #3a4358;border-radius:8px;padding:6px;box-shadow:0 10px 26px rgba(0,0,0,.35);z-index:100000}' +
+    '#linkos-nav .navm-menu.open{display:block}' +
+    '#linkos-nav .navm-hd{padding:6px 10px 4px;font-weight:700;font-size:12.5px;color:#fff}' +
+    '#linkos-nav .navm-it{display:block;width:100%;text-align:left;padding:7px 10px;border:0;background:transparent;' +
+    'color:#cfd6e4;text-decoration:none;font-size:12.5px;border-radius:6px;cursor:pointer;font-family:inherit}' +
+    '#linkos-nav .navm-it:hover{background:#323a4d;color:#fff}' +
+    '#linkos-nav .navm-out{color:#f87171;margin-top:4px;border-top:1px solid #3a4358;border-radius:0 0 6px 6px;padding-top:9px}' +
+    '#linkos-nav .navm-out:hover{color:#f87171;background:rgba(248,113,113,.12)}';
   document.head.appendChild(style);
 
   var html = '<a class="brand" href="/home.html">LinkOS</a>';
@@ -111,12 +125,46 @@
     var cur = function (k) { return localStorage.getItem(k) || sessionStorage.getItem(k) || ''; };
     var me = null;
     try { me = cur('linkos_admin') ? JSON.parse(cur('linkos_admin')) : null; } catch (e) { me = null; }
-    if (me && me.token) {
-      var home = me.type === 'advertiser' ? '/advertiser.html'
-               : (me.type === 'publisher' ? '/publisher_report.html' : '/console.html');
-      var authLabel = me.type === 'advertiser' ? '进入广告主投放'
-                    : (me.type === 'publisher' ? '进入开发者变现' : '管理后台');
-      box.innerHTML = '<a href="' + home + '" style="color:#04122a;text-decoration:none;padding:4px 12px;border-radius:5px;background:linear-gradient(92deg,#3b82f6,#22d3ee);white-space:nowrap;font-weight:600">' + authLabel + '</a>';
+    if (!me || !me.token) return;   // 未登录：保留「注册 / 登录」链接
+    var esc = function (s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    };
+    var home = me.type === 'advertiser' ? '/advertiser.html'
+             : (me.type === 'publisher' ? '/publisher_report.html' : '/console.html');
+    var homeLabel = me.type === 'advertiser' ? '进入广告主投放'
+                  : (me.type === 'publisher' ? '进入开发者变现' : '管理后台');
+    // 原先登录后只有一个「进入XX」芯片：已在该工作台时点了只是刷新自己（像没用），
+    // 而且全站没有任何登出/切换账号入口 → 用户被困在当前账号里。这里补成真正的账号菜单。
+    var homeItem = (location.pathname === home) ? ''
+      : '<a class="navm-it" href="' + home + '">' + homeLabel + '</a>';
+    box.innerHTML =
+      '<div class="navm">' +
+        '<button class="navm-btn" type="button">' + esc(me.username || me.type) + ' <span class="navm-caret">▾</span></button>' +
+        '<div class="navm-menu">' +
+          '<div class="navm-hd">' + esc(me.type || '') + ' · ' + esc(me.username || '') + '</div>' +
+          homeItem +
+          '<a class="navm-it" href="/login.html">切换 / 登录其他账号</a>' +
+          '<button class="navm-it navm-out" type="button">登出</button>' +
+        '</div>' +
+      '</div>';
+    var btn = box.querySelector('.navm-btn');
+    var menu = box.querySelector('.navm-menu');
+    var outBtn = box.querySelector('.navm-out');
+    if (btn && menu) {
+      btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); menu.classList.toggle('open'); });
+      menu.addEventListener('click', function (e) { e.stopPropagation(); });   // 点菜单内部不关闭
     }
+    document.addEventListener('click', function () { if (menu) menu.classList.remove('open'); });
+    if (outBtn) outBtn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      try { localStorage.removeItem('linkos_admin'); sessionStorage.removeItem('linkos_admin'); } catch (err) {}
+      ['auth_token', 'auth_role', 'auth_scope', 'auth_user'].forEach(function (k) {
+        try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (err) {}
+      });
+      fetch('/api/admin/logout', { method: 'POST' }).catch(function () {});
+      location.href = '/login.html';   // 落到登录页，方便直接换账号（与控制台顶栏登出行为一致）
+    });
   })();
 })();
