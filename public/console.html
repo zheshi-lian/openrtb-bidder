@@ -77,7 +77,7 @@ var BASE = location.origin;
   function kpi(lab, val) { return '<div class="kpi"><div class="lab">' + lab + '</div><div class="val">' + val + '</div></div>'; }
 
   function load() {
-    return fetch(BASE + '/api/console/overview').then(r => r.json()).then(d => {
+    return fetch(BASE + '/api/console/overview', { credentials: 'include' }).then(r => r.json()).then(d => {
       var p = d.platform || {};
       document.getElementById('kpis').innerHTML =
         kpi('今日曝光', p.todayImpressions) + kpi('今日消耗(元)', yuan(p.todayGrossMicros)) +
@@ -116,7 +116,7 @@ var BASE = location.origin;
     var v = Number(document.getElementById('amt' + id).value);
     if (!v || v <= 0) return alert('请输入充值金额（元）');
     fetch(BASE + '/api/campaign/' + id + '/topup', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount_cny: v, note: 'console' })
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount_cny: v, note: 'console' })
     }).then(r => r.json()).then(function (d) {
       if (d.ok) load(); else alert('充值失败：' + (d.error || 'unknown'));
     });
@@ -130,7 +130,7 @@ var BASE = location.origin;
     var display = document.getElementById('accDisp').value.trim();
     if (!username || !password) return alert('用户名和密码必填');
     fetch(BASE + '/api/account/register', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: type, username: username, password: password, scope: scope, display: display })
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: type, username: username, password: password, scope: scope, display: display })
     }).then(r => r.json()).then(function (d) {
       if (d.ok) { alert('已开通：' + username + '（' + type + ' / ' + (scope || '*') + '）'); loadAccounts(); }
       else alert('开通失败：' + (d.error || 'unknown'));

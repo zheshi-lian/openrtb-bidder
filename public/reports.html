@@ -7,7 +7,7 @@
   :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee}
   *{box-sizing:border-box}
   body{margin:0;background:radial-gradient(1000px 500px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif}
-  .wrap{max-width:860px;margin:0 auto;padding:60px 20px 80px}
+  .wrap{max-width:980px;margin:0 auto;padding:24px 20px 80px}
   h1{font-size:30px;margin:0 0 6px}
   .sub{color:var(--mut);margin:0 0 30px}
   .card{background:var(--card);border:1px solid #26355c;border-radius:12px;padding:20px;margin-bottom:16px}
@@ -15,19 +15,38 @@
   ul{margin:0;padding-left:20px;color:var(--mut)}
   li{margin:6px 0}
   a{color:var(--acc2)}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #26355c}
+  th{color:var(--mut);font-weight:600}
+  .muted{color:var(--mut)}
+  #settle-summary{font-size:13px;color:var(--acc2);font-weight:600}
 </style>
 </head>
-<body><div class="wrap">
+<body>
+<div id="ctop"></div>
+<div class="wrap">
   <h1>结算报表</h1>
   <p class="sub">平台赚的是广告主 eCPM 与给媒体 payout 之间的差价（spread）；所有账本 S2S 记录 + HMAC 防伪造。</p>
+
   <div class="card">
-    <h3>实时与历史</h3>
+    <h3>实时结算汇总（按媒体维度）</h3>
+    <div id="settle-summary">加载中…</div>
+    <table id="settle-table">
+      <thead><tr><th>媒体(publisher)</th><th>赢价次数</th><th>广告主消费(CNY)</th><th>媒体分成(CNY)</th><th>平台毛利(CNY)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>结算口径与说明</h3>
     <ul>
+      <li>平台赚<b>差价（spread）</b>：广告主侧按二价清算计费，媒体侧按约定分成比例 payout，二者之差即平台毛利。</li>
+      <li>所有赢价/计费通过 S2S 回调落地 <code>bid_win_log</code>，带 HMAC 签名防伪造、可双端对账。</li>
       <li>实时账本在 <a href="/console.html">运营控制台</a> 展示（赢价次数 / 消耗 / 点击 / 转化 / 平台毛利），5 秒刷新。</li>
-      <li>媒体侧收益历史见 <a href="/publisher_report.html">媒体收益报表</a>。</li>
-      <li>广告主侧消耗 / 曝光 / 转化见 <a href="/advertiser.html">投放工作台</a>。</li>
+      <li>媒体侧收益历史见 <a href="/publisher_report.html">媒体收益报表</a>；广告主侧消耗见 <a href="/advertiser.html">投放工作台</a>。</li>
     </ul>
   </div>
+
   <div class="card">
     <h3>合规与对账</h3>
     <ul>
@@ -37,5 +56,23 @@
     </ul>
   </div>
 </div>
-<script src="/nav.js"></script>
+
+<script src="/admin.js"></script>
+<script src="/console_top.js"></script>
+<script>
+  (function () {
+    fetch('/api/reports/settlement', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (d) {
+      var sum = document.getElementById('settle-summary');
+      if (!d.ok) { sum.textContent = '加载失败：' + (d.error || d.message || '需管理员权限'); return; }
+      var t = d.totals || {};
+      sum.textContent = '总赢价 ' + (t.wins || 0) + ' 次 · 广告主总消费(CNY) ' + (t.gross_cny || 0).toFixed(2) +
+        ' · 媒体总分成(CNY) ' + (t.payout_cny || 0).toFixed(2) + ' · 平台毛利(CNY) ' + (t.margin_cny || 0).toFixed(2);
+      var rows = (d.rows || []).map(function (r) {
+        return '<tr><td>' + r.publisher + '</td><td>' + r.wins + '</td><td>' + (r.gross_cny || 0).toFixed(2) +
+          '</td><td>' + (r.payout_cny || 0).toFixed(2) + '</td><td>' + (r.ssp_margin_cny || 0).toFixed(2) + '</td></tr>';
+      }).join('');
+      document.querySelector('#settle-table tbody').innerHTML = rows || '<tr><td colspan="5" class="muted">暂无结算数据</td></tr>';
+    }).catch(function (e) { document.getElementById('settle-summary').textContent = '加载失败：' + e.message; });
+  })();
+</script>
 </body></html>

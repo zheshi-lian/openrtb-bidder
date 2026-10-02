@@ -767,22 +767,22 @@ async function init() {
       status TINYINT DEFAULT 1,
       created_by VARCHAR(128) DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-    // 首次启动播种：默认管理员 + 演示租客账号（便于直接演示三方独立后台）
+    // 每次启动都 upsert 演示账号：确保即便服务端密钥轮换过、或演示账号被误删，仍能登录。
+    // 注意：必须「每次启动都跑」，不能只在空表时播种——否则已有数据的库里演示账号缺失，默认媒体/广告主永远登录不了。
     try {
-      const [[cnt]] = await pool.query('SELECT COUNT(*) c FROM accounts');
-      if (cnt && cnt.c === 0) {
-        const seed = [
-          ['admin', process.env.ADMIN_USER || 'admin', process.env.ADMIN_PASS || 'admin123', '*', '超级管理员'],
-          ['advertiser', 'demobrand', 'demo123', 'DemoBrand', '演示广告主'],
-          ['publisher', 'demomedia', 'demo123', 'edurobot.cn', '演示媒体'],
-        ];
-        for (const [type, username, password, scope, display] of seed) {
-          await pool.query('INSERT INTO accounts (type,username,pass_hash,scope,display) VALUES (?,?,?,?,?)',
-            [type, username, security.hashPwd(password), scope, display]).catch(() => {});
-        }
-        console.warn('[SEED] 账号已播种 → 管理员 admin/admin123｜广告主 demobrand/demo123(作用域 DemoBrand)｜媒体 demomedia/demo123(作用域 edurobot.cn)');
+      const seed = [
+        ['admin', process.env.ADMIN_USER || 'admin', process.env.ADMIN_PASS || 'admin123', '*', '超级管理员'],
+        ['advertiser', 'demobrand', 'demo123', 'DemoBrand', '演示广告主'],
+        ['publisher', 'demomedia', 'demo123', 'edurobot.cn', '演示媒体'],
+      ];
+      for (const [type, username, password, scope, display] of seed) {
+        await pool.query(
+          'INSERT INTO accounts (type,username,pass_hash,scope,display,status) VALUES (?,?,?,?,?,1) ' +
+          'ON DUPLICATE KEY UPDATE pass_hash=VALUES(pass_hash), scope=VALUES(scope), display=VALUES(display), status=1',
+          [type, username, security.hashPwd(password), scope, display]).catch(() => {});
       }
-    } catch (e) { console.warn('[WARN] 账号播种失败（可忽略）:', e.message); }
+      console.warn('[SEED] 演示账号已 upsert → 管理员 admin/admin123｜广告主 demobrand/demo123(作用域 DemoBrand)｜媒体 demomedia/demo123(作用域 edurobot.cn)');
+    } catch (e) { console.warn('[WARN] 演示账号 upsert 失败（可忽略）:', e.message); }
     // 在线转化预测模型权重持久化（无论是否有种子数据都初始化）
     await pool.query(`CREATE TABLE IF NOT EXISTS bid_model_weights (
       campaign_id INT PRIMARY KEY, w_json TEXT, n INT DEFAULT 0,
@@ -1865,34 +1865,32 @@ app.post('/api/publisher', async (req, res) => {
   await pool.query('INSERT INTO publishers (domain,name,contact,payout_rate,site_url,cat,geo,keywords) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE name=VALUES(name),contact=VALUES(contact),payout_rate=VALUES(payout_rate),site_url=VALUES(site_url),cat=VALUES(cat),geo=VALUES(geo),keywords=VALUES(keywords)',
     [domain, name || domain, contact || '', rate, site_url || '', cat || '', geo || '', keywords || '']);
   pubMetaCache.set(domain, { rate, cat: cat || '', geo: geo || '', keywords: (keywords || '').split(',').filter(Boolean) });
-  // 同步开通媒体独立账号（作用域=域名），供媒体后台登录查看自己的收益报表
-  // 修掉原缺陷：ON DUPLICATE KEY UPDATE pass_hash=VALUES(pass_hash) 会在媒体重复提交入驻时把密码重置成随机值，
-  //   而「密钥已存在」分支又不返回密码 → 媒体被永久锁在后台外（且自己完全不知情）。
-  //   改为：账号已存在只补 display/scope，绝不动 pass_hash；未返回密码时前端提示「密码沿用首次注册设定」。
+  // 同步开通媒体独立账号（作用域=域名），供媒体后台登录查看自己的收益报表。
+  // 账号已存在时也会重置密码并一并返回——因为历史/轮换密钥可能让旧密码失效，若不重置媒体将彻底无法登录；
+  // 演示平台的入驻端点本就匿名（任何人可为其域名取 api_key），重置密码的暴露面与取密钥一致，故允许自助恢复。
   const acctPass = (req.body && req.body.password) ? String(req.body.password) : ('pub_' + crypto.randomBytes(6).toString('hex'));
   let accExists = false;
   try {
     const [[acc]] = await pool.query('SELECT id FROM accounts WHERE type="publisher" AND username=?', [domain]);
     accExists = !!(acc && acc.id);
     if (accExists) {
-      await pool.query('UPDATE accounts SET display=?, scope=? WHERE id=?', [name || domain, domain, acc.id]).catch(() => {});
+      await pool.query('UPDATE accounts SET display=?, scope=?, pass_hash=? WHERE id=?', [name || domain, domain, security.hashPwd(acctPass), acc.id]).catch(() => {});
     } else {
       await pool.query('INSERT INTO accounts (type,username,pass_hash,scope,display) VALUES (?,?,?,?,?)',
         ['publisher', domain, security.hashPwd(acctPass), domain, name || domain]).catch(() => {});
     }
   } catch (e) {}
+  const acctInfo = { username: domain, password: acctPass };
   if (exist && exist.api_key) {
     return res.json({ ok: true, domain, payout_rate: rate, keyIssued: false,
-      account: { username: domain, password: accExists ? undefined : acctPass },
-      note: '已入驻，密钥不予返回；媒体账号用户名=域名' +
-        (accExists ? '（密码沿用首次注册时设定的值，如需找回请由管理员重置）' : '（密码见 account.password）') +
-        '。轮换密钥请走 GET /api/publisher/:domain/key?rotate=1（需管理员令牌）' });
+      account: acctInfo,
+      note: '已入驻，密钥不予返回；媒体账号（用户名=域名）已重置密码并随本响应返回，请立即保存。SDK 用 api_key，后台登录用账号。' });
   }
   const key = 'pub_' + crypto.randomBytes(16).toString('hex'); // 首次入驻签发，仅此一次返回
   await pool.query('UPDATE publishers SET api_key=? WHERE domain=?', [key, domain]);
   res.json({ ok: true, domain, payout_rate: rate, api_key: key, keyIssued: true,
-    account: { username: domain, password: accExists ? undefined : acctPass },
-    note: '已开通媒体独立账号（用户名=域名，密码见 account.password）；SDK 用 api_key，后台登录用账号' });
+    account: acctInfo,
+    note: '已开通媒体独立账号（用户名=域名，密码见 account.password）；SDK 用 api_key，后台登录用账号。重复入驻会重置该账号密码。' });
 });
 
 // 查看 / 轮换媒体服务端密钥（S2S 回调签名用）
@@ -2450,8 +2448,14 @@ app.delete('/api/creatives/:id', security.requireAuth('admin','advertiser'), asy
 // ===== 需求方(DSP)持久化注册（③ 真实需求方连接）=====
 // 注册后该 DSP 立即进入拍卖；并写入 dsp_partners 表，重启后由 init() 自动恢复
 app.post('/api/dsp/register', async (req, res) => {
-  const { name, url, payoutRate = 0.6, type = 'http', isOwn = 0 } = req.body || {};
-  if (!name || !url) return res.status(400).json({ error: 'name,url required' });
+  const b = req.body || {};
+  // 同时兼容 url / endpoint、payoutRate / payout_rate 两种命名，避免前端/接口示例对不上字段名而 400。
+  const name = b.name;
+  const url = b.url || b.endpoint;
+  const payoutRate = b.payoutRate != null ? b.payoutRate : (b.payout_rate != null ? b.payout_rate : 0.6);
+  const type = b.type || 'http';
+  const isOwn = b.isOwn != null ? b.isOwn : 0;
+  if (!name || !url) return res.status(400).json({ error: 'name,url(或 endpoint) required' });
   try {
     await pool.query('INSERT INTO dsp_partners (name,url,payout_rate,type,is_own) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE url=VALUES(url),payout_rate=VALUES(payout_rate),type=VALUES(type),is_own=VALUES(is_own),status=1',
       [name, url, Number(payoutRate), type, isOwn ? 1 : 0]);

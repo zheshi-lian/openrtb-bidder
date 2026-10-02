@@ -37,9 +37,18 @@
 </div>
 <script src="/admin.js"></script>
 <script>
+function renderMetrics(ms){
+  if(!ms || typeof ms!=='object'){ return '无数据'; }
+  const lines = [];
+  if (ms.counters) for (const k in ms.counters) lines.push('• ' + k + ' = ' + ms.counters[k]);
+  if (ms.gauges) for (const k in ms.gauges) lines.push('• ' + k + ' = ' + ms.gauges[k]);
+  if (ms.hist) for (const k in ms.hist){ const h=ms.hist[k]; const s=(h&&typeof h==='object')?('n='+h.n+' p50='+h.p50+' p95='+h.p95):h; lines.push('• ' + k + ' = ' + s); }
+  if (ms.queues) for (const k in ms.queues) lines.push('• ' + k + ' = ' + ms.queues[k]);
+  return lines.join('\n') || '(暂无实时指标)';
+}
 async function load(){
   try{
-    const ovR = await fetch('/api/console/overview');
+    const ovR = await fetch('/api/console/overview', { credentials: 'include' });
     // 实时大盘是平台运营视角（需管理员）。此前 401 被当成正常 JSON 解析，页面一片空白看不出原因。
     if (!ovR.ok) {
       document.getElementById('metrics').textContent =
@@ -47,7 +56,7 @@ async function load(){
       return;
     }
     const ov = await ovR.json();
-    const msR = await fetch('/metrics');
+    const msR = await fetch('/metrics', { credentials: 'include' });
     const ms = msR.ok ? await msR.json() : {};
     document.getElementById('be').textContent = 'backend: ' + (ms.backend||'-');
     const p = ov.platform||{};
@@ -58,7 +67,7 @@ async function load(){
       ['激励发放', (ov.reward||{}).granted||0]
     ];
     document.getElementById('kpis').innerHTML = kpis.map(k=>`<div class="card"><div class="k">${k[0]}</div><div class="v">${k[1]}</div></div>`).join('');
-    document.getElementById('metrics').textContent = JSON.stringify(ms, null, 2);
+    document.getElementById('metrics').textContent = renderMetrics(ms);
     document.querySelector('#adv tbody').innerHTML = (ov.advertisers||[]).map(a=>`<tr><td>${a.id}</td><td>${a.name}</td><td>${a.app_category||'-'}</td><td>${(a.balance_micros/1e6).toFixed(0)}</td><td>${(a.spend_micros/1e6).toFixed(2)}</td><td>${a.impressions||0}</td><td>${a.clicks||0}</td><td>${a.conversions||0}</td></tr>`).join('');
     const repR = await fetch('/ssp/report');
     const rep = repR.ok ? await repR.json() : {};

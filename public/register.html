@@ -35,7 +35,6 @@
   <div class="tabs">
     <button id="tab-pub" onclick="show('pub')">媒体侧 · 供给流量</button>
     <button id="tab-adv" onclick="show('adv')">需求侧 · 买量</button>
-    <button id="tab-dsp" onclick="show('dsp')">需求方 DSP · 接入竞价</button>
   </div>
 
   <div class="card" id="pub">
@@ -77,22 +76,12 @@
     <div class="key" id="a-account" style="margin-top:8px"></div>
   </div>
 
-  <div class="card hide" id="dsp">
+  <div class="card" id="dsp-note" style="margin-top:18px">
     <div class="hint">
-      <b>角色说明：这里是「买方 / 需求方 DSP」接入，和「媒体侧 · 供给流量」是相反的两方。</b><br>
-      · 你（DSP）把 OpenRTB 出价端点注册进来 → 我们每次拍卖把 bid request POST 给你 → 你回 OpenRTB 响应出价 → 胜出即买走媒体的流量。<br>
-      · <b>媒体侧</b>是<b>卖方</b>：提供广告位流量、拿分成（入驻即拿 api_key 与埋点代码）。<br>
-      · <b>需求侧 · 买量（广告主）</b>也是买方，但走<b>平台托管投放</b>：建计划 / 传素材 / 我们代为出价。<br>
-      · 本页注册的是<b>出价端点</b>，<b>不是开账号</b>——外部买方不需要登录本平台后台，因此不会创建登录账号。
+      <b>外部需求方（DSP）接入不在这里。</b>「自助开户」只开<b>会登录后台的账号</b>：媒体（卖方）与广告主（买方·平台托管投放）。<br>
+      外部 DSP 是<b>买方 / 需求方</b>，把 OpenRTB 出价端点注册进来即可参拍，<b>不需要登录本平台后台、也不创建账号</b>。<br>
+      → 请前往 <a href="/dsp.html">外部 DSP 接入</a> 页直接注册你的出价端点。
     </div>
-    <label>买方 / DSP 名称</label>
-    <input id="d-name" placeholder="MyDemand / 我的竞价端">
-    <label>OpenRTB 出价端点 URL（我们把 bid request POST 过来，你回 OpenRTB 响应出价）</label>
-    <input id="d-url" placeholder="https://bid.example.com/openrtb2/bid">
-    <label>分成比例（0-1，给到媒体的结算占比）</label>
-    <input id="d-rate" type="number" value="0.6" min="0" max="1" step="0.05">
-    <button class="btn" onclick="regDsp()">注册出价端点</button>
-    <div class="msg" id="d-msg"></div>
   </div>
 </div>
 
@@ -117,10 +106,9 @@
   }
   function initTab(){
     // 默认落到「需求侧 · 买量」：广告主漏斗（自助开户 / 注册）点进来就该是买量侧；
-    // 开发者侧必须显式带 #publisher（或 #pub），DSP 需求方带 #dsp，否则一律按需求侧展示。
+    // 开发者侧必须显式带 #publisher（或 #pub），否则一律按需求侧展示。DSP 已迁到 /dsp.html，本页不再有 dsp tab。
     var h=(location.hash||'').toLowerCase();
     if(h.indexOf('pub')>-1 || h.indexOf('publisher')>-1) return show('pub');
-    if(h.indexOf('dsp')>-1) return show('dsp');
     show('adv');
   }
   async function regPub(){

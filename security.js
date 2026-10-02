@@ -8,31 +8,34 @@ const crypto = require('crypto');
 
 const IS_PROD = (process.env.NODE_ENV || '').toLowerCase() === 'production';
 
-// ── ① 密钥：生产必须显式提供；开发随机生成（每次启动失效旧令牌，宁可不方便也不能用已知值）──
-function requireSecret(name, devGenerate = false) {
+// ── ① 密钥：生产必须显式提供；开发随机生成并持久化到 .rtb_secret，避免重启后旧签名/密码哈希失效 ──
+const fs = require('fs');
+const path = require('path');
+function stableSecret(name) {
   const v = process.env[name];
   if (v && String(v).length >= 16) return String(v);
-  if (IS_PROD) {
-    console.error(`[FATAL] 生产环境缺少 ${name}（且长度需 ≥16）。请在环境变量中设置后重启。`);
+  const file = path.join(__dirname, '.rtb_secret');
+  let map = {};
+  try {
+    if (fs.existsSync(file)) {
+      try { map = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { map = {}; }
+    }
+  } catch (e) {}
+  if (!IS_PROD && map[name] && String(map[name]).length >= 16) return map[name];
+  const gen = crypto.randomBytes(32).toString('hex');
+  if (!IS_PROD) {
+    map[name] = gen;
+    try { fs.writeFileSync(file, JSON.stringify(map), { mode: 0o600 }); } catch (e) {}
+    console.warn(`[INFO] ${name} 未配置，已写入本地 .rtb_secret 以便重启后稳定（生产请改用环境变量）。`);
+  } else {
+    console.error(`[FATAL] 生产环境缺少 ${name}（长度需 ≥16）。请设置环境变量后重启。`);
     process.exit(1);
   }
-  if (devGenerate) {
-    const gen = crypto.randomBytes(32).toString('hex');
-    console.warn(`[WARN] 未设置 ${name}，本次启动随机生成（重启后旧签名令牌失效）。生产必须显式配置。`);
-    return gen;
-  }
-  return '';
-}
-const RW_SECRET = requireSecret('RW_SECRET', true);
-
-const ADMIN_TOKEN = (() => {
-  const v = process.env.ADMIN_TOKEN;
-  if (v && v.length >= 16) return v;
-  const gen = crypto.randomBytes(24).toString('hex');
-  console.warn('[WARN] 未设置 ADMIN_TOKEN，本次随机生成（见下方 token，重启即变）。生产必须显式配置。');
-  console.warn(`[ADMIN_TOKEN] ${gen}`);
   return gen;
-})();
+}
+const RW_SECRET = stableSecret('RW_SECRET');
+
+const ADMIN_TOKEN = stableSecret('ADMIN_TOKEN');
 
 // ── ②-b 三方账号体系：admin / advertiser / publisher 独立账号 + 作用域令牌 ──
 const ACCOUNT_SECRET = process.env.ACCOUNT_SECRET || RW_SECRET;

@@ -2,6 +2,7 @@ node_modules/
 *.log
 .env
 .env.local
+.rtb_secret
 .DS_Store
 ks_token.json
 backups/

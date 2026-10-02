@@ -15,6 +15,11 @@
   ol{margin:0;padding-left:20px;color:var(--mut)}
   li{margin:6px 0}
   a{color:var(--acc2)}
+  label{display:block;margin:10px 0 4px;color:var(--mut);font-size:13px}
+  input{width:100%;background:#0d1730;border:1px solid #2a3a63;color:var(--fg);border-radius:8px;padding:9px 10px;font-size:14px}
+  .btn{margin-top:12px;background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer}
+  .btn:hover{filter:brightness(1.1)}
+  .msg{margin-top:10px;font-size:13px;min-height:16px;color:var(--acc2)}
 </style>
 </head>
 <body><div class="wrap">
@@ -23,11 +28,22 @@
   <div class="card">
     <h3 style="margin-top:0;color:var(--acc2)">接入步骤</h3>
     <ol>
-      <li>在 <a href="/register.html#advertiser">自助开户</a> 选择「DSP / 需求方」，提交端点与出价能力说明。</li>
+      <li>在「① 出价端点注册」下方直接填写并提交，即可把你的出价端点注册进来（外部 DSP 不创建平台账号、不登录后台）。</li>
       <li>平台分配 DSP 标识，并将你的端点登记进竞价参与方列表。</li>
       <li>你的服务端实现对 <code>POST /openrtb2/bid</code> 的 OpenRTB 2.6 响应（返回 seatbid / bid / price）。</li>
       <li>平台在 SSP 拍卖中把你的报价与自有 DSP、其他需求方一并二价清算；赢价后通过 <code>/notify</code> 回传计费。</li>
     </ol>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;color:var(--acc2)">① 出价端点注册</h3>
+    <label>买方 / DSP 名称</label>
+    <input id="d-name" placeholder="MyDemand / 我的竞价端">
+    <label>OpenRTB 出价端点 URL（我们把 bid request POST 过来，你回 OpenRTB 响应出价）</label>
+    <input id="d-url" placeholder="https://bid.example.com/openrtb2/bid">
+    <label>分成比例（0-1，给到媒体的结算占比）</label>
+    <input id="d-rate" type="number" value="0.6" min="0" max="1" step="0.05">
+    <button class="btn" onclick="regDsp()">注册出价端点</button>
+    <div class="msg" id="d-msg"></div>
   </div>
   <div class="card">
     <p style="color:var(--mut)">请求示例（供给侧发起的竞价请求）：</p>
@@ -36,4 +52,19 @@
   </div>
 </div>
 <script src="/nav.js"></script>
+<script>
+  function regDsp(){
+    var name=document.getElementById('d-name').value.trim();
+    var url=document.getElementById('d-url').value.trim();
+    var rate=parseFloat(document.getElementById('d-rate').value)||0.6;
+    var m=document.getElementById('d-msg');
+    if(!name||!url){ m.style.color='#ff8a8a'; m.textContent='请填写名称与端点 URL'; return; }
+    m.style.color='#7fd1ff'; m.textContent='提交中…';
+    fetch('/api/dsp/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,endpoint:url,payout_rate:rate})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.ok){ m.style.color='#7CFFB2'; m.textContent='已注册端点：'+(d.endpoint||url)+' · 分成 '+(d.payout_rate!==undefined?d.payout_rate:rate); }
+        else { m.style.color='#ff8a8a'; m.textContent='失败：'+(d.error||'未知错误'); }
+      }).catch(function(e){ m.style.color='#ff8a8a'; m.textContent='网络错误：'+e; });
+  }
+</script>
 </body></html>
