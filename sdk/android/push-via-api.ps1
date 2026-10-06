@@ -1,25 +1,26 @@
-# 通过 GitHub Contents API 上传整个 SDK 工程（绕过被墙的 git 协议）
-# 用法：在该目录用 PowerShell 运行  .\push-via-api.ps1
+# Upload the whole SDK project to GitHub via the Contents API (bypasses blocked git protocol).
+# Usage: run  .\push-via-api.ps1  from this directory (sdk/android).
 $owner = "zheshi-lian"
 $repo  = "Applink_ADX_Android"
 $branch = "main"
 $base  = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# 支持非交互式：若设置了环境变量 GH_PAT，则直接复用，不再弹窗（便于自动化上传）
+# Non-interactive: if GH_PAT env var is set, reuse it instead of prompting (for automated upload).
 if ($env:GH_PAT) { $token = $env:GH_PAT }
-else { $token = Read-Host -Prompt "粘贴你的 GitHub PAT（ghp_...）" }
+else { $token = Read-Host -Prompt "Paste your GitHub PAT (ghp_...)" }
 $headers = @{
     Authorization = "Bearer $token"
     Accept        = "application/vnd.github+json"
 }
 
-# 取分支最新 commit sha（用于更新已存在文件）
+# Get latest commit sha on the branch (needed to update existing files).
 $ref = Invoke-RestMethod "https://api.github.com/repos/$owner/$repo/git/refs/heads/$branch" -Headers $headers
-Write-Host "分支 $branch 当前 HEAD: $($ref.object.sha)"
+Write-Host "branch $branch HEAD: $($ref.object.sha)"
 
-# 收集文件：排除 .git / build / 本脚本 / 预编译产物 / 密钥
-# 注意：不传预编译的 applink-adsdk-release.aar，源码推送后由 CI（android-release.yml）云端重新构建，
-# 这样 GitHub 上的 AAR 永远与源码一致（避免“本地旧二进制”与“最新源码”不一致）。
+# Collect files: exclude .git / build / this script / prebuilt artifacts / secrets.
+# NOTE: do NOT upload the prebuilt applink-adsdk-release.aar. After the source push, CI
+# (android-release.yml) rebuilds the AAR in the cloud, so the AAR on GitHub always matches
+# the source (no stale/inconsistent binary).
 $files = Get-ChildItem -Path $base -Recurse -File | Where-Object {
     $_.FullName -notmatch '[\\/]\.git[\\/]' -and
     $_.FullName -notmatch '[\\/]build[\\/]' -and
@@ -30,7 +31,7 @@ $files = Get-ChildItem -Path $base -Recurse -File | Where-Object {
     $_.Name -ne 'local.properties' -and
     $_.Name -ne '.DS_Store'
 }
-# 排序：先把非 .github 文件传完，最后再传 .github/workflows（确保触发构建时源码已就位）
+# Sort: upload non-.github files first, then .github/workflows last (build triggers after source is in place).
 $files = $files | Sort-Object { ($_.FullName -match '[\\/]\.github[\\/]') }, FullName
 
 $ok = 0; $fail = 0
@@ -42,8 +43,8 @@ foreach ($f in $files) {
     $body = @{ message = "chore: add $rel"; content = $b64; branch = $branch }
     try {
         $existing = Invoke-RestMethod $url -Headers $headers
-        $body.sha = $existing.sha   # 已存在 → 更新
-    } catch { }                     # 不存在 → 新建
+        $body.sha = $existing.sha   # exists -> update
+    } catch { }                     # not exists -> create
 
     try {
         Invoke-RestMethod -Method PUT $url -Headers $headers -Body ($body | ConvertTo-Json) -ContentType "application/json"
@@ -54,5 +55,6 @@ foreach ($f in $files) {
         $fail++
     }
 }
-Write-Host "`n完成：成功 $ok 个，失败 $fail 个"
-if ($fail -eq 0) { Write-Host "现在去仓库 Actions 标签看构建（最后上传的是 .github/workflows/build-aar.yml，会触发首次构建）" }
+Write-Host ""
+Write-Host "Done: $ok succeeded, $fail failed"
+if ($fail -eq 0) { Write-Host "Go to the repo Actions tab to watch the build (last uploaded file is .github/workflows/android-release.yml, which triggers the first build)" }
