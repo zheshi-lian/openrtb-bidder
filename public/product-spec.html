@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>产品说明书 · AppLink</title>
+<style>
+:root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.75 system-ui,"Microsoft YaHei",sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.hero{padding:60px 0 36px;text-align:center}
+.tag{display:inline-block;font-size:12px;letter-spacing:.14em;color:var(--acc2);border:1px solid #2b3c66;background:#132043;padding:5px 14px;border-radius:99px;margin-bottom:22px}
+h1{font-size:36px;line-height:1.25;margin:0 0 16px;letter-spacing:-.02em}
+.sub{font-size:17px;color:var(--mut);max-width:760px;margin:0 auto 30px}
+section{padding:36px 0}
+h2{font-size:24px;margin:0 0 8px}
+.h2sub{color:var(--mut);margin:0 0 20px;font-size:14px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid #26355c}
+td,th{padding:10px 12px;border-bottom:1px solid #1e2b4c;font-size:13.5px;text-align:left;vertical-align:top}
+th{background:#132043;color:var(--mut);font-size:12px;letter-spacing:.05em}
+tr:last-child td{border-bottom:0}
+.ok{color:var(--ok);font-weight:700}
+.mid{color:var(--warn);font-weight:700}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.step{background:var(--card);border:1px solid #26355c;border-radius:12px;padding:16px}
+.step .n{font-size:11px;color:var(--acc2);font-weight:700;letter-spacing:.1em}
+.step h3{margin:8px 0 6px;font-size:15px}
+.step p{margin:0;color:var(--mut);font-size:13px}
+.step ul{margin:6px 0 0;padding-left:16px;color:var(--mut);font-size:13px}
+.step li{margin:2px 0}
+.pmatrix{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:14px}
+.pcell{background:var(--card);border:1px solid #26355c;border-radius:10px;padding:14px;position:relative}
+.pcell .pn{font-size:11px;color:var(--acc2);font-weight:700;letter-spacing:.08em;margin-bottom:4px}
+.pcell h4{margin:0 0 6px;font-size:14px;color:var(--fg)}
+.pcell ul{margin:0;padding-left:14px;font-size:12px;color:var(--mut)}
+.pcell li{margin:2px 0}
+.pcell a{color:var(--acc2);text-decoration:none;font-size:12px}
+.pcell .status{position:absolute;top:10px;right:10px;font-size:10px;padding:2px 7px;border-radius:99px}
+.st-live{background:#0d3321;color:var(--ok)}
+.st-partial{background:#3d2c06;color:var(--warn)}
+.small{font-size:12px;color:var(--mut)}
+.toc{background:var(--card);border:1px solid #26355c;border-radius:12px;padding:20px;margin-bottom:20px}
+.toc h3{margin:0 0 10px;font-size:14px;color:var(--acc2)}
+.toc ul{margin:0;padding-left:20px}
+.toc li{margin:4px 0}
+.toc a{color:var(--acc2);text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:768px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="hero">
+  <span class="tag">Product Specification · 产品说明书</span>
+  <h1>AppLink 产品说明书</h1>
+  <p class="sub">完整的产品架构、能力矩阵、成熟度评估与路线图。本文档面向开发者、广告主和合作伙伴，帮助你全面了解 AppLink 的定位、能力边界与当前阶段。</p>
+</div>
+<div class="wrap">
+  <div class="toc">
+    <h3>目录</h3>
+    <ul>
+      <li><a href="#matrix">产品矩阵 · 7 大模块域</a></li>
+      <li><a href="#capabilities">核心能力架构 · 6 项 CAP</a></li>
+      <li><a href="#maturity">产品成熟度 · 当前位置</a></li>
+      <li><a href="#gap">与行业标准差距矩阵</a></li>
+      <li><a href="#architecture">技术架构概览</a></li>
+    </ul>
+  </div>
+  <section id="capabilities">
+    <h2>核心能力架构 · 6 项 CAP</h2>
+    <p class="h2sub">流量侧与需求侧在交易所内实时撮合，所有结果回流到数据飞轮。以下每一项均非 PPT，可在演示中实际运行。</p>
+    <div class="steps">
+      <div class="step"><div class="n">CAP 01</div><h3>双向 OpenRTB 实时竞价 · 进程内核</h3><p>自有 DSP 进程内参拍（无自回环 HTTP）+ campaign 内存快照 &amp; 倒排索引（热路径零 DB，微秒级取候选）+ SSP 多需求方二价清算（second-price），媒体分成透明、可审计。</p></div>
+      <div class="step"><div class="n">CAP 02</div><h3>全链路归因与增量度量</h3><p>多触点归因、SKAN 视图归因，holdout / ghost ads / geo-lift 增量实验——用数据证明广告「真的有效」，而非自报转化率。</p></div>
+      <div class="step"><div class="n">CAP 03</div><h3>创意自动化工厂</h3><p>可玩广告、DCO 元素级组合、文生图 / 图生视频、多语言本地化——批量派生多形态素材，零生成成本、秒级产出。</p></div>
+      <div class="step"><div class="n">CAP 04</div><h3>ESMM 多目标预估 + 智能出价</h3><p>多特征 LR 实时打分（相关性）+ 可插拔双塔向量通道 + CTR/CVR 多任务（pCTCVR = pCTR·pCVR 规避样本选择偏差）+ pLTV 多目标 + bid shading + eCPM′ 贝叶斯冷启动。</p></div>
+      <div class="step"><div class="n">CAP 05</div><h3>增长 Agent + 数据飞轮</h3><p>读懂 Brief → 生成创意 → 真实建 campaign 参拍 → 读实测 eCPM/eCPA → 回流重训模型，闭环自进化（领先于竞品的智能体编排层）。</p></div>
+      <div class="step"><div class="n">CAP 06</div><h3>合规与品牌安全基线</h3><p>IAB/GARM 品牌安全、post-ATT 设备身份图谱、ads.txt / app-ads.txt / sellers.json 校验。</p></div>
+    </div>
+    <p class="h2sub" style="margin-top:18px">第一性原理：广告平台的本质是「撮合 + 数据飞轮」——模型越准，广告主 ROI 越高，预算越多，数据越厚，模型越准。飞轮一旦转起来，后来者很难追。这是 AppLink 把 AI 引擎当核心资产的原因。</p>
+  </section>
+
+  <section id="maturity">
+    <h2>产品成熟度 · 当前位置</h2>
+    <p class="h2sub">诚实比完美更重要。以下是 AppLink 当前所处阶段、与行业标杆的差距，以及我们的补齐计划。</p>
+    <div class="grid2" style="margin-bottom:20px">
+      <div class="step">
+        <div class="n" style="color:var(--ok)">当前阶段 · STAGE 02</div>
+        <h3 style="font-size:15px">核心竞价链路已跑通，高级能力开发中</h3>
+        <ul>
+          <li><b>✓ 已跑通</b> — 广告主开户 → 建计划 → OpenRTB 出价 → 媒体入驻 → SDK 集成 → 结算。5 分钟可跑完最短闭环。</li>
+          <li><b>✓ 已跑通</b> — 竞价模型真在跑：p_win / pctcvr / garm_tier / canonical_id 反作弊指纹，非启发式。</li>
+          <li><b>✓ 已跑通</b> — 6 种广告形态 + Prebid.js Header Bidding + eCPM' 演示，可当场验证。</li>
+          <li><b>△ 开发中</b> — AI 创意自动化、MMP 归因 UI、运营控制台、结算报表 UI、A/B 实验平台。</li>
+        </ul>
+      </div>
+      <div class="step">
+        <div class="n" style="color:var(--warn)">路线图 · ROADMAP</div>
+        <h3 style="font-size:15px">补齐高级能力，对齐行业标准</h3>
+        <ul>
+          <li><b>Q4 2026</b> — AI 创意自动化工厂（文生图/图生视频/多语言）、MMP 归因配置面板、运营控制台对外入口</li>
+          <li><b>Q1 2027</b> — LLM 进竞价热路径（智能出价）、A/B 实验平台、增量度量、CSV 导出</li>
+          <li><b>Q2 2027</b> — 原生 SDK（iOS/Android）、SSO/MFA/RBAC、审计日志、品牌安全完整 UI</li>
+          <li><b>Q3 2027</b> — 增长 Agent 编排层、数据飞轮闭环、SLA/合规认证（SOC2/ISO27001）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="gap">
+    <h2>与行业标准差距矩阵</h2>
+    <p class="h2sub">以下对比基于公开信息与行业实践，差距标注为 AppLink 与行业标杆水平的距离。</p>
+    <table>
+      <thead><tr><th>能力域</th><th>行业标杆水平</th><th>AppLink 当前</th><th>差距</th><th>补齐计划</th></tr></thead>
+      <tbody>
+        <tr><td>SSP（媒体变现）</td><td>waterfall + header bidding 混合，Bid Adapter SDK 管理</td><td>Web snippet + 二价清算</td><td class="mid">中</td><td>Q2 2027 原生 SDK</td></tr>
+        <tr><td>DSP（广告主投放）</td><td>跨平台 campaign 编辑器，SKAN 深度归因，LTV 建模</td><td>Campaign 骨架 + intent/AI 开发中</td><td class="mid">中</td><td>Q4 2026 campaign 完善</td></tr>
+        <tr><td>AI 创意工坊</td><td>可玩广告、DCO、文生图/图生视频/多语言</td><td>后端接口就绪，UI 开发中</td><td class="mid">中</td><td>Q4 2026 UI 上线</td></tr>
+        <tr><td>归因（MMP）</td><td>多触点 + SKAN + AppsFlyer/Adjust 全覆盖</td><td>S2S postback 就绪，无 MMP 端 UI</td><td class="mid">中</td><td>Q4 2026 配置面板</td></tr>
+        <tr><td>运营控制台</td><td>全托管，客户成功 + 数据团队</td><td>后端能力就绪，无公开入口</td><td class="ok">小</td><td>Q4 2026 对外入口</td></tr>
+        <tr><td>对账/结算</td><td>月度对账 PDF、发票、税务、多币种</td><td>S2S + HMAC 后端就绪，无 UI</td><td class="ok">小</td><td>Q4 2026 报表 UI</td></tr>
+        <tr><td>风控/合规</td><td>GARM 完整、Fraud Shield、SOC2/ISO27001</td><td>竞价响应带 garm_tier，无 UI/认证</td><td class="mid">中</td><td>Q2 2027 认证 + UI</td></tr>
+        <tr><td>认证/权限</td><td>SSO、MFA、RBAC、审计日志</td><td>Bearer token 单一</td><td class="mid">中</td><td>Q2 2027</td></tr>
+        <tr><td>免费工具获客</td><td>无</td><td>✓ eCPM' 打分器</td><td class="ok">领先</td><td>持续扩展</td></tr>
+        <tr><td>最低充值门槛</td><td>有最低充值</td><td>✓ 不设最低充值</td><td class="ok">领先</td><td>—</td></tr>
+        <tr><td>端到端可跑通 demo</td><td>无（需商务）</td><td>✓ 首页 30 秒看实时出价</td><td class="ok">领先</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p class="small" style="margin-top:14px">分析：AppLink 的差异化定位（无最低充值 + 效果写进 eCPM' + 端到端可跑通 demo）是真实的护城河，切中长尾广告主和长尾 App 开发者。当前短板集中在 AI 创意、归因、运营、结算四块的 UI 层——后端能力已就绪，补齐 UI 后即可承接真实客户。</p>
+  </section>
+
+  <section id="architecture">
+    <h2>技术架构概览</h2>
+    <p class="h2sub">AppLink 采用模块化微服务架构，各模块可独立部署、独立扩展。</p>
+    <table>
+      <thead><tr><th>模块</th><th>技术栈</th><th>职责</th></tr></thead>
+      <tbody>
+        <tr><td>竞价引擎</td><td>Node.js + Redis + 内存快照</td><td>OpenRTB 2.6 实时竞价，进程内核零 HTTP 开销</td></tr>
+        <tr><td>需求侧 DSP</td><td>Node.js + 多目标预估模型</td><td>CTR/CVR/pLTV 预估，eCPM' 排序，bid shading</td></tr>
+        <tr><td>供给侧 SSP</td><td>Node.js + OpenRTB 适配器</td><td>多需求方并发询价，二价清算，媒体分成</td></tr>
+        <tr><td>素材库</td><td>S3 + CDN + 元数据库</td><td>多形态素材存储，DCO 元素组合，版本管理</td></tr>
+        <tr><td>归因引擎</td><td>Node.js + 事件流</td><td>多触点归因，SKAN 视图，增量实验</td></tr>
+        <tr><td>风控系统</td><td>Redis + 设备指纹库</td><td>实时黑名单，跨设备重放拦截，GARM 分层</td></tr>
+        <tr><td>结算账本</td><td>Node.js + HMAC 签名</td><td>S2S 回执验证，双端账本，逐笔对账</td></tr>
+        <tr><td>管理后台</td><td>React + Node.js API</td><td>运营控制台，客户管理，审计日志</td></tr>
+      </tbody>
+    </table>
+    <p class="h2sub" style="margin-top:18px">关键设计决策：竞价热路径跑的是多特征 LR 实时打分（毫秒级响应），LLM 用于慢速冷启动画像，不进热路径以避免 p99 抖动。模型越准 → 广告主 ROI 越高 → 预算越多 → 数据越厚 → 模型越准，形成数据飞轮。</p>
+  </section>
+
+  <section id="matrix">
+    <h2>产品矩阵 · 按图索骥</h2>
+    <p class="h2sub">AppLink 覆盖广告交易全链路 7 大模块域。绿色 = 已跑通，可直接参与竞价与结算；黄色 = 部分就绪，后端能力已实现但 UI 尚未完全对齐。</p>
+    <div class="pmatrix">
+      <div class="pcell"><div class="pn">域 01</div><h4>广告交易引擎</h4>
+        <ul>
+          <li>多 DSP 并发询价</li>
+          <li>二价清算 / eCPM' 排序</li>
+          <li>6 种广告形态渲染</li>
+          <li>Prebid.js Header Bidding</li>
+        </ul>
+        <a href="/index.html">Prebid 演示</a> · <a href="/ecpm_demo.html">eCPM 演示</a><span class="status st-live">✓ 已跑通</span>
+      </div>
+      <div class="pcell"><div class="pn">域 02</div><h4>广告主投放</h4>
+        <ul>
+          <li>Campaign 编辑器</li>
+          <li>素材库 + 创意自动化</li>
+          <li>频控 / 时段 / 受众排除</li>
+          <li>效果报表 + 归因</li>
+        </ul>
+        <a href="/campaigns.html">广告系列</a> · <a href="/adv-media.html">素材库</a> · <a href="/analytics.html">效果看板</a><span class="status st-partial">△ 部分就绪</span>
+      </div>
+      <div class="pcell"><div class="pn">域 03</div><h4>媒体/开发者变现</h4>
+        <ul>
+          <li>入驻 + SDK 集成</li>
+          <li>应用与广告单元管理</li>
+          <li>集成自检工具</li>
+          <li>收益报表 + 结算</li>
+        </ul>
+        <a href="/publisher.html">入驻向导</a> · <a href="/ad_units.html">应用与版位</a> · <a href="/pub-account.html">结算</a><span class="status st-partial">△ 部分就绪</span>
+      </div>
+      <div class="pcell"><div class="pn">域 04</div><h4>归因 &amp; 度量</h4>
+        <ul>
+          <li>MMP 多触点归因配置</li>
+          <li>SKAN 视图归因</li>
+          <li>增量实验（holdout/lift）</li>
+          <li>归因事件回传</li>
+        </ul>
+        <a href="/adv-attribution.html">归因配置</a><span class="status st-partial">△ 开发中</span>
+      </div>
+      <div class="pcell"><div class="pn">域 05</div><h4>风控 &amp; 合规</h4>
+        <ul>
+          <li>GARM 品牌安全分层</li>
+          <li>设备指纹 + 反作弊</li>
+          <li>OMID 可见性度量</li>
+          <li>ads.txt / sellers.json</li>
+        </ul>
+        <a href="/integrity.html">品牌安全</a> · <a href="/security.html">安全设置</a><span class="status st-partial">△ 部分就绪</span>
+      </div>
+      <div class="pcell"><div class="pn">域 06</div><h4>结算 &amp; 账本</h4>
+        <ul>
+          <li>S2S HMAC 签收回执</li>
+          <li>双端账本逐笔对账</li>
+          <li>合同管理</li>
+          <li>结算报表导出</li>
+        </ul>
+        <a href="/reports.html">结算报表</a> · <a href="/contracts.html">合同管理</a><span class="status st-partial">△ 部分就绪</span>
+      </div>
+      <div class="pcell"><div class="pn">域 07</div><h4>进阶工程能力</h4>
+        <ul>
+          <li>ESMM 多目标预估</li>
+          <li>LLM 冷启动 + 智能出价</li>
+          <li>A/B 实验平台</li>
+          <li>ML 监控 + 数据飞轮</li>
+        </ul>
+        <a href="/advanced.html">进阶能力</a> · <a href="/strategy.html">策略管理</a><span class="status st-partial">△ 开发中</span>
+      </div>
+    </div>
+    <p class="small" style="margin-top:14px">状态说明：<span class="status st-live" style="position:static">✓ 已跑通</span> 核心链路可用，可直接参与竞价与结算；<span class="status st-partial" style="position:static">△ 部分就绪</span> 后端能力已实现但 UI 尚未完全对齐，或等待 LLM 热路径上线。</p>
+  </section>
+
+  <footer style="padding:32px 0 60px;color:var(--mut);font-size:13px;text-align:center">
+    <div>AppLink · 程序化广告交易平台（DSP + SSP + 实时竞价引擎）</div>
+    <div style="margin-top:8px">
+      <a href="/home.html" style="color:var(--acc2);text-decoration:none">首页</a> ·
+      <a href="/media-demo.html" style="color:var(--acc2);text-decoration:none">平台演示</a> ·
+      <a href="/docs.html" style="color:var(--acc2);text-decoration:none">接入文档</a> ·
+      <a href="/register.html" style="color:var(--acc2);text-decoration:none">自助开户</a>
+    </div>
+    <div class="small" style="margin-top:10px">报价响应、成交扣费与归因效果是不同环节；实际账务以平台服务器记录和双方对账为准。</div>
+    <div class="small" style="margin-top:6px">© 2026 AppLink · dellai.xyz · 为广告主和开发者构建可衡量的回报闭环</div>
+  </footer>
+</div>
+<script src="/nav.js"></script>
+</body>
+</html>
