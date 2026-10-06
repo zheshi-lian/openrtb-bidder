@@ -1,5 +1,8 @@
 name: Android SDK AAR
 
+# Builds the AppLink ADX Android library AAR in the cloud (no local Android SDK/Gradle needed).
+#   - normal push  -> download the AAR from the Actions "Artifacts" (applink-adsdk-aar)
+#   - push a tag v* -> a GitHub Release with the AAR is created automatically
 on:
   push:
     branches: [main, master]
@@ -21,30 +24,40 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Locate SDK directory
+        id: sdk
+        run: |
+          if [ -f sdk/android/settings.gradle ]; then echo "dir=sdk/android" >> "$GITHUB_OUTPUT"; else echo "dir=." >> "$GITHUB_OUTPUT"; fi
+          echo "SDK dir = ${{ steps.sdk.outputs.dir }}"
+
+      # The runner already has Android cmdline-tools preinstalled at /usr/local/lib/android/sdk.
+      # We do NOT use android-actions/setup-android (it tries to install the long-removed "tools"
+      # package and fails). Just export ANDROID_HOME and install the still-valid packages.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          SDK=/usr/local/lib/android/sdk
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          yes | sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.2.1'
-
-      - name: Install Android SDK packages
-        run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-
-      - name: Build release AAR
-        run: gradle --no-daemon assembleRelease
-        working-directory: sdk/android
+      # Build ONLY the library module (root project = 'applink-adsdk'); the :app demo module is
+      # skipped so we never hit its release-signing requirement. Uses the committed Gradle wrapper
+      # (pinned to the Gradle version this AGP 8.5.2 project requires).
+      - name: Build release AAR (library)
+        run: sh gradlew :assembleRelease --no-daemon
+        working-directory: ${{ steps.sdk.outputs.dir }}
 
       - name: Upload AAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: applink-adsdk-aar
-          path: sdk/android/build/outputs/aar/*-release.aar
+          path: ${{ steps.sdk.outputs.dir }}/build/outputs/aar/*-release.aar
           if-no-files-found: error
 
-      - name: Attach AAR to GitHub Release
+      - name: Attach AAR to GitHub Release (tag)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: sdk/android/build/outputs/aar/*-release.aar
+          files: ${{ steps.sdk.outputs.dir }}/build/outputs/aar/*-release.aar
