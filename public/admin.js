@@ -35,9 +35,9 @@
   function get(k) { return localStorage.getItem(k) || sessionStorage.getItem(k) || ''; }
   function setAll(k, v) { sessionStorage.setItem(k, v); localStorage.setItem(k, v); }
   function wipeAll(k) { localStorage.removeItem(k); sessionStorage.removeItem(k); }
-  // 规范会话键：linkos_admin（JSON {token,type,scope,username}）是唯一真源；
-  // 遗留 auth_token/auth_role/... 仍双写，保证过渡期旧页不崩，但读取一律优先 linkos_admin。
-  var SESSION_KEY = 'linkos_admin';
+  // 规范会话键：applink_admin（JSON {token,type,scope,username}）是唯一真源；
+  // 遗留 auth_token/auth_role/... 仍双写，保证过渡期旧页不崩，但读取一律优先 applink_admin。
+  var SESSION_KEY = 'applink_admin';
   function readSession() { try { var s = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || ''; return s ? JSON.parse(s) : null; } catch (e) { return null; } }
   function writeSession(o) { try { var j = JSON.stringify(o || {}); sessionStorage.setItem(SESSION_KEY, j); localStorage.setItem(SESSION_KEY, j); } catch (e) {} }
   function clearSession() { try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); } catch (e) {} }
@@ -91,7 +91,7 @@
   }, 0);
 
   window.Auth = {
-    // 规范读取：优先 linkos_admin；若只有遗留键则一次性迁移
+    // 规范读取：优先 applink_admin；若只有遗留键则一次性迁移
     get: function () {
       var a = readSession(); if (a && a.token) return a;
       var tk = get('auth_token');
@@ -111,7 +111,15 @@
         var h = { 'Content-Type': 'application/json' };
         var t = window.Auth.token(); if (t) h['Authorization'] = 'Bearer ' + t;
         var r = await fetch(p, { method: method || (body !== undefined ? 'POST' : 'GET'), headers: h, body: body !== undefined ? JSON.stringify(body) : undefined });
-        if (r.status === 401) { flag401(); throw new Error('401 未授权：请登录'); }
+        if (r.status === 401) {
+          flag401();
+          if (window.UI && UI.handleAuthError) UI.handleAuthError();
+          throw new Error('会话已过期，请重新登录');
+        }
+        if (r.status === 403) {
+          var d = await r.json().catch(function () { return {}; });
+          throw new Error(d.error || '权限不足（403）');
+        }
         return r;
       })();
     }
@@ -138,7 +146,16 @@
           }
         }
       } catch (e) {}
-      return _fetch(input, init);
+      var p = _fetch(input, init);
+      // ── 401 会话过期全局处理：显示顶部横幅 + 提示重新登录 ──
+      p.then(function (resp) {
+        if (resp.status === 401) {
+          flag401();
+          if (window.UI && UI.handleAuthError) UI.handleAuthError();
+        }
+        return resp;
+      }).catch(function () {}); // 不吞掉原始 promise
+      return p;
     };
   }
 })();

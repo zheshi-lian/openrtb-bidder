@@ -82,6 +82,17 @@ async function ledgerAll() {
   return out;
 }
 
+// ===== 设备级风控（镜像 ADX fpRisk）：单设备窗口内领奖超阈值 → 设备农场嫌疑 =====
+const fpGrants = new Map();
+function fpRisk(fp) {
+  if (!fp) return { ok: true, count: 0 };
+  const t = Date.now();
+  const a = (fpGrants.get(fp) || []).filter(x => t - x < 10 * 60 * 1000);
+  a.push(t); fpGrants.set(fp, a);
+  if (a.length > 30) return { ok: false, reason: 'DEVICE_FP_RATE_LIMIT', count: a.length };
+  return { ok: true, count: a.length };
+}
+
 function hmac(impid, cid, watchedMs, durationMs, ts) {
   return crypto.createHmac('sha256', API_KEY)
     .update(`${impid}|${cid || 0}|${watchedMs}|${durationMs}|${ts}`).digest('hex');
@@ -154,6 +165,33 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, reward: '复活道具×1', balance, adx: r.json });
     }
     return json(res, 200, { ok: false, reason: (r.json && r.json.why) || 'ADX_DENIED', adx: r.json });
+  }
+
+  // 活动领奖 S2S 二次防刷（镜像广告 /s2s/reward）：媒体服务端持密钥回 ADX 完成发放
+  if (req.method === 'POST' && /^\/api\/activity\/\d+\/s2s\/confirm$/.test(req.url)) {
+    const mm = req.url.match(/^\/api\/activity\/(\d+)\/s2s\/confirm$/);
+    const actId = Number(mm[1]);
+    const b = await readBody(req);
+    const { receipt_id, receipt, device_fp, watchedMs, durationMs, ts } = b;
+    if (!API_KEY) { await fetchApiKey(); }
+    // 设备级风控：设备农场 / 跨设备重放嫌疑直接拒（二次防刷第一道）
+    const fpr = fpRisk(device_fp);
+    if (!fpr.ok) return json(res, 429, { ok: false, why: fpr.reason, deviceFpCount: fpr.count });
+    // 完播比 + 时间戳新鲜度（防止伪造完播）
+    const dur = Number(durationMs) || 0, watched = Number(watchedMs) || 0;
+    if (dur > 0) { const ratio = watched / dur; if (ratio < 0.95) return json(res, 400, { ok: false, why: 'INCOMPLETE_WATCH' }); }
+    if (ts && Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1000) return json(res, 403, { ok: false, why: 'TIMESTAMP_EXPIRED' });
+    // 幂等：同一回执只向 ADX 回执一次
+    const key = 'act_' + receipt_id;
+    if (await alreadySettled(key)) return json(res, 200, { ok: true, granted: true, dup: true });
+    // 持媒体密钥回 ADX 完成发放（ADX /s2s/settle 仅信任媒体服务端 media_token=ACCOUNT_SECRET）
+    const MEDIA_SECRET = process.env.ACCOUNT_SECRET || '';
+    const r = await fetch(ADX + '/api/activity/' + actId + '/s2s/settle', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receipt_id, receipt, device_fp, media_token: MEDIA_SECRET }),
+    }).then(x => x.json()).catch(e => ({ ok: false, why: 'ADX_UNREACHABLE', error: e.message }));
+    if (r && r.ok && r.granted) await credit(key, key);
+    return json(res, r && r.ok ? 200 : 502, r);
   }
 
   // 查看奖励账本

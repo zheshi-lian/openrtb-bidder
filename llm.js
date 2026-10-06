@@ -22,6 +22,8 @@ const PROVIDERS = {
   openai:    { baseURL: 'https://api.openai.com/v1', model: 'gpt-4o-mini', keyEnv: 'OPENAI_API_KEY' },
   deepseek:  { baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-chat', keyEnv: 'DEEPSEEK_API_KEY' },
   sensenova: { baseURL: 'https://token.sensenova.cn/v1', model: 'sensenova-6.8-flash-lite', keyEnv: 'SENSENOVA_API_KEY' },
+  // 自定义 OpenAI 兼容端点（任意 /v1/chat/completions 实现，如第三方代理/私有化部署）
+  custom:    { baseURL: (process.env.LLM_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''), model: process.env.LLM_MODEL || 'gpt-4o-mini', keyEnv: 'LLM_API_KEY' },
 };
 
 // 主供应商：LLM_PROVIDER 指定；未指定则用 dashscope(通义千问/Qwen)
@@ -41,6 +43,16 @@ const ENABLED = PROVIDER_LIST.length > 0;                  // 是否至少配置
 const LIVE_MATCH = ENABLED && process.env.LLM_LIVE_MATCH === '1'; // 竞价热路径是否用 LLM 评分（默认关，仅创建/演示时用 LLM，更稳更省）
 const MODEL = process.env.LLM_MODEL || PRIMARY.model;
 const PROVIDER = PRIMARY;
+// 可选代理（绕过 Cloudflare 等 WAF 拦截）：LLM_PROXY 或 HTTPS_PROXY。无 undici 依赖时降级为直连。
+let _dispatcher = null;
+(function setupProxy() {
+  const proxy = process.env.LLM_PROXY || process.env.HTTPS_PROXY || process.env.https_proxy || '';
+  if (!proxy) return;
+  try {
+    const undici = require('undici');
+    if (undici && undici.ProxyAgent) { _dispatcher = new undici.ProxyAgent(proxy); console.warn('[llm] 已启用代理访问:', proxy); }
+  } catch (e) { console.warn('[llm] 未安装 undici，无法走代理（请 npm i undici，或改用可达端点）:', e.message); }
+})();
 
 // 每个供应商独立熔断器：连续 3 次失败熔断 60s，避免单供应商抖动拖垮竞价
 const providerState = {};
@@ -68,11 +80,14 @@ async function chat(system, user, jsonMode = true) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env[p.keyEnv]}` },
         body: JSON.stringify(body),
         signal: ctrl.signal,
+        ...(_dispatcher ? { dispatcher: _dispatcher } : {}),
       });
       if (!r.ok) { st.failures++; if (st.failures >= 3) st.brokenUntil = Date.now() + 60000; lastErr = `LLM ${r.status} (${p.keyEnv})`; continue; }
       st.failures = 0;
       const j = await r.json();
       const content = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+      // 非 JSON（如 Cloudflare 拦截页/HTML 错误页）说明端点不可用：计入熔断，避免反复空耗竞价延迟
+      if (jsonMode && /^\s*<(!doctype|html)/i.test(content)) { st.failures++; if (st.failures >= 3) st.brokenUntil = Date.now() + 60000; lastErr = 'LLM 返回非 JSON(疑似被拦截)'; continue; }
       return jsonMode ? parseJsonRobust(content) : content;
     } catch (e) {
       st.failures++; if (st.failures >= 3) st.brokenUntil = Date.now() + 60000; lastErr = e.message + ` (${p.keyEnv})`; continue;
@@ -101,6 +116,7 @@ async function embed(text) {
       const r = await fetch(`${p.baseURL}/embeddings`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env[p.keyEnv]}` },
         body: JSON.stringify({ model, input: String(text).slice(0, 4000) }), signal: ctrl.signal,
+        ...(_dispatcher ? { dispatcher: _dispatcher } : {}),
       });
       if (!r.ok) { st.failures++; if (st.failures >= 3) st.brokenUntil = Date.now() + 60000; continue; }
       st.failures = 0;
@@ -203,4 +219,47 @@ async function scoreRelevance(profile, ctx) {
   return heuristicRelevance(profile.tags, ctx);
 }
 
-module.exports = { ENABLED, LIVE_MATCH, PROVIDER, MODEL, extractDemandIntent, extractSupplyTags, scoreRelevance, heuristicRelevance, chat, embed, cosine };
+// ===== 出口 IP 探测（供 Cloudflare 等 WAF 加白名单；best-effort，不阻塞启动）=====
+let egressIp = '';
+async function detectEgressIp() {
+  for (const url of ['https://api.ipify.org', 'https://ifconfig.me/ip', 'https://icanhazip.com']) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (r.ok) {
+        const t = (await r.text()).trim();
+        const m = t.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[0-9a-fA-F:]+:[0-9a-fA-F:]+)/);
+        if (m) { egressIp = m[1]; break; }
+      }
+    } catch (e) {}
+  }
+  if (egressIp) console.warn('[llm] 服务出口 IP = ' + egressIp + '（若 LLM 端点被 Cloudflare 拦截，请将其加入该端点 Cloudflare 白名单，或设置 LLM_PROXY / 切换 LLM_BASE_URL）');
+  return egressIp;
+}
+
+// ===== 周期探活：端点恢复（被放白/换端点/走代理）时自动解除熔断，无需等 3 次竞价失败 =====
+let lastProbe = { at: 0, ok: null, err: '' };
+async function probeOnce() {
+  const st = pstate(PRIMARY.keyEnv);
+  st.brokenUntil = 0; st.failures = 0;   // 探活绕过熔断，真实探测端点是否恢复
+  try {
+    const r = await chat('只回复 ok', 'ok', false);
+    if (r) { lastProbe = { at: Date.now(), ok: true, err: '' }; console.warn('[llm] 端点探活成功 → 已恢复热路径真实评分'); return lastProbe; }
+    lastProbe = { at: Date.now(), ok: false, err: 'empty' };
+  } catch (e) { lastProbe = { at: Date.now(), ok: false, err: e.message }; }
+  st.failures = 3; st.brokenUntil = Date.now() + 60000;   // 失败则保持熔断，热路径立即回落启发式
+  console.warn('[llm] 端点探活失败（保持熔断/启发式降级）: ' + lastProbe.err);
+  return lastProbe;
+}
+function startProbe(intervalMs = 30000) {
+  detectEgressIp();
+  probeOnce();
+  setInterval(probeOnce, intervalMs);
+}
+function status() {
+  const breakerBroken = Object.values(providerState).some(s => Date.now() < s.brokenUntil);
+  const probeBroken = lastProbe.at && lastProbe.ok === false;
+  return { enabled: ENABLED, liveMatch: LIVE_MATCH, provider: PRIMARY.keyEnv, model: MODEL, baseURL: PRIMARY.baseURL,
+    broken: breakerBroken || !!probeBroken, healthy: !!(lastProbe.at && lastProbe.ok === true), egressIp, lastProbe };
+}
+
+module.exports = { ENABLED, LIVE_MATCH, PROVIDER, MODEL, extractDemandIntent, extractSupplyTags, scoreRelevance, heuristicRelevance, chat, embed, cosine, startProbe, status };

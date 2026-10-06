@@ -34,6 +34,11 @@
   <div class="sub" id="live">—</div>
 </header>
 
+<div id="recon-alert" style="display:none;margin:12px 22px 0;background:#7f1d1d;border:1px solid #b91c1c;color:#fee2e2;border-radius:10px;padding:10px 14px;font-size:13px">
+  ⚠ 对账告警：<b id="recon-cnt">0</b> 条广告计划账实不符，金额差异 <b id="recon-diff">0</b> 元（另有 <b id="recon-orphan">0</b> 条无胜出记录的扣费）
+  → <a href="/reports.html" style="color:#fecaca;text-decoration:underline">查看对账详情</a>
+</div>
+
 <div class="kpis" id="kpis"></div>
 
 <div class="box">
@@ -60,14 +65,13 @@
       <option value="publisher">媒体</option>
       <option value="admin">子管理员</option>
     </select>
-    <input id="accUser" placeholder="用户名" style="width:140px">
+    <input id="accUser" placeholder="登录账号(广告主/媒体填邮箱)" style="width:170px">
     <input id="accPass" placeholder="密码(≥6位)" style="width:140px">
-    <input id="accScope" placeholder="作用域(广告主名/域名)" style="width:200px">
-    <input id="accDisp" placeholder="显示名(可选)" style="width:140px">
+    <input id="accScope" placeholder="作用域：广告主填名称/媒体填域名" style="width:210px">
     <button onclick="registerAccount()">开通账号</button>
   </div>
-  <p class="muted" style="font-size:12px">广告主 scope=广告主名称（与建计划时填的 advertiser 一致）；媒体 scope=媒体域名（与入驻 domain 一致）；管理员 scope=*。账号密码用于对应角色后台登录，互不通用。</p>
-  <table id="accTable"><thead><tr><th>ID</th><th>角色</th><th>用户名</th><th>作用域</th><th>显示名</th><th>状态</th><th>创建者</th></tr></thead><tbody></tbody></table>
+  <p class="muted" style="font-size:12px"><b>标识规范</b>：登录账号＝<b>邮箱</b>（广告主/媒体必填，唯一便于找回）；作用域＝业务口径（媒体是<b>域名</b>、广告主是<b>名称</b>，<b>不是登录名</b>）；<b>唯一码</b>（ADV-/PUB-/ADM- 自动生成、不可变）用于后台识别、API 对接与对账。登录可用邮箱或唯一码。忘记密码→用「重置密码」直接设新密码；完整管理见 <a href="/account.html" style="color:#7fd1ff">账号与权限页</a>。</p>
+  <table id="accTable"><thead><tr><th>ID</th><th>唯一码</th><th>角色</th><th>登录账号</th><th>作用域</th><th>显示名</th><th>状态</th><th>创建者</th><th>操作</th></tr></thead><tbody></tbody></table>
 </div>
 
 <script src="/admin.js"></script>
@@ -127,30 +131,81 @@ var BASE = location.origin;
     var username = document.getElementById('accUser').value.trim();
     var password = document.getElementById('accPass').value;
     var scope = document.getElementById('accScope').value.trim();
-    var display = document.getElementById('accDisp').value.trim();
-    if (!username || !password) return alert('用户名和密码必填');
+    if (!username || !password) return alert('登录账号和密码必填（广告主/媒体登录账号用邮箱或手机号）');
     fetch(BASE + '/api/account/register', {
-      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: type, username: username, password: password, scope: scope, display: display })
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: type, username: username, password: password, scope: scope })
     }).then(r => r.json()).then(function (d) {
-      if (d.ok) { alert('已开通：' + username + '（' + type + ' / ' + (scope || '*') + '）'); loadAccounts(); }
+      if (d.ok) { alert('已开通：' + username + '（' + type + '）\n唯一码：' + (d.account_code || '-') + '\n作用域：' + (scope || '*') + '\n请记录唯一码，用于 API 对接与对账'); loadAccounts(); }
       else alert('开通失败：' + (d.error || 'unknown'));
     }).catch(function (e) { alert('请求失败：' + e.message); });
   }
+  function accCall(url, opt){
+    return fetch(url, Object.assign({ credentials:'include', headers:{'Content-Type':'application/json'} }, opt||{}))
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return { ok:r.ok, d:d }; }); });
+  }
   function loadAccounts() {
-    fetch(BASE + '/api/accounts').then(r => r.json()).then(function (list) {
-      var tb = document.querySelector('#accTable tbody');
-      tb.innerHTML = (list || []).map(function (a) {
-        return '<tr><td>' + a.id + '</td><td>' + a.type + '</td><td>' + a.username + '</td><td>' + (a.scope || '*') +
-          '</td><td>' + (a.display || '-') + '</td><td><span class="tag' + (a.status == 1 ? '' : ' off') + '">' + (a.status == 1 ? '启用' : '停用') + '</span></td><td>' + (a.created_by || '-') + '</td></tr>';
+    var tb = document.querySelector('#accTable tbody');
+    accCall(BASE + '/api/accounts').then(function (res) {
+      var list = res.d;
+      if (!res.ok || (list && list.error)) {
+        tb.innerHTML = '<tr><td colspan="8">' + ((list && list.error) || ('HTTP ' + res.d)) +
+          ' — 请用「平台运营」管理员身份登录；完整管理见 <a href="/account.html" style="color:#7fd1ff">账号与权限页</a></td></tr>';
+        return;
+      }
+      tb.innerHTML = (Array.isArray(list) ? list : []).map(function (a) {
+        var on = Number(a.status) === 1;
+        return '<tr><td>' + a.id + '</td><td>' + (a.account_code || '-') + '</td><td>' + a.type + '</td><td>' + a.username + '</td><td>' + (a.scope || '*') +
+          '</td><td>' + (a.display || '-') + '</td><td><span class="tag' + (on ? '' : ' off') + '">' + (on ? '启用' : '停用') + '</span></td><td>' + (a.created_by || '-') + '</td>' +
+          '<td><button onclick="accStatus(' + a.id + ',' + (on ? 0 : 1) + ')">' + (on ? '停用' : '启用') + '</button> ' +
+          '<button onclick="accResetPwd(' + a.id + ')">重置密码</button> ' +
+          '<button onclick="accDel(' + a.id + ')">删除</button></td></tr>';
       }).join('');
-    }).catch(function () {});
+    }).catch(function (e) { tb.innerHTML = '<tr><td colspan="8">加载失败：' + e.message + '</td></tr>'; });
+  }
+  function accStatus(id, st){
+    if (st === 0 && !confirm('停用后该账号立即失去访问能力。确认停用？')) return;
+    accCall(BASE + '/api/accounts/' + id, { method:'PUT', body: JSON.stringify({ status: st }) })
+      .then(function(x){ if (x.ok) { loadAccounts(); } else alert('操作失败：' + (x.d.error || '')); });
+  }
+  function accResetPwd(id){
+    var p = prompt('为账号 #' + id + ' 设置新密码（≥6 位）：');
+    if (p === null) return; if (!p || p.length < 6) { alert('密码至少 6 位'); return; }
+    accCall(BASE + '/api/accounts/' + id + '/password', { method:'POST', body: JSON.stringify({ password: p }) })
+      .then(function(x){ if (x.ok) alert('已重置账号 #' + id + ' 的密码 ✓'); else alert('重置失败：' + (x.d.error || '')); });
+  }
+  function accDel(id){
+    if (!confirm('确认删除账号 #' + id + '？不可恢复。')) return;
+    accCall(BASE + '/api/accounts/' + id, { method:'DELETE' })
+      .then(function(x){ if (x.ok) { loadAccounts(); } else alert('删除失败：' + (x.d.error || '')); });
+  }
+
+  // Fix-03：把对账告警显式暴露给运营。
+  // 此前 /api/reports/reconciliation 已经在返回 AMOUNT_MISMATCH（差 ¥1900），但后台页面上没有任何提示 ——
+  // "平台自己知道账本不一致，运营却看不见"（走查报告 N-P0-5）。
+  function loadReconAlert() {
+    fetch(BASE + '/api/reports/reconciliation', { credentials: 'include' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var box = document.getElementById('recon-alert');
+        if (!box || !d) return;
+        var s = d.summary || {};
+        var bad = (s.amount_mismatch || 0) + (s.orphan_ledger || 0);
+        if (!bad) { box.style.display = 'none'; return; }
+        document.getElementById('recon-cnt').textContent = bad;
+        document.getElementById('recon-diff').textContent = (s.diff_cny || 0).toFixed(2);
+        document.getElementById('recon-orphan').textContent = s.orphan_ledger || 0;
+        box.style.display = 'block';
+      })
+      .catch(function () {});
   }
 
   load();
   loadAccounts();
+  loadReconAlert();
   setInterval(load, 5000);
+  setInterval(loadReconAlert, 60000);
 </script>
-<script src="/console_nav.js"></script>
+
 <script src="/console_top.js"></script>
 
 

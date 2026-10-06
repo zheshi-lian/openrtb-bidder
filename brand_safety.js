@@ -204,33 +204,62 @@ async function report(limit = 100) {
 }
 
 // ───────── 第三方验证（OMID AdVerifications）─────────
-// 真实接入需要各厂商分配的 vendor key 与脚本地址；这里做配置化注入，
-// 与 VAST 4.0 的 <AdVerifications> 结构一致，接上即可生效。
+// 三阶段接入：
+//   短期：OMID_JS 环境变量 → 自有验证脚本（public/omid_verify.js）
+//   中期：IAS/DV/MOAT API Key → .env 配置对应 URL
+//   长期：VAST 4.0 完整 AdVerifications 规范，多厂商并行验证
 const VENDOR_PRESETS = {
-  ias: { name: 'ias', vendor: 'ias', url: process.env.IAS_VERIFICATION_URL || '', params: ['campaign_id', 'pub'] },
-  doubleverify: { name: 'doubleverify', vendor: 'doubleverify', url: process.env.DV_VERIFICATION_URL || '', params: ['campaign_id'] },
-  moat: { name: 'moat', vendor: 'moat', url: process.env.MOAT_VERIFICATION_URL || '', params: ['campaign_id'] },
-  omid: { name: 'omid', vendor: 'zhuque-omid', url: process.env.OMID_JS || '', params: [] },
+  ias: { name: 'ias', vendor: 'ias', url: process.env.IAS_VERIFICATION_URL || '', params: ['campaign_id', 'pub'], trackingEvents: ['imp', 'clk', 'end', 'error'] },
+  doubleverify: { name: 'doubleverify', vendor: 'doubleverify', url: process.env.DV_VERIFICATION_URL || '', params: ['campaign_id'], trackingEvents: ['imp', 'clk', 'end'] },
+  moat: { name: 'moat', vendor: 'moat', url: process.env.MOAT_VERIFICATION_URL || '', params: ['campaign_id'], trackingEvents: ['imp', 'clk', 'end'] },
+  omid: { name: 'omid', vendor: 'dellai-omid', url: process.env.OMID_JS || '', params: [], trackingEvents: ['imp', 'visibility', 'end'] },
 };
 function verificationScripts(p = DEFAULT_POLICY, impid = '') {
   const list = (p.vendors || []).map(v => VENDOR_PRESETS[String(v).toLowerCase()]).filter(Boolean).filter(v => v.url);
   if (!list.length && VENDOR_PRESETS.omid.url) return [VENDOR_PRESETS.omid];
   return list.map(v => ({ ...v, url: v.url.replace('{{impid}}', encodeURIComponent(impid)) }));
 }
-// VAST 注入：在 </InLine> 前插入 <AdVerifications>
-function injectVerifications(vastXml, scripts = []) {
+// VAST 4.0 注入：在 </InLine> 前插入 <AdVerifications>
+// 支持多厂商并行验证 + 完整 Tracking 事件
+function injectVerifications(vastXml, scripts = [], context = {}) {
   if (!vastXml || !scripts.length || String(vastXml).indexOf('<AdVerifications>') !== -1) return vastXml;
-  const nodes = scripts.map(s => [
-    '<Verification vendor="' + s.vendor + '">',
-    '<JavaScriptResource apiFramework="omid" browserOptional="true"><![CDATA[' + s.url + ']]></JavaScriptResource>',
-    '<Tracking event="verificationNotExecuted"><![CDATA[' + s.url + '&verified=0]]></Tracking>',
-    '</Verification>',
-  ].join('')).join('');
+  const campaignId = context.campaign_id || context.cid || '';
+  const publisher = context.publisher || context.pub || '';
+  const nodes = scripts.map(s => {
+    const url = s.url.replace(/\{\{impid\}\}/g, encodeURIComponent(context.impid || ''))
+                     .replace(/\{\{campaign_id\}\}/g, encodeURIComponent(campaignId))
+                     .replace(/\{\{pub\}\}/g, encodeURIComponent(publisher));
+    const events = (s.trackingEvents || ['imp', 'end']).map(ev =>
+      '<Tracking event="' + ev + '"><![CDATA[' + url + '&ev=' + ev + ']]></Tracking>'
+    ).join('');
+    return [
+      '<Verification vendor="' + s.vendor + '">',
+      '<JavaScriptResource apiFramework="omid" browserOptional="true"><![CDATA[' + url + ']]></JavaScriptResource>',
+      events,
+      '<Tracking event="verificationNotExecuted"><![CDATA[' + url + '&verified=0]]></Tracking>',
+      '</Verification>',
+    ].join('');
+  }).join('');
   return String(vastXml).replace('</InLine>', '<AdVerifications>' + nodes + '</AdVerifications></InLine>');
+}
+// 验证就绪状态报告（供 /api/console/overview 等查询）
+function verificationStatus() {
+  const omid = VENDOR_PRESETS.omid;
+  const ias = VENDOR_PRESETS.ias;
+  const dv = VENDOR_PRESETS.doubleverify;
+  const moat = VENDOR_PRESETS.moat;
+  return {
+    omid: { configured: !!omid.url, url: omid.url || '(not set)' },
+    ias: { configured: !!ias.url, url: ias.url || '(not set)' },
+    doubleverify: { configured: !!dv.url, url: dv.url || '(not set)' },
+    moat: { configured: !!moat.url, url: moat.url || '(not set)' },
+    ready: omid.url || ias.url || dv.url || moat.url,
+    tier: ias.url || dv.url || moat.url ? 'full' : (omid.url ? 'basic' : 'none'),
+  };
 }
 
 module.exports = {
   attachPool, initTables, policy, savePolicy, bust, classify, preBid, logEvent, report,
-  verificationScripts, injectVerifications,
+  verificationScripts, injectVerifications, verificationStatus,
   IAB_TAXONOMY, GARM_FLOOR, GARM_TIER, VENDOR_PRESETS, DEFAULT_POLICY,
 };

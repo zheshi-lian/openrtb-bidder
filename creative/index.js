@@ -20,9 +20,14 @@ async function generate(spec = {}) {
     try { const g = await genClient.generateImage(spec.genPrompt, { size: spec.size }); if (g.ok) images = [g.url]; out.generated = g; }
     catch (e) { out.genError = String(e.message || e); }
   }
+  // 可玩广告：有图用图，无图用文案兜底 —— 始终产出可入库 HTML，避免"空壳"
   if ((spec.formats || ['playable']).includes('playable') || !spec.formats) {
-    out.playable = playable.fromAssets({ images, title: spec.title, subtitle: spec.subtitle, ctaText: spec.ctaText, landingUrl: spec.landingUrl, trackBase: spec.trackBase });
-    out.playable_bytes = playable.estimateBytes({ iconUrl: images[0] || '', landingUrl: spec.landingUrl || '#' });
+    const play = images.length
+      ? playable.fromAssets({ images, title: spec.title, subtitle: spec.subtitle, ctaText: spec.ctaText, landingUrl: spec.landingUrl, trackBase: spec.trackBase })
+      : { html: textPlayable(spec), bytes: Buffer.byteLength(textPlayable(spec)) };
+    out.playable = play;
+    out.playable_bytes = (play && (play.bytes || (play.html ? Buffer.byteLength(play.html) : 0))) || 0;
+    out.html = (play && play.html) || null;
   }
   if (images.length && (spec.formats || ['video']).includes('video')) {
     const sb = videogen.storyboard(images, { sceneMs: spec.sceneMs || 3000, width: spec.width || 720, height: spec.height || 1280, endText: spec.title || '', copy: spec.sceneCopy || [], musicUrl: spec.musicUrl || '' });
@@ -32,9 +37,24 @@ async function generate(spec = {}) {
   }
   if (spec.locales && spec.locales.length) {
     out.localized = {};
-    spec.locales.forEach(l => { out.localized[i18n.normalize(l)] = i18n.localize(spec.copy || { title: spec.title, subtitle: spec.subtitle, cta: spec.ctaText }, l); });
+    const baseCopy = spec.copy || { title: spec.title, subtitle: spec.subtitle, cta: spec.ctaText };
+    spec.locales.forEach(l => { out.localized[i18n.normalize(l)] = i18n.localize(baseCopy, l); });
   }
   return out;
+}
+
+// 无素材时的兜底可玩 HTML：用文案直接产出可入库、可预览的互动落地页（不依赖真实文生图模型）
+function textPlayable(spec) {
+  const t = (spec && spec.title) || '示例互动创意';
+  const s = (spec && spec.subtitle) || '';
+  const c = (spec && spec.ctaText) || '立即体验';
+  const u = (spec && spec.landingUrl) || '#';
+  return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + t + '</title></head>' +
+    '<body style="margin:0;font-family:system-ui;background:linear-gradient(135deg,#1e3a8a,#0ea5e9);color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px">' +
+    '<div style="font-size:22px;font-weight:700">' + t + '</div>' +
+    (s ? '<div style="opacity:.9;margin-top:8px">' + s + '</div>' : '') +
+    '<a href="' + u + '" style="margin-top:20px;display:inline-block;padding:12px 28px;background:#fff;color:#1e3a8a;border-radius:10px;font-weight:700;text-decoration:none">' + c + '</a>' +
+    '</body></html>';
 }
 
 function snapshot() {

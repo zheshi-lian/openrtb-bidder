@@ -10,3 +10,8 @@ backups/
 logs/
 deploy/redis/
 deploy/redis.zip
+# SDK 参考服务端本地联调产物（SQLite 落库文件，勿入库）
+sdk/android/server/*.db
+sdk/android/server/*.db-journal
+# 预编译 AAR 不入库：由 CI（android-release.yml）云端从源码构建，保证与源码一致
+*.aar

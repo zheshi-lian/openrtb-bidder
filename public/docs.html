@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OpenRTB 接入文档 · LinkOS</title>
+<title>OpenRTB 接入文档 · AppLink</title>
 <style>
   :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee}
   *{box-sizing:border-box}
@@ -36,6 +36,7 @@
     <a href="#settle">④ 结算与对账</a>
     <a href="#trust">⑤ 信任层 ads.txt</a>
     <a href="#ecpm">⑥ eCPM' 公式</a>
+    <a href="#enum">⑦ 品类枚举与归因对接</a>
   </div>
 
   <h2 id="media">① 开发者 · 变现（SSP）</h2>
@@ -56,24 +57,22 @@
 
   <h2 id="prebid">③ Prebid.js 接入（前端竞价）</h2>
   <p>端到端示例见 <a href="/index.html">Prebid 演示页</a>。最小可用配置：</p>
-<pre>pbjs.addBidder('linkos', {
+<pre>pbjs.addBidder('applink', {
   params: { url: 'https://dellai.xyz/openrtb2/bid', imp: { banner: { w: 300, h: 250 }, floor: 1.0 } }
 });
 // 服务端按 OpenRTB 2.6 返回 seatbid；Prebid 渲染胜出广告并回调 onBidWon
-// 赢价后调用 /notify 回收预算；设备指纹 device.fp 用于跨 App 归因与风控</pre>
+// 设备指纹 device.fp 用于跨 App 归因与风控；浏览器示例仅做展示，不触发真实扣费</pre>
 
   <h2 id="settle">④ 结算与对账</h2>
-<p>预算扣减由 S2S 回调完成。媒体 SDK 每次曝光/点击自动带 <code>api_key + HMAC</code> 签名的 <code>/s2s/reward</code>；Prebid/直连路径可手工调 <code>/notify</code>。去重身份 = <code>(impid, reqid)</code>，同请求重放不重复扣费。</p>
-<pre>curl -s https://dellai.xyz/notify -X POST -H "Content-Type: application/json" \
-  -d '{"cid":1,"crid":1,"impid":"i1","reqid":"r1","price":4000000,"win":true}'
-# → {"ok":true,"counted":true,"charged":4000000,"insufficient":false}</pre>
+<p>账户余额由管理员在核实到账后入账。广告主扣账仅接受平台服务器生成的 HMAC 签名成交回调；成交回调端点为 <code>/notify</code>（等价别名 <code>/api/notify</code>，两者同一套 HMAC 校验与去重逻辑），不接受浏览器或客户手工请求，签名不符返回 <code>401 invalid_notify_signature</code>；余额与计划预算须同时足额才扣账。去重身份 = <code>(impid, reqid)</code>，重复回调返回 <code>{"ok":true,"dup":true}</code> 不二次扣费。</p>
+<p class="note">当前公开 Prebid 页面只验证报价与渲染，不做真实扣费。小规模托管试投请使用已审核计划，通过平台 SSP 服务端竞价路径结算；外部 DSP/浏览器直连的真实扣账暂不开放。</p>
 <table>
-  <thead><tr><th>报表</th><th>用途</th></tr></thead>
+  <thead><tr><th>报表</th><th>用途</th><th>鉴权</th></tr></thead>
   <tbody>
-    <tr><td><code>/api/reports/publisher</code></td><td>媒体收益（清盘价、分成、应结）</td></tr>
-    <tr><td><code>/api/report/advertiser</code></td><td>广告主聚合（曝光/花费/GMV）</td></tr>
-    <tr><td><code>/api/reports/settlement</code></td><td>平台毛利（Σ清盘价 − Σ分成）</td></tr>
-    <tr><td><code>/api/reports/reconciliation</code></td><td>双端对账差异</td></tr>
+    <tr><td><code>/api/reports/publisher</code></td><td>媒体收益（清盘价、分成、应结、广告单元拆解）</td><td>媒体账号令牌 · <code>X-Api-Key</code> · 管理员令牌（管理员须带 <code>domain</code> 或 <code>api_key</code> 参数）</td></tr>
+    <tr><td><code>/api/report/advertiser</code></td><td>广告主聚合（曝光/花费/GMV）</td><td>管理员</td></tr>
+    <tr><td><code>/api/reports/settlement</code></td><td>平台毛利（Σ清盘价 − Σ分成）</td><td>管理员（需 <code>reports:settlement</code>）</td></tr>
+    <tr><td><code>/api/reports/reconciliation</code></td><td>双端对账差异（区分 AMOUNT_MISMATCH 与 ORPHAN_LEDGER）</td><td>管理员（需 <code>reconciliation:read</code>）</td></tr>
     <tr><td><code>/api/demo/report</code></td><td>免登录只读快照（演示页用）</td></tr>
   </tbody>
 </table>
@@ -90,8 +89,30 @@ CPC：unified = bid × CTR
 CPA：unified = bid × CTR × 商机率
 ecpmPrime = pEffect × ltvFactor × unified × svcFactor</pre>
   <p>免费试算：<a href="/tool/ecpm-score.html">eCPM' 打分器</a>。同一引擎跑在生产 <code>/openrtb2/bid</code> 里。</p>
+  </div>
+
+  <h2 id="quickstart">⑦ 最小可跑通样例（粘贴即填充）</h2>
+  <p>从「粘贴代码」到「看到填充」的端到端可复制步骤。假设你的媒体域名是 <code>mygame.example.com</code>，已在 <a href="/register.html#publisher">自助开户</a> 拿到 <code>api_key</code> 并创建了广告单元 <code>au_demo_001</code>。</p>
+  <ol style="font-size:14px;line-height:1.9">
+    <li>在页面放一个广告位容器，并引入 SDK（SDK 会自动向 <code>/openrtb2/bid</code> 竞价、渲染胜出广告、上报曝光/点击）：</li>
+  </ol>
+<pre>&lt;div class="ad-slot" data-ad-unit="au_demo_001" data-format="rewarded" data-floor="1.0"&gt;&lt;/div&gt;
+&lt;script src="https://dellai.xyz/pub_sdk.js"&gt;&lt;/script&gt;</pre>
+  <ol start="2" style="font-size:14px;line-height:1.9">
+    <li>打开 <a href="/integrity.html">集成自检</a> 点「运行自检」即可看到「收到请求 / 有胜出」；点「加载一支测试广告」还能主动触发填充。</li>
+    <li>想立刻看效果，去 <a href="/index.html">Prebid 演示页</a> 点「重新竞价」——有需求返回真实广告，无需求返回保底测试广告。</li>
+  </ol>
+  <p class="note">进阶：原生 App 见 <a href="/sdk-guide.html">原生 SDK 接入（iOS / Android）</a>；密钥/收款/结算见 <a href="/pub-account.html">账户与结算</a>。</p>
+
+  <h2 id="enum">⑦ 品类枚举与归因对接</h2>
+  <p>竞价侧按计划的 <code>app_category</code> 与竞价请求的 <code>imp.ext.cat</code> 做<strong>精确等同匹配</strong>：二者不一致的计划不会参拍（<code>nbr=2</code>）。请保证二者在同一枚举内取值。</p>
+  <pre>计划品类（建计划表单 / 账户品类）枚举：
+  tools（工具）· puzzle（益智）· casual（休闲）· game（游戏）· social（社交）· ecommerce（电商）· finance（金融）
+演示竞价请求（media-demo.html / index.html）统一使用 cat=game；
+因此新建计划保持默认 game 即可直连命中，也可改用上述任一值并让媒体侧 cat 与之相同。</pre>
+  <p><b>第三方归因（MMP）</b>：平台已内置 AppsFlyer / Adjust / Singular / Kochava / Tenjin / Branch 对接。广告主可在后台「<a href="/adv-attribution.html">归因/追踪</a>」页配置回传地址（postback_url）与归因窗口/去重规则，并获取点击/曝光监测链接模板与 macro（<code>{impid} {clickid} {cid} {publisher}</code>）。S2S 转化回传入账端点：<code>POST/GET /api/track/mmp-postback?impid={impid}</code>。</p>
 </div>
-<script src="/console_nav.js"></script>
+
 <script src="/nav.js"></script>
 </body>
 </html>

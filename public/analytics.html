@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>报表 Analytics · 广告主投放</title>
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--line:#26355c;--accent:#3b82f6;--ok:#34d399;--warn:#fbbf24;--bad:#f87171;--txt:#e8eefc;--muted:#93a3c4}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 'Microsoft YaHei',system-ui,sans-serif}
+  #ctop{display:block}
+  header{padding:14px 22px;border-bottom:1px solid var(--line);background:#101830;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  header b{font-size:15px}
+  .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  h3{margin:0 0 10px;font-size:14px;color:#cdd8f2}
+  .hint{font-size:12px;color:var(--muted)}
+  label{font-size:12px;color:var(--muted);display:block;margin:6px 0 2px}
+  select,button{background:#0d1730;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:6px 9px;font-size:13px}
+  button{background:var(--accent);color:#fff;border:0;cursor:pointer}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px} th,td{border:1px solid var(--line);padding:6px 8px;text-align:left}
+  th{background:#132043;color:var(--muted)}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .stat{background:#0d1730;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+  .stat .val{font-size:22px;font-weight:700;color:#7fd1ff}
+  .stat .lbl{font-size:11px;color:var(--muted);margin-top:4px}
+  .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#15203a;color:#7fd1ff;border:1px solid var(--line)}
+  .tag.ok{background:#16321f;color:#34d399;border-color:#234a35}
+  .tag.no{background:#3a1d24;color:#f87171;border-color:#4a2630}
+  .tag.warn{background:#2a2410;color:#fbbf24;border-color:#4a3f1a}
+  .checklist{list-style:none;padding:0;margin:8px 0}
+  .checklist li{padding:6px 10px;margin:4px 0;border-radius:6px;display:flex;align-items:center;gap:8px;font-size:13px}
+  .checklist li.ok{background:#16321f;color:#34d399;border:1px solid #234a35}
+  .checklist li.no{background:#3a1d24;color:#f87171;border:1px solid #4a2630}
+  .dashbar{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+  .dashbar button{background:#1f2942;color:#e8eefc;border:1px solid var(--line);cursor:pointer;border-radius:8px;padding:6px 12px;font-size:13px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
+  .chip{font-size:12px;padding:5px 12px;border-radius:18px;background:#0d1730;border:1px solid var(--line);color:#cdd8f2;cursor:pointer;user-select:none}
+  .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .chip .x{opacity:.6;margin-left:4px}
+  .modal-mask{position:fixed;inset:0;background:rgba(4,8,18,.66);display:flex;align-items:center;justify-content:center;z-index:50}
+  .modal{background:#16203a;border:1px solid var(--line);border-radius:12px;padding:18px;width:400px;max-height:82vh;overflow:auto}
+  .modal h3{margin:0 0 12px}
+  .dashrow{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin:6px 0;background:#0d1730}
+  .dashrow .name{flex:1;font-size:13px}
+  .dashrow .arrows{display:flex;gap:4px}
+  .dashrow button{margin:0;padding:2px 9px;font-size:12px;background:#1f2942;color:#e8eefc;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+  .cohort-curve{display:flex;align-items:flex-end;gap:10px;margin-top:10px;height:90px}
+  .cc-bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:#93a3c4}
+  .cc-bar .fill{width:100%;background:linear-gradient(180deg,#3b82f6,#1d4ed8);border-radius:4px 4px 0 0}
+  .cc-bar .lab{color:#cdd8f2}
+</style></head>
+<body>
+<div id="ctop"></div>
+<header>
+  <b>报表 Analytics</b>
+  <span class="hint">看数 / 概览 / 投放监控</span>
+  <span style="flex:1"></span>
+  <button class="ghost" onclick="openDashSettings()">⚙ 看板设置</button>
+</header>
+<div class="wrap">
+  <div class="dashbar">
+    <span class="hint" id="dashHint">自定义看板：勾选卡片、拖动排序，配置自动保存本机</span>
+    <span style="flex:1"></span>
+    <button onclick="resetDash()">重置看板</button>
+  </div>
+
+  <!-- ① 我的概览 -->
+  <div class="panel" data-card="overview" id="card-overview">
+    <h3>我的概览</h3>
+    <div id="overview" class="hint">加载中…</div>
+  </div>
+
+  <!-- ①-b LTV / 留存 Cohort（D1/D7/D28 + eCPI/LTV/ROAS，  <div class="panel" data-card="cohort" id="card-cohort">
+    <h3>LTV / 留存 Cohort（D1 / D7 / D28 · 含 eCPI / LTV / ROAS，    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <label style="margin:0;font-size:12px;color:var(--muted)">锚定口径</label>
+      <select id="cohortMetric">
+        <option value="conversion">首次转化日（D0=激活日）</option>
+        <option value="impression">首次曝光日（D0=获客日）</option>
+      </select>
+      <button onclick="loadCohort()">刷新</button>
+      <span class="hint" id="cohortHint"></span>
+    </div>
+    <table id="cohortTbl"><thead><tr><th>获客日(cohort)</th><th>规模</th><th>D1</th><th>D7</th><th>D28</th><th>eCPI(¥)</th><th>LTV(¥)</th><th>ROAS</th></tr></thead><tbody></tbody></table>
+    <div class="cohort-curve" id="cohortCurve"></div>
+  </div>
+
+  <!-- ② 分维度效果看板（维度芯片多选交叉，接口已支持 dims=a,b,c）-->
+  <div class="panel" data-card="perf" id="card-perf">
+    <h3>分维度效果看板（维度多选交叉 ·     <div class="chips" id="dimChips"></div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div><label>时间范围</label><select id="perfDays">
+        <option value="1">今天</option><option value="7" selected>近 7 天</option>
+        <option value="30">近 30 天</option><option value="90">近 90 天</option>
+      </select></div>
+      <div><label>&nbsp;</label><button onclick="loadPerf()">刷新</button></div>
+      <div><label>&nbsp;</label><button class="ghost" onclick="exportCsv()">导出 CSV</button></div>
+      <span class="hint" id="dimHint">默认按 素材 × 计划 交叉；最多叠加 3 个维度</span>
+    </div>
+    <div id="perfBox" class="hint" style="margin-top:10px">—</div>
+  </div>
+
+  <!-- ③ 投放监控（合并自 delivery.html） -->
+  <div class="panel" data-card="monitor" id="card-monitor">
+    <h3>投放监控 · 实时</h3>
+    <div class="grid4">
+      <div class="stat"><div class="val" id="totalImp">0</div><div class="lbl">总曝光</div></div>
+      <div class="stat"><div class="val" id="totalClick">0</div><div class="lbl">总点击</div></div>
+      <div class="stat"><div class="val" id="totalSpend">¥0</div><div class="lbl">总消耗</div></div>
+      <div class="stat"><div class="val" id="totalCvr">0</div><div class="lbl">总转化</div></div>
+    </div>
+  </div>
+
+  <div class="panel" data-card="checklist" id="card-checklist">
+    <h3>投放检查清单（全部通过才算真正开投）</h3>
+    <ul class="checklist" id="checklist"><li class="no">加载中...</li></ul>
+  </div>
+
+  <div class="panel" data-card="camps" id="card-camps">
+    <h3>计划投放详情</h3>
+    <table id="campTbl"><thead><tr><th>ID</th><th>名称</th><th>预算</th><th>状态</th><th>审核</th></tr></thead><tbody></tbody></table>
+  </div>
+</div>
+
+<script src="/admin.js"></script>
+<script src="/ui.js"></script>
+<script>
+// ── ① 我的概览 ──
+async function loadOverview(){
+  var roleNow = (Auth.role ? Auth.role() : '') || '';
+  var ov = document.getElementById('overview');
+  if (roleNow === 'publisher') {
+    ov.textContent = '「我的概览」是广告主视角：当前是开发者身份，你的收益数据请到 收益报表 /publisher_report.html 查看。';
+    return;
+  } else if (roleNow === 'admin') {
+    ov.textContent = '「我的概览」按广告主作用域统计：当前是管理员身份，平台全局数据请到 运营控制台 /console.html；要看某个广告主的概览，请用该广告主账号登录。';
+    return;
+  } else if (!roleNow) {
+    ov.textContent = '「我的概览」按广告主作用域统计：请先用广告主账号登录（当前未登录）。';
+    return;
+  }
+  fetch('/api/advertiser/me').then(r=>r.json()).then(d=>{
+    if (d && d.stats) {
+      const pend = (d.campaigns || []).filter(c => c.review_status === 'pending').length;
+      const why = (!d.stats.impressions)
+        ? ('　※ 曝光为 0 的原因：' + (pend ? (pend + ' 个计划「待审核」（审核在运营审核台 /review.html）') : '计划已可投') +
+           '；账户余额为 0 时整户不参拍（先到「账户」页充值）')
+        : '';
+      ov.textContent = `我的概览 → 计划数 ${d.campaigns.length}｜曝光 ${d.stats.impressions}｜花费 ¥${d.stats.spent_cny.toFixed(2)}｜点击 ${d.stats.clicks||0}｜转化 ${d.stats.conversions||0}｜GMV ¥${d.stats.gmv.toFixed(2)}｜ROAS ${(d.stats.spent_cny?d.stats.roas:0).toFixed(2)}${why}`;
+      loadPerf();
+    }
+  }).catch(function(e){ document.getElementById('overview').textContent = '我的概览加载失败：' + e.message; });
+}
+
+// ── ② 分维度效果看板（维度芯片多选交叉，接口已支持 dims=a,b,c）──
+// const DIMS = [
+  { k:'creative', t:'素材' }, { k:'campaign', t:'计划' }, { k:'geo', t:'地域' },
+  { k:'os', t:'系统' }, { k:'device', t:'设备' }, { k:'model', t:'机型' },
+  { k:'format', t:'形态' }, { k:'unit', t:'广告单元' }, { k:'publisher', t:'媒体' },
+  { k:'hour', t:'时段' }, { k:'day', t:'日期' }
+];
+const MAX_DIMS = 3;
+function getSelectedDims(){
+  try {
+    const s = localStorage.getItem('adv_dims_' + (Auth.scope()||''));
+    if (s) { const a = JSON.parse(s); if (Array.isArray(a) && a.length) return a; }
+  } catch(e){}
+  return ['creative','campaign'];
+}
+function renderDimChips(){
+  const box = document.getElementById('dimChips'); if(!box) return;
+  box.innerHTML = '';
+  const cur = getSelectedDims();
+  DIMS.forEach(d => {
+    const el = document.createElement('span');
+    el.className = 'chip' + (cur.includes(d.k) ? ' on' : '');
+    el.textContent = d.t;
+    el.onclick = () => toggleDim(d.k);
+    box.appendChild(el);
+  });
+}
+function toggleDim(k){
+  let cur = getSelectedDims();
+  if (cur.includes(k)) cur = cur.filter(x => x !== k);
+  else { if (cur.length >= MAX_DIMS) { if (window.UI && UI.toast) UI.toast('最多交叉 ' + MAX_DIMS + ' 个维度，已移除最早一个','warn'); cur.shift(); } cur.push(k); }
+  try { localStorage.setItem('adv_dims_' + (Auth.scope()||''), JSON.stringify(cur)); } catch(e){}
+  renderDimChips(); loadPerf();
+}
+async function loadPerf(){
+  const box = document.getElementById('perfBox'); if(!box) return;
+  const dims = getSelectedDims();
+  const days = (document.getElementById('perfDays') && document.getElementById('perfDays').value) || '7';
+  box.innerHTML = '加载中…';
+  try{
+    const r = await fetch('/api/advertiser/performance?dims='+encodeURIComponent(dims.join(','))+'&days='+days);
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok || d.error){ box.textContent = '加载失败：' + (d.error || ('HTTP '+r.status)); return; }
+    const t = d.total || {};
+    const head = `合计 → 曝光 ${t.impressions}｜花费 ¥${(+(t.spend_cny||0)).toFixed(2)}｜点击 ${t.clicks}｜转化 ${t.conversions}｜GMV ¥${(+(t.gmv_cny||0)).toFixed(2)}｜ROAS ${(t.spend_cny?(+(t.gmv_cny/t.spend_cny)).toFixed(2):'0.00')}`;
+    const rows = (d.items||[]).map(x=>`<tr>
+      <td>${x.key}${x.creative_title?(' <span style="color:#7f8c8d">'+x.creative_title+'</span>'):''}${x.fatigue!=null?(' <span style="color:'+(x.fatigue>0.5?'#e74c3c':'#f0ad4e')+'">疲劳'+((+x.fatigue*100).toFixed(0))+'%</span>'):''}</td><td>${x.impressions}</td><td>${x.clicks}</td>
+      <td>${x.conversions}</td><td>¥${x.spend_cny.toFixed(2)}</td>
+      <td>${x.ctr}%</td><td>${x.cvr}%</td>
+      <td>¥${x.cpc_cny.toFixed(2)}</td><td>¥${x.cpa_cny.toFixed(2)}</td>
+      <td>¥${x.cpm_cny.toFixed(2)}</td>
+      <td><b>${(+x.roas).toFixed(2)}</b></td></tr>`).join('');
+    const freq = (d.frequency||[]).length
+      ? ('<div class="hint" style="margin-top:8px">频次分布（曝光次数 → 用户数）：' +
+         d.frequency.map(f=>f.freq+'次:'+f.users).join(' · ') + '</div>')
+      : '';
+    box.innerHTML = '<div class="hint">'+head+'</div>' +
+      '<table style="margin-top:8px"><thead><tr><th>按'+(d.dim_label||dims.join('×'))+'</th><th>曝光</th><th>点击</th><th>转化</th>' +
+      '<th>花费</th><th>CTR</th><th>CVR</th><th>CPC</th><th>CPA</th><th>CPM</th><th>ROAS</th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="11" class="hint">暂无数据（需要有已通过审核的计划 + 账户余额，才会参拍产生曝光）</td></tr>') +
+      '</tbody></table>' + freq;
+  }catch(e){ box.textContent = '加载失败：'+e.message; }
+}
+function exportCsv(){
+  const dims = getSelectedDims();
+  const days = (document.getElementById('perfDays')&&document.getElementById('perfDays').value)||'7';
+  const url = '/api/advertiser/performance?format=csv&dims='+encodeURIComponent(dims.join(','))+'&days='+days;
+  const a=document.createElement('a'); a.href=url; a.download=''; document.body.appendChild(a); a.click(); a.remove();
+}
+
+// ── ③ 投放监控（合并自 delivery.js；链接改为新页面）──
+async function loadDelivery(){
+  try {
+    const d = await (await fetch('/api/advertiser/me')).json();
+    if (!d || !d.stats) return;
+    $('totalImp').textContent = (d.stats.impressions || 0).toLocaleString();
+    $('totalSpend').textContent = '¥' + (d.stats.spent_cny || 0).toFixed(2);
+    $('totalCvr').textContent = (d.stats.conversions || 0).toLocaleString();
+    const checklist = $('checklist');
+    checklist.innerHTML = '';
+    const checks = [];
+    const camps = d.campaigns || [];
+    if (camps.length > 0) checks.push({ok: true, text: '✓ 已创建投放计划 (' + camps.length + ' 个)'});
+    else checks.push({ok: false, text: '✗ 未创建投放计划 → <a href="/campaigns.html" style="color:#7fd1ff">去创建</a>'});
+    const approvedCamp = camps.filter(c => c.review_status === 'approved');
+    if (approvedCamp.length > 0) checks.push({ok: true, text: '✓ 计划已审核通过 (' + approvedCamp.length + ' 个)'});
+    else if (camps.length > 0) checks.push({ok: false, text: '⏳ 计划待审核 → 联系平台运营审核'});
+    const bal = Number(d.profile && d.profile.balance_cny) || 0;
+    if (bal > 0) checks.push({ok: true, text: '✓ 账户余额充足 (¥' + bal.toFixed(2) + ')'});
+    else checks.push({ok: false, text: '⚠ 账户余额不足 → <a href="/adv-account.html" style="color:#7fd1ff">去充值</a>'});
+    const imp = d.stats.impressions || 0;
+    if (imp > 0) checks.push({ok: true, text: '✓ 广告正在投放中 (已曝光 ' + imp.toLocaleString() + ' 次)'});
+    else checks.push({ok: false, text: '⚠ 暂无曝光 → 确认素材已审核通过且落地页可访问'});
+    checks.forEach(c => {
+      const li = document.createElement('li');
+      li.className = c.ok ? 'ok' : 'no';
+      li.innerHTML = c.text;
+      checklist.appendChild(li);
+    });
+    const campTbl = document.querySelector('#campTbl tbody');
+    campTbl.innerHTML = '';
+    camps.forEach(c => {
+      const tr = document.createElement('tr');
+      const rs = c.review_status || 'pending';
+      const rsTag = rs === 'approved' ? '<span class="tag ok">已通过</span>' :
+                     rs === 'rejected' ? '<span class="tag no">已驳回</span>' :
+                     '<span class="tag warn">待审核</span>';
+      const statusTag = c.status === 1 ? '<span class="tag ok">启用</span>' : '<span class="tag no">停用</span>';
+      tr.innerHTML = '<td>' + c.id + '</td><td>' + c.name + '</td><td>¥' + (Number(c.budget_cny) || 0).toFixed(0) + '</td><td>' + statusTag + '</td><td>' + rsTag + '</td>';
+      campTbl.appendChild(tr);
+    });
+    if (!camps.length) campTbl.innerHTML = '<tr><td colspan="5">暂无计划</td></tr>';
+  } catch(e) { console.error('loadDelivery failed:', e); }
+}
+const $ = id => document.getElementById(id);
+
+// ── 自定义看板（卡片显隐 / 排序，localStorage 持久化，按广告主作用域隔离）──
+const DASH_CARDS = [
+  { id:'overview', name:'我的概览' }, { id:'cohort', name:'LTV / 留存 Cohort' },
+  { id:'perf', name:'分维度效果看板' }, { id:'monitor', name:'投放监控' },
+  { id:'checklist', name:'投放检查清单' }, { id:'camps', name:'计划投放详情' }
+];
+function dashKey(){ return 'adv_dash_' + (Auth.scope() || ''); }
+function getDash(){
+  try { const s = localStorage.getItem(dashKey()); if (s) { const o = JSON.parse(s); if (o && Array.isArray(o.order)) return o; } } catch(e){}
+  return { order: DASH_CARDS.map(c=>c.id), hidden: [] };
+}
+function persistDash(cfg){ try { localStorage.setItem(dashKey(), JSON.stringify(cfg)); } catch(e){} }
+function applyDash(){
+  const cfg = getDash();
+  const wrap = document.querySelector('.wrap'); if(!wrap) return;
+  DASH_CARDS.forEach(c => { const el = document.getElementById('card-'+c.id); if (el) el.style.display = cfg.hidden.includes(c.id) ? 'none' : ''; });
+  cfg.order.forEach(id => { const el = document.getElementById('card-'+id); if (el && el.parentNode === wrap) wrap.appendChild(el); });
+}
+function openDashSettings(){
+  const cfg = getDash();
+  const mask = document.createElement('div'); mask.className = 'modal-mask';
+  const rows = cfg.order.map((id) => {
+    const meta = DASH_CARDS.find(c=>c.id===id) || { id, name:id };
+    const hidden = cfg.hidden.includes(id);
+    return `<div class="dashrow" data-id="${id}">
+      <input type="checkbox" ${hidden?'':'checked'} onchange="toggleDashCard('${id}', this.checked)">
+      <span class="name">${meta.name}</span>
+      <span class="arrows">
+        <button onclick="moveDash('${id}',-1)">↑</button>
+        <button onclick="moveDash('${id}',1)">↓</button>
+      </span></div>`;
+  }).join('');
+  mask.innerHTML = `<div class="modal"><h3>看板设置</h3>
+    <div class="hint" style="margin-bottom:8px">勾选显示卡片，用 ↑/↓ 调整顺序，自动保存本机</div>
+    ${rows}
+    <div style="display:flex;gap:10px;margin-top:14px"><button onclick="saveDash()">完成</button>
+    <button class="ghost" onclick="resetDash()">重置</button>
+    <button class="ghost" onclick="this.closest('.modal-mask').remove()">取消</button></div></div>`;
+  document.body.appendChild(mask);
+}
+function toggleDashCard(id, on){ const cfg = getDash(); cfg.hidden = on ? cfg.hidden.filter(x=>x!==id) : (cfg.hidden.includes(id)?cfg.hidden:[...cfg.hidden,id]); persistDash(cfg); applyDash(); }
+function moveDash(id, dir){ const cfg = getDash(); const i = cfg.order.indexOf(id); const j = i+dir; if (i<0||j<0||j>=cfg.order.length) return; const t=cfg.order[i]; cfg.order[i]=cfg.order[j]; cfg.order[j]=t; persistDash(cfg); openDashSettingsRefresh(); }
+function openDashSettingsRefresh(){ document.querySelectorAll('.modal-mask').forEach(m=>m.remove()); openDashSettings(); }
+function saveDash(){ document.querySelectorAll('.modal-mask').forEach(m=>m.remove()); if(window.UI && UI.toast) UI.toast('看板已保存','ok'); }
+function resetDash(){ try { localStorage.removeItem(dashKey()); localStorage.removeItem('adv_dims_' + (Auth.scope()||'')); } catch(e){} renderDimChips(); applyDash(); if(window.UI && UI.toast) UI.toast('看板已重置','ok'); }
+
+// 留存 Cohort（D1/D7/D28 + eCPI/LTV/ROAS）：device 级留存队列
+async function loadCohort(){
+  const tb = document.querySelector('#cohortTbl tbody'); if(!tb) return;
+  const metric = (document.getElementById('cohortMetric') && document.getElementById('cohortMetric').value) || 'conversion';
+  try{
+    const d = await (await fetch('/api/advertiser/cohort?metric=' + metric)).json();
+    if(!d.matrix || !d.matrix.length){ tb.innerHTML='<tr><td colspan="8">暂无转化/曝光数据，无法构建 Cohort</td></tr>'; if (document.getElementById('cohortHint')) document.getElementById('cohortHint').textContent=''; const cv=document.getElementById('cohortCurve'); if(cv) cv.innerHTML=''; return; }
+    tb.innerHTML = d.matrix.map(r => '<tr><td>'+r.cohort_day+'</td><td>'+r.size+'</td>'+
+      '<td>'+r.d0+'%</td><td>'+r.d1+'%</td><td>'+r.d2+'%</td>'+
+      '<td>¥'+(+r.eCPI_cny).toFixed(3)+'</td><td>¥'+(+r.ltv_cny).toFixed(3)+'</td><td>'+r.roas+'</td></tr>').join('');
+    if (document.getElementById('cohortHint')) document.getElementById('cohortHint').textContent = 'metric=' + metric + '（D1=激活后第1日仍活跃占比；eCPI=获客成本/用户，LTV=该批用户贡献GMV/用户，ROAS=LTV÷eCPI）';
+    renderCohortCurve(d.matrix);
+  }catch(e){ tb.innerHTML='<tr><td colspan="8">加载失败：'+(e&&e.message||e)+'</td></tr>'; }
+}
+// 留存曲线：每个 cohort 画 D1/D7/D28 分组柱
+function renderCohortCurve(matrix){
+  const box = document.getElementById('cohortCurve'); if(!box) return;
+  box.innerHTML = matrix.map(r => {
+    const bars = [['D1', r.d0],['D7', r.d1],['D28', r.d2]].map(([lab,v])=>{
+      const h = Math.max(2, Math.min(100, Number(v)||0) / 100 * 70);
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div style="height:${h}px;width:70%;background:linear-gradient(180deg,#3b82f6,#1d4ed8);border-radius:3px 3px 0 0"></div>
+        <span>${lab} ${v}%</span></div>`;
+    }).join('');
+    return `<div style="flex:1;min-width:120px"><div style="font-size:11px;color:#cdd8f2;margin-bottom:4px">${r.cohort_day}（n=${r.size}）</div><div style="display:flex;gap:4px;height:80px;align-items:flex-end">${bars}</div></div>`;
+  }).join('');
+}
+// 初始化
+function boot(){
+  try { renderDimChips(); } catch(e){}
+  applyDash();
+  try {
+    const u = new URLSearchParams(location.search);
+    const days = u.get('days'); if (days) document.getElementById('perfDays').value = days;
+  } catch(e) {}
+  if (Auth.ready()) { loadOverview(); loadDelivery(); loadPerf(); loadCohort(); }
+  else { Auth.onAuth(function () { loadOverview(); loadDelivery(); loadPerf(); loadCohort(); }); }
+}
+boot();
+// 每 60 秒自动刷新监控部分
+setInterval(function(){ if (Auth.ready()) { loadOverview(); loadDelivery(); loadPerf(); loadCohort(); } }, 60000);
+</script>
+
+<script src="/console_top.js"></script>
+</body></html>

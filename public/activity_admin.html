@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>运营活动管理 · AppLink</title>
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif}
+  header{background:#0f172a;padding:14px 20px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+  .wrap{max-width:1080px;margin:18px auto;padding:0 16px}
+  .card{background:var(--card);border:1px solid #26355c;border-radius:12px;padding:16px;margin-bottom:14px}
+  h3{margin:0 0 10px;font-size:15px;color:var(--acc2)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid #26355c;border-radius:12px;overflow:hidden;font-size:13px}
+  th,td{padding:8px 10px;border-bottom:1px solid #26355c;text-align:left;vertical-align:top}
+  th{background:#0d1730;color:var(--mut)}
+  input,select,textarea{width:100%;padding:6px;margin:3px 0 8px;background:#0d1730;color:var(--fg);border:1px solid #2f4170;border-radius:7px;box-sizing:border-box}
+  .row{display:flex;gap:10px}.row>div{flex:1}
+  button{padding:8px 14px;cursor:pointer;background:var(--acc);color:#fff;border:0;border-radius:7px}
+  button.s{background:#26355c;color:var(--fg)}
+  .muted{color:var(--mut);font-size:12px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:#f87171}
+  .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px}
+  .p0{background:#14321f;color:var(--ok)} .p1{background:#3a2a10;color:var(--warn)} .p2{background:#2a1622;color:#f87171}
+  .acts a{color:var(--acc2);margin-right:8px;cursor:pointer;text-decoration:none}
+</style></head>
+<body>
+<div id="ctop"></div>
+<header><span>运营活动管理（归属运营 · 业务层模块）</span><a href="/home.html" style="color:var(--acc2);text-decoration:none">← 返回首页</a></header>
+<div class="wrap">
+
+  <div class="card">
+    <h3>新建活动</h3>
+    <div class="row">
+      <div><label>活动名称</label><input id="n_name" placeholder="新春拉新活动"></div>
+      <div><label>预算(元)</label><input id="n_budget" type="number" value="1000"></div>
+    </div>
+    <div class="row">
+      <div><label>开始时间(留空=立即)</label><input id="n_start" type="datetime-local"></div>
+      <div><label>结束时间(留空=不限)</label><input id="n_end" type="datetime-local"></div>
+    </div>
+    <label>备注</label><input id="n_note" placeholder="运营活动说明">
+    <button onclick="createActivity()">创建活动</button>
+    <div class="muted" id="n_msg"></div>
+  </div>
+
+  <div class="card">
+    <h3>活动列表</h3>
+    <table id="tbl"><thead><tr><th>ID</th><th>名称</th><th>状态</th><th>预算(元)</th><th>已发放(元)</th><th>参与</th><th>剩余预算</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card" id="detail" style="display:none">
+    <h3 id="d_title"></h3>
+    <div class="row">
+      <div><label>状态(0草稿/1进行中/2暂停/3结束)</label><input id="d_status" type="number"></div>
+      <div><label>追加预算(元)</label><input id="d_add" type="number" placeholder="0"></div>
+    </div>
+    <button onclick="updateActivity()">保存活动状态/预算</button>
+    <hr style="border-color:#26355c">
+    <h3>奖励规则</h3>
+    <div class="row">
+      <div><label>规则 code</label><input id="r_code" placeholder="install"></div>
+      <div><label>标题</label><input id="r_title" placeholder="完成安装"></div>
+      <div><label>奖励(元)</label><input id="r_reward" type="number" value="1"></div>
+    </div>
+    <div class="row">
+      <div><label>每人上限(次)</label><input id="r_cap" type="number" value="1"></div>
+      <div><label>日上限(0=不限)</label><input id="r_daily" type="number" value="0"></div>
+    </div>
+    <label>防刷配置(JSON, 如 {"minRatio":0.95})</label><input id="r_af" value='{"minRatio":0.95}'>
+    <button onclick="addRule()">添加奖励规则</button>
+    <div class="muted" id="r_msg"></div>
+    <table id="rtbl" style="margin-top:12px"><thead><tr><th>ID</th><th>code</th><th>标题</th><th>奖励(元)</th><th>每人/日</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+    <div class="muted">H5 领奖页：<a id="h5link" href="#" style="color:var(--acc2)">/applink-activity.html?act=</a></div>
+  </div>
+
+</div>
+<script src="/admin.js"></script>
+<script>
+  let curId = null;
+  function fmtMicros(m){ return ((Number(m)||0)/1e6).toFixed(2); }
+  function statusPill(s){
+    const map={0:['草稿','p2'],1:['进行中','p0'],2:['暂停','p1'],3:['结束','p2']};
+    const [t,c]=map[s]||['?','p2']; return '<span class="pill '+c+'">'+t+'</span>';
+  }
+  async function createActivity(){
+    const m=document.getElementById('n_msg');
+    const body={ name:document.getElementById('n_name').value.trim(),
+      budget_cny:+document.getElementById('n_budget').value||0,
+      start_at:document.getElementById('n_start').value||null,
+      end_at:document.getElementById('n_end').value||null,
+      note:document.getElementById('n_note').value.trim() };
+    if(!body.name){ m.className='muted err'; m.textContent='请填写活动名称'; return; }
+    const d=await fetch('/api/activity',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'include'}).then(r=>r.json()).catch(e=>({error:e.message}));
+    m.className='muted '+(d.ok?'ok':'err'); m.textContent=d.ok?('已创建活动 #'+d.id):('失败：'+(d.error||''));
+    if(d.ok) load();
+  }
+  async function load(){
+    const list=await fetch('/api/activity',{credentials:'include'}).then(r=>r.json()).catch(()=>[]);
+    const tb=document.querySelector('#tbl tbody'); tb.innerHTML='';
+    list.forEach(a=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML='<td>'+a.id+'</td><td>'+a.name+'</td><td>'+statusPill(a.status)+'</td><td>'+fmtMicros(a.budget_micros)+
+        '</td><td>'+fmtMicros(a.granted_micros)+'</td><td>'+a.participations+'</td><td>'+fmtMicros(a.budget_micros-a.spent_micros)+
+        '</td><td class="acts"><a onclick="openDetail('+a.id+')">管理</a></td>';
+      tb.appendChild(tr);
+    });
+    if(!list.length) tb.innerHTML='<tr><td colspan="8" class="muted">暂无活动，请先新建</td></tr>';
+  }
+  async function openDetail(id){
+    curId=id;
+    const d=await fetch('/api/activity/'+id,{credentials:'include'}).then(r=>r.json()).catch(()=>({}));
+    if(!d.activity){ return; }
+    document.getElementById('detail').style.display='block';
+    document.getElementById('d_title').textContent='活动 #'+id+' · '+d.activity.name;
+    document.getElementById('d_status').value=d.activity.status;
+    document.getElementById('h5link').href='/applink-activity.html?act='+id;
+    const rt=document.querySelector('#rtbl tbody'); rt.innerHTML='';
+    (d.rules||[]).forEach(r=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML='<td>'+r.id+'</td><td>'+r.code+'</td><td>'+r.title+'</td><td>'+fmtMicros(r.reward_micros)+
+        '</td><td>'+r.cap_per_user+' / '+(r.daily_cap||0)+'</td><td>'+statusPill(r.status)+
+        '</td><td class="acts"><a onclick="toggleRule('+r.id+','+(r.status===1?2:1)+')">'+(r.status===1?'停用':'启用')+'</a></td>';
+      rt.appendChild(tr);
+    });
+    if(!(d.rules||[]).length) rt.innerHTML='<tr><td colspan="7" class="muted">暂无规则</td></tr>';
+    document.getElementById('detail').scrollIntoView({behavior:'smooth'});
+  }
+  async function updateActivity(){
+    const body={ status:+document.getElementById('d_status').value };
+    const add=+document.getElementById('d_add').value||0; if(add>0) body.budget_cny=add;
+    const d=await fetch('/api/activity/'+curId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'include'}).then(r=>r.json()).catch(e=>({error:e.message}));
+    if(d.ok){ load(); openDetail(curId); }
+  }
+  async function addRule(){
+    const m=document.getElementById('r_msg');
+    const body={ code:document.getElementById('r_code').value.trim(), title:document.getElementById('r_title').value.trim(),
+      reward_cny:+document.getElementById('r_reward').value||0, cap_per_user:+document.getElementById('r_cap').value||1,
+      daily_cap:+document.getElementById('r_daily').value||0, antifraud:JSON.parse(document.getElementById('r_af').value||'{}') };
+    if(!body.code){ m.className='muted err'; m.textContent='请填写规则 code'; return; }
+    const d=await fetch('/api/activity/'+curId+'/rule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'include'}).then(r=>r.json()).catch(e=>({error:e.message}));
+    m.className='muted '+(d.ok?'ok':'err'); m.textContent=d.ok?('已添加规则 #'+d.id):('失败：'+(d.error||''));
+    if(d.ok) openDetail(curId);
+  }
+  async function toggleRule(rid,st){
+    await fetch('/api/activity/'+curId+'/rule/'+rid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:st}),credentials:'include'}).then(r=>r.json()).catch(()=>{});
+    openDetail(curId);
+  }
+  if (typeof Auth!=='undefined' && Auth.ready && Auth.ready()) load();
+  if (typeof Auth!=='undefined' && Auth.onAuth) Auth.onAuth(function(){ load(); });
+  else load();
+</script>
+
+<script src="/console_top.js"></script>
+</body></html>

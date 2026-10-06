@@ -1,0 +1,50 @@
+// AppLink ADX · Android 原生广告 SDK（library，可产出 AAR）
+// 出包：./gradlew assembleRelease   →  build/outputs/aar/<module>-release.aar
+// 或发布到 Maven：./gradlew publishReleasePublicationToMavenLocal
+plugins {
+    id 'com.android.library' version '8.5.2'
+    id 'org.jetbrains.kotlin.android' version '1.9.24'
+    id 'maven-publish'
+}
+
+group = project.findProperty('sdkGroup') ?: 'com.zhuque.adsdk'
+version = project.findProperty('sdkVersion') ?: '1.0.0'
+
+android {
+    namespace 'com.zhuque.adsdk'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 21
+        targetSdk 34
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+    buildTypes {
+        release { minifyEnabled false }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions { jvmTarget = '1.8' }
+    publishing { singleVariant('release') { withSourcesJar() } }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                artifactId = 'applink-adsdk'
+                pom { name = 'AppLink ADX Android SDK'; description = '激励视频 + 原生 AdView 广告 SDK' }
+            }
+        }
+        repositories {
+            maven { name = 'localRepo'; url = layout.buildDirectory.dir('repo') }
+        }
+    }
+}

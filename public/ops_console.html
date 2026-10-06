@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>运营与信任控制台 · AppLink</title>
+<style>
+  :root{--bg:#0b1220;--card:#131f38;--card2:#0d1730;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24;--danger:#f87171;--line:#26355c}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:14px/1.6 system-ui,"Microsoft YaHei",sans-serif;padding:22px}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}p.sub{color:var(--mut);margin:0 0 18px;font-size:12.5px}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+  .tabs button{padding:9px 16px;border:1px solid var(--line);background:var(--card2);color:var(--mut);border-radius:9px;cursor:pointer;font-weight:700;font-size:13px}
+  .tabs button.on{background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a;border-color:transparent}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  input,select{background:var(--card2);border:1px solid #2f4170;color:var(--fg);border-radius:8px;padding:9px 11px;font-size:13px}
+  button.go{background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a;border:0;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer}
+  button.ghost{background:var(--card2);border:1px solid #2f4170;color:var(--fg);border-radius:8px;padding:8px 13px;cursor:pointer}
+  button.ghost:hover{border-color:var(--acc2);color:#7dd3fc}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #1e2a4a;vertical-align:top}
+  th{color:var(--mut);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  td.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+  .pill.ok{background:rgba(52,211,153,.15);color:var(--ok)}
+  .pill.warn{background:rgba(251,191,36,.15);color:var(--warn)}
+  .pill.bad{background:rgba(248,113,113,.15);color:var(--danger)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .msg{margin-top:12px;font-size:13px;min-height:19px}.msg.ok{color:var(--ok)}.msg.err{color:var(--danger)}.msg.info{color:var(--acc2)}
+  .codebox{background:var(--card2);border:1px solid var(--ok);color:var(--ok);font-family:ui-monospace,monospace;padding:10px;border-radius:8px;word-break:break-all;margin-top:10px}
+  .hide{display:none!important}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  .stat{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .stat b{display:block;font-size:22px;margin-top:4px}
+  .stat span{color:var(--mut);font-size:12px}
+  a{color:var(--acc2);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>运营与信任控制台</h1>
+  <p class="sub">审计日志 · 管理员邀请码 · SLA 与合规 —— 仅管理员可见（读取当前登录管理员令牌）</p>
+
+  <div id="gate" class="card">
+    <div class="msg err" id="gateMsg">正在校验管理员身份…</div>
+  </div>
+
+  <div id="main" class="hide">
+    <div class="tabs">
+      <button data-t="audit" class="on">审计日志</button>
+      <button data-t="invite">管理员邀请码</button>
+      <button data-t="trust">SLA 与合规</button>
+      <button data-t="bs">品牌安全</button>
+    </div>
+
+    <!-- 审计日志 -->
+    <div id="t-audit" class="card">
+      <div class="row">
+        <input id="fAction" placeholder="按 action 过滤，如 LOGIN / campaign">
+        <input id="fActor" placeholder="按操作人过滤">
+        <button class="go" onclick="loadAudit()">查询</button>
+        <button class="ghost" onclick="exportAudit()">导出 CSV</button>
+      </div>
+      <div class="msg" id="aMsg"></div>
+      <div style="overflow:auto"><table id="aTable">
+        <thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>详情</th><th>IP</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+
+    <!-- 邀请码 -->
+    <div id="t-invite" class="card hide">
+      <p class="sub" style="margin:0 0 12px">为每位运营/销售生成<b>一次性邀请码</b>，对方凭码自助开通独立管理员账号（各自强密码 + 各自 2FA），避免共用 root 账号。邀请码不替代根账号强口令——生产请用 <code>ADMIN_PASS</code> 注入随机强口令，禁用默认 <code>admin123</code>。</p>
+      <div class="row">
+        <input id="iNote" placeholder="备注（用途/姓名，如 sales-张三）" style="min-width:220px">
+        <select id="iDays"><option value="1">1 天</option><option value="7" selected>7 天</option><option value="14">14 天</option><option value="30">30 天</option></select>
+        <button class="go" onclick="genInvite()">生成邀请码</button>
+      </div>
+      <div class="codebox hide" id="iNew"></div>
+      <div class="msg" id="iMsg"></div>
+      <div style="overflow:auto;margin-top:10px"><table id="iTable">
+        <thead><tr><th>邀请码</th><th>备注</th><th>状态</th><th>使用者</th><th>创建时间</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <p class="sub" style="margin-top:14px">对方使用：登录页「管理员」→ 注册，或直接 <code>POST /api/account/register-admin</code>（code/username/password，密码≥8位）。</p>
+    </div>
+
+    <!-- SLA 与合规 -->
+    <div id="t-trust" class="card hide">
+      <div class="grid">
+        <div class="stat"><span>广告透明度</span><b>ads.txt / app-ads.txt</b><div class="sub" style="margin-top:6px"><a href="/ads.txt" target="_blank">ads.txt</a> · <a href="/app-ads.txt" target="_blank">app-ads.txt</a>（自动生成，IAB 规范）</div></div>
+        <div class="stat"><span>交易与审计</span><b>全量操作留痕</b><div class="sub" style="margin-top:6px">管理员写操作与敏感读写入 <code>admin_audit</code>，可导出 CSV</div></div>
+        <div class="stat"><span>数据最小化</span><b>作用域隔离</b><div class="sub" style="margin-top:6px">广告主/媒体仅见自己作用域数据，接口层强制</div></div>
+        <div class="stat"><span>账号安全</span><b>2FA(TOTP) + 强口令</b><div class="sub" style="margin-top:6px">管理员/广告主/媒体均可自助开启两步验证</div></div>
+      </div>
+      <div class="msg info" style="margin-top:16px">说明：SOC2 / ISO27001 属第三方审计认证，需外部审计机构出具，非平台自行声明。GDPR/个人信息保护通过数据最小化、作用域隔离与审计留痕落实。如需对外展示正式认证徽章，请先取得真实证书后再上线本页文案。</div>
+      <div class="row" style="margin-top:12px">
+        <button class="ghost" onclick="location.href='/api/brand-safety/classify'">品牌安全分类器 API</button>
+        <button class="ghost" onclick="location.href='/api/mmp/config'">MMP 配置 API</button>
+      </div>
+    </div>
+
+    <!-- 品牌安全 -->
+    <div id="t-bs" class="card hide">
+      <h3 style="margin-top:0">GARM 分级参考（平台执行口径）</h3>
+      <p class="sub" style="margin:0 0 10px">Tier 0 = Floor（零容忍，命中直接不参拍/不卖）；Tier 1 最安全 → Tier 4 最敏感。广告主可设 garmMaxTier 上限，pre-bid 命中更高 Tier 即跳过。</p>
+      <div style="overflow:auto"><table>
+        <thead><tr><th>Tier</th><th>典型类目</th><th>风险</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill bad">0 Floor</span></td><td>色情 / 暴力 / 仇恨等零容忍</td><td>直接屏蔽</td></tr>
+          <tr><td><span class="pill ok">1</span></td><td>family, education, food, pets, home, travel, hobbies, sports</td><td>低</td></tr>
+          <tr><td><span class="pill ok">2</span></td><td>news_general, business, finance, technology, style, automotive, health, science</td><td>中低</td></tr>
+          <tr><td><span class="pill warn">3</span></td><td>politics, news_politics, religion, gaming_violent, dating, alcohol, gambling</td><td>中</td></tr>
+          <tr><td><span class="pill bad">4</span></td><td>user_generated, unmoderated, controversial, sensitive_social</td><td>高</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 style="margin-top:18px">分类器工具</h3>
+      <div class="row">
+        <input id="bsDomain" placeholder="域名 / bundle，如 com.example.app" style="min-width:220px">
+        <input id="bsCat" placeholder="类目，如 finance">
+        <input id="bsKw" placeholder="关键词（逗号分隔）">
+        <button class="go" onclick="classifyBS()">分类</button>
+      </div>
+      <div class="msg" id="bsMsg"></div>
+      <div id="bsOut"></div>
+
+      <h3 style="margin-top:18px">供给拦截事件日志（pre-bid 屏蔽，按媒体×原因）</h3>
+      <div style="overflow:auto"><table id="bsBlockTable">
+        <thead><tr><th>媒体</th><th>原因</th><th>次数</th></tr></thead><tbody></tbody>
+      </table></div>
+
+      <h3 style="margin-top:18px">创意拒审日志</h3>
+      <div style="overflow:auto"><table id="bsRejTable">
+        <thead><tr><th>时间</th><th>对象</th><th>动作</th><th>操作人</th><th>原因</th></tr></thead><tbody></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+function tok(){ try{ var l=JSON.parse(localStorage.getItem('applink_admin')||sessionStorage.getItem('applink_admin')||'null'); if(l&&l.token) return l.token; }catch(e){} return localStorage.getItem('auth_token')||sessionStorage.getItem('auth_token')||''; }
+function H(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+tok() }; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function boot(){
+  if(!tok()){ $('gateMsg').textContent='未检测到登录令牌，请先以管理员身份登录（/login.html）。'; return; }
+  try{
+    const r=await fetch('/api/admin/audit?limit=1',{headers:H()});
+    if(r.status===401||r.status===403){ $('gateMsg').textContent='当前令牌无管理员权限，无法打开运营控制台。'; return; }
+    $('gate').classList.add('hide'); $('main').classList.remove('hide');
+    loadAudit(); loadInvites(); loadBS();
+  }catch(e){ $('gateMsg').textContent='校验失败：'+e.message; }
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  ['audit','invite','trust','bs'].forEach(t=>$('t-'+t).classList.toggle('hide',t!==b.dataset.t));
+});
+
+async function loadAudit(){
+  const q=new URLSearchParams(); if($('fAction').value.trim()) q.set('action',$('fAction').value.trim()); if($('fActor').value.trim()) q.set('actor',$('fActor').value.trim()); q.set('limit','200');
+  const m=$('aMsg'); m.className='msg info'; m.textContent='加载中…';
+  try{ const r=await fetch('/api/admin/audit?'+q,{headers:H()}); const j=await r.json();
+    const tb=$('aTable').querySelector('tbody'); tb.innerHTML='';
+    (j.items||[]).forEach(a=>{ const tr=document.createElement('tr');
+      tr.innerHTML='<td class="mono">'+esc(a.created_at)+'</td><td>'+esc(a.actor)+'</td><td class="mono">'+esc(a.action)+'</td><td>'+esc(a.target)+'</td><td>'+esc(a.detail)+'</td><td class="mono">'+esc(a.ip)+'</td>';
+      tb.appendChild(tr); });
+    m.className='msg ok'; m.textContent='共 '+((j.items||[]).length)+' 条（最多 200 条；完整导出用 CSV）';
+  }catch(e){ m.className='msg err'; m.textContent='失败：'+e.message; }
+}
+function exportAudit(){
+  const q=new URLSearchParams(); if($('fAction').value.trim()) q.set('action',$('fAction').value.trim()); if($('fActor').value.trim()) q.set('actor',$('fActor').value.trim()); q.set('limit','1000'); q.set('format','csv');
+  const a=document.createElement('a'); a.href='/api/admin/audit?'+q; a.download=''; document.body.appendChild(a); a.click(); a.remove();
+}
+async function loadInvites(){
+  try{ const r=await fetch('/api/admin/invites',{headers:H()}); const j=await r.json();
+    const tb=$('iTable').querySelector('tbody'); tb.innerHTML='';
+    (j.items||[]).forEach(v=>{ const used=!!v.used_by; const expired=v.expires_at&&new Date(v.expires_at).getTime()<Date.now()&&!used;
+      const st=used?'<span class="pill bad">已使用</span>':(expired?'<span class="pill warn">已过期</span>':'<span class="pill ok">未使用</span>');
+      const tr=document.createElement('tr');
+      tr.innerHTML='<td class="mono">'+esc(v.code)+'</td><td>'+esc(v.note||'-')+'</td><td>'+st+'</td><td>'+esc(v.used_by||'-')+'</td><td class="mono">'+esc(v.created_at)+'</td>';
+      tb.appendChild(tr); });
+  }catch(e){}
+}
+async function genInvite(){
+  const m=$('iMsg'); m.className='msg info'; m.textContent='生成中…';
+  try{ const r=await fetch('/api/admin/invites',{method:'POST',headers:H(),body:JSON.stringify({note:$('iNote').value.trim(),expires_days:Number($('iDays').value)})});
+    const j=await r.json(); if(j.code){ const box=$('iNew'); box.classList.remove('hide'); box.textContent='邀请码：'+j.code+'（'+j.expires_in_days+' 天内有效，一次性）'; m.className='msg ok'; m.textContent='已生成，请复制发给对方（仅显示这一次列表页可再查）。'; loadInvites(); }
+    else { m.className='msg err'; m.textContent=j.error||'生成失败'; }
+  }catch(e){ m.className='msg err'; m.textContent='失败：'+e.message; }
+}
+async function loadBS(){
+  try{ const r=await fetch('/api/brand-safety/report',{headers:H()}); const j=await r.json();
+    const tb=$('bsBlockTable').querySelector('tbody'); tb.innerHTML='';
+    (Array.isArray(j)?j:[]).forEach(function(x){ const tr=document.createElement('tr');
+      tr.innerHTML='<td>'+esc(x.publisher)+'</td><td class="mono">'+esc(x.reason)+'</td><td>'+esc(x.n)+'</td>'; tb.appendChild(tr); });
+  }catch(e){}
+  try{ const r=await fetch('/api/admin/review-audit',{headers:H()}); const j=await r.json();
+    const tb=$('bsRejTable').querySelector('tbody'); tb.innerHTML='';
+    (Array.isArray(j)?j:[]).slice(0,100).forEach(function(x){ const tr=document.createElement('tr');
+      tr.innerHTML='<td class="mono">'+esc(x.created_at)+'</td><td>'+esc(x.target_type)+'#'+esc(x.target_id)+'</td><td class="mono">'+esc(x.action)+'</td><td>'+esc(x.actor)+'</td><td>'+esc(x.note)+'</td>'; tb.appendChild(tr); });
+  }catch(e){}
+}
+async function classifyBS(){
+  const m=$('bsMsg'); m.className='msg info'; m.textContent='分类中…';
+  const body={}; const d=$('bsDomain').value.trim(); if(d) body.bundle=d;
+  const c=$('bsCat').value.trim(); if(c) body.app_category=c;
+  const k=$('bsKw').value.trim(); if(k) body.keywords=k.split(',').map(s=>s.trim()).filter(Boolean);
+  try{
+    const r=await fetch('/api/brand-safety/classify',{method:'POST',headers:H(),body:JSON.stringify(body)});
+    const j=await r.json(); const tier=j.garmTier;
+    const cls = tier===0?'bad':(tier<=2?'ok':'warn');
+    $('bsOut').innerHTML='<div class="codebox" style="border-color:var(--acc2);color:var(--fg)">GARM Tier: <span class="pill '+cls+'">'+esc(tier)+'</span> &nbsp;·&nbsp; IAB: '+esc((j.iab||[]).join(', '))+' &nbsp;·&nbsp; '+(j.floorHit?('Floor 命中: '+esc(j.floorHit)):esc(j.label||''))+(j.unknown?'（未分类，保守按 Tier3）':'')+'</div>';
+    m.className='msg ok'; m.textContent='分类完成';
+  }catch(e){ m.className='msg err'; m.textContent='失败：'+e.message; }
+}
+boot();
+</script>
+</body>
+</html>

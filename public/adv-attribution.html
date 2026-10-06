@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>归因 / 追踪对接 · 广告主</title>
+<style>
+  body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 22px 60px}
+  h2{font-size:20px;margin:8px 0 2px}
+  h3{margin:18px 0 8px;font-size:14px;color:#cdd8f2}
+  .hint{font-size:12.5px;color:#93a3c4;line-height:1.6}
+  .card{background:#16203a;padding:16px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row>div{flex:1;min-width:180px}
+  label{display:block;font-size:12px;color:#93a3c4;margin:8px 0 3px}
+  input,select,textarea{width:100%;padding:7px 9px;border:1px solid #2f4170;border-radius:6px;box-sizing:border-box;font-size:13px;background:#0d1730;color:#e8eefc}
+  button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px}
+  .btn2{background:#3b82f6}
+  .btnx{background:#c0392b}
+  pre{background:#0a0f1d;color:#9fb3d1;padding:12px;border-radius:8px;overflow:auto;font-size:12px;line-height:1.5}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px}
+  td,th{border:1px solid #26355c;padding:6px 8px;text-align:left}
+  th{background:#132043;color:#93a3c4}
+  code{background:#0a0f1d;padding:1px 5px;border-radius:4px;color:#7fd1ff}
+  .seg{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#132038;color:#93a3c4}
+  .mono{font-family:ui-monospace,Consolas,monospace}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>归因 / 追踪对接</h2>
+  <div class="hint">本平台已内置 AppsFlyer / Adjust / Singular / Kochava / Tenjin / Branch 对接：配置回传地址与归因窗口，并获取监测链接模板与 macro，对齐行业口径。转化回传入账端点：<code>POST/GET /api/track/mmp-postback?impid={impid}</code>。</div>
+
+  <div class="card">
+    <h3>① 已配置的 MMP / 归因平台</h3>
+    <div id="mmpList" class="hint">加载中…</div>
+    <h3 style="margin-top:18px">② 新增归因平台</h3>
+    <div class="row">
+      <div style="flex:2"><label>平台 provider</label>
+        <select id="mprov"><option value="appsflyer">AppsFlyer</option><option value="adjust">Adjust</option><option value="singular">Singular</option><option value="kochava">Kochava</option><option value="tenjin">Tenjin</option><option value="branch">Branch</option></select></div>
+      <div style="flex:4"><label>回传 postback_url（点击/转化回传地址）</label><input id="mpb" placeholder="https://example.com/mmp/postback"></div>
+      <div style="flex:1"><button class="btn2" onclick="mmpAdd()">添加</button></div>
+    </div>
+    <div class="hint" id="mmpMsg" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h3>③ 监测链接模板与 macro（填入 MMP / 跟踪后台）</h3>
+    <p class="hint">平台在投放时向以下宏注入实时值；把这些链接填进你的 MMP「跟踪链接」配置即可打通点击/曝光归因。</p>
+    <pre>点击监测（Click）： https://dellai.xyz/click?impid={impid}&cid={cid}&pub={publisher}&clickid={clickid}
+曝光监测（View） ： https://dellai.xyz/imp?impid={impid}&cid={cid}&pub={publisher}
+S2S 转化回传（MMP→本平台）： /api/track/mmp-postback?impid={impid}&clickid={clickid}
+
+宏说明：
+  {impid}   本次曝光的唯一 ID（归因事实源，必填）
+  {clickid}  MMP 下发的点击 ID（点击归因用）
+  {cid}      Campaign ID
+  {publisher} 媒体/流量方域名</pre>
+  </div>
+
+  <div class="card">
+    <h3>④ 测试设备 ID（端到端联调）</h3>
+    <p class="hint">填入一台测试设备的 ID（如 IDFA/GAID 或指纹），在演示/联调时可用它绕过频次控制、强制命中，验证归因与回传链路。下方可复制或导出二维码供手机扫码。</p>
+    <div class="row">
+      <div style="flex:5"><label>测试设备 ID</label><input id="testDev" class="mono" placeholder="如 IDFA-TEST-DEVICE-001"></div>
+      <div style="flex:1"><button onclick="saveDev()">保存</button></div>
+      <div style="flex:1"><button class="btn2" onclick="copyDev()">复制</button></div>
+    </div>
+    <div id="qr" class="hint" style="margin-top:10px">保存后将在此生成可扫码的设备二维码（便于手机端联调）。</div>
+  </div>
+</div>
+
+<script>window.AUTH_TITLE='广告主后台';</script>
+<script src="/admin.js"></script>
+<script src="/ui.js"></script>
+<script>
+function api(path, body, method){
+  method = method || (body ? 'POST' : 'GET');
+  const t = (window.Auth && Auth.get && Auth.get()) || {};
+  return fetch(path, { method, headers:{'Content-Type':'application/json', Authorization:'Bearer '+(t.token||'')},
+    body: body ? JSON.stringify(body) : undefined })
+    .then(r=>r.json().catch(()=>({error:'bad json'})));
+}
+function me(){ return (window.Auth && Auth.get())||null; }
+
+async function mmpLoad(){
+  const adv = (me()&&me().scope)||'';
+  const rows = await api('/api/mmp/config'+(adv?('?advertiser='+encodeURIComponent(adv)):''));
+  const box = document.getElementById('mmpList');
+  if(!Array.isArray(rows)||!rows.length){ box.innerHTML='<span class="hint">尚未配置任何 MMP。在上方 ② 新增一个回传地址即可开始归因对接。</span>'; return; }
+  let h='<table><thead><tr><th>id</th><th>平台</th><th>回传地址</th><th>启用</th><th>操作</th></tr></thead><tbody>';
+  rows.forEach(r=>{
+    h+='<tr><td>'+r.id+'</td><td><span class="seg">'+r.provider+'</span></td><td class="mono" style="font-size:11.5px">'+r.postback_url+'</td>'+
+       '<td>'+(r.enabled?'✓ 启用':'✗ 停用')+'</td>'+
+       '<td><button class="btn2" onclick="mmpToggle('+r.id+','+(r.enabled?0:1)+')">'+(r.enabled?'停用':'启用')+'</button> '+
+       '<button class="btnx" onclick="mmpDel('+r.id+')">删除</button></td></tr>';
+  });
+  h+='</tbody></table>';
+  box.innerHTML=h;
+}
+async function mmpAdd(){
+  const provider=document.getElementById('mprov').value;
+  const url=document.getElementById('mpb').value.trim();
+  if(!url){ UI.toast('请填写回传 postback_url','err'); return; }
+  const d=await api('/api/mmp/config',{provider,postback_url:url});
+  document.getElementById('mmpMsg').textContent = d.ok? '已添加 '+provider : ('失败：'+(d.error||''));
+  document.getElementById('mpb').value='';
+  mmpLoad();
+}
+async function mmpToggle(id,en){
+  await api('/api/mmp/config/'+id,{enabled:en},'PUT');
+  mmpLoad();
+}
+async function mmpDel(id){
+  await api('/api/mmp/config/'+id,null,'DELETE');
+  mmpLoad();
+}
+
+// 测试设备 ID：存 localStorage，并渲染二维码（用公开 QR 服务；离线时降级为纯文本）
+function saveDev(){
+  const v=document.getElementById('testDev').value.trim();
+  try{ localStorage.setItem('applink_test_device', v); }catch(e){}
+  UI.toast(v? '已保存测试设备 ID':'已清除','ok');
+  renderQR(v);
+}
+function copyDev(){
+  const v=document.getElementById('testDev').value.trim();
+  if(!v) return;
+  if(navigator.clipboard) navigator.clipboard.writeText(v).then(()=>UI.toast('已复制','ok'));
+}
+function renderQR(v){
+  const box=document.getElementById('qr');
+  if(!v){ box.textContent='保存后将在此生成可扫码的设备二维码（便于手机端联调）。'; return; }
+  const u='https://api.qrserver.com/v1/create-qr-code/?size=160x160&data='+encodeURIComponent(v);
+  box.innerHTML='<div class="mono" style="margin-bottom:6px">'+v+'</div>'+
+    '<img src="'+u+'" alt="qr" style="width:160px;height:160px;border-radius:8px;background:#fff;padding:6px" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'block\'">'+
+    '<div style="display:none" class="hint">（离线环境无法渲染二维码，请直接复制上方设备 ID）</div>';
+}
+(function init(){
+  const v=(function(){ try{ return localStorage.getItem('applink_test_device')||''; }catch(e){ return ''; } })();
+  document.getElementById('testDev').value=v;
+  if(v) renderQR(v);
+  mmpLoad();
+})();
+</script>
+
+<script src="/console_top.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a454f8b9ac1345f7',t:'MTc5MTEyNTEzOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

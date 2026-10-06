@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>账户与结算 · 开发者后台</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1100px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#cdd8f2}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ .row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:170px}
+ label{display:block;font-size:12px;color:#93a3c4;margin:8px 0 3px}
+ input,select{width:100%;padding:7px 9px;border:1px solid #2f4170;border-radius:6px;box-sizing:border-box;background:#0d1730;color:#e8eefc}
+ button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;margin-top:10px}
+ button.b{background:#4F8EF7}
+ code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+ .kpi{display:flex;gap:16px;flex-wrap:wrap} .kpi div{background:#0a0f1d;color:#e5e9f2;border:1px solid #26304a;border-radius:8px;padding:10px 14px} .kpi b{font-size:18px;color:#7fd1ff}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>账户与结算</h2>
+  <div class="hint" id="who">—</div>
+
+  <div class="card">
+    <h3>接入密钥（API Key · SDK 接入用）</h3>
+    <div class="hint" id="key">加载中…</div>
+    <button class="b" onclick="copyKey()">复制密钥</button>
+    <p class="hint">密钥仅在首次入驻时展示一次；遗忘或泄露请在「接入引导向导」重新获取，或联系运营轮换（运营在「账号与权限」操作）。SDK 用此 key 标识你的媒体方身份。</p>
+  </div>
+
+  <div class="card">
+    <h3>收款信息</h3>
+    <div class="row">
+      <div><label>收款户名</label><input id="p-name" placeholder="公司 / 个人姓名"></div>
+      <div><label>收款方式</label><select id="p-type">
+        <option value="">请选择</option><option>对公银行转账</option><option>支付宝</option><option>微信</option><option>PayPal</option>
+      </select></div>
+      <div><label>收款账号</label><input id="p-account" placeholder="银行卡号 / 支付宝账号"></div>
+      <div><label>发票抬头</label><input id="p-invoice" placeholder="公司名"></div>
+      <div><label>税号</label><input id="p-tax" placeholder="纳税人识别号"></div>
+      <div><label>⭐ 结算币种 currency</label><select id="p-currency">
+        <option value="CNY">CNY 人民币</option>
+        <option value="USD">USD 美元</option>
+        <option value="HKD">HKD 港币</option>
+        <option value="EUR">EUR 欧元</option>
+        <option value="SGD">SGD 新币</option>
+      </select></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><label>⭐ 开户行 bank_name（跨境必填）</label><input id="p-bank" placeholder="如 招商银行北京分行"></div>
+      <div><label>⭐ SWIFT 代码 / IBAN（跨境必填）</label><input id="p-swift" placeholder="如 CNSHBJXXX 或 DE89..."></div>
+      <div><label>⭐ 税表类型 tax_form</label><select id="p-taxform">
+        <option value="">请选择（跨境必填）</option>
+        <option value="CN_TAX">中国大陆税表（16 位税号）</option>
+        <option value="W-9">W-9（美国居民）</option>
+        <option value="W-8BEN">W-8BEN（美国非居民个人）</option>
+        <option value="W-8BEN-E">W-8BEN-E（美国非居民公司）</option>
+        <option value="VAT">欧盟 VAT 号</option>
+      </select></div>
+      <div><label>⭐ 税表文件 URL（上传后回填）</label><input id="p-taxform-url" placeholder="https://... 或稍后联系运营"></div>
+    </div>
+    <button onclick="savePay()">保存收款信息</button>
+    <div class="hint" id="p-msg"></div>
+    <p class="hint" style="color:#7fd1ff">⭐ 跨境结算必须提供 SWIFT 代码 + W-8BEN/W-8BEN-E/VAT 税表；美国主体按 FATCA 要求必须提交 W-9 或 W-8BEN。</p>
+  </div>
+
+  <div class="card">
+    <h3>结算概览</h3>
+    <div id="settle">点击"刷新结算"</div>
+    <button class="b" onclick="loadSettle()">刷新结算</button>
+    <p class="hint">完整收益 / 对账 / 回执裁决明细见 <a href="/publisher_report.html" style="color:#7fd1ff">概览/报表</a>。</p>
+  </div>
+
+  <div class="card">
+    <h3>接入引导向导（一次性）</h3>
+    <div class="hint">已是老媒体？接入流程只走一次；后续常驻能力都在上方四个域。需要重看引导请点 <a href="/publisher.html" style="color:#7fd1ff">接入引导向导</a>（入驻 → 应用 → 广告单元 → 埋码 → 自检 → 看收益）。</div>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='开发者后台';</script>
+  <script src="/admin.js"></script>
+  <script>
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    function whoami(){
+      var me = (window.Auth && Auth.get()) || null;
+      var w = document.getElementById('who');
+      if (me && me.type === 'publisher') { w.textContent = '当前开发者：' + me.scope + '（登录账号 ' + me.username + '）'; return me.scope; }
+      w.innerHTML = '尚未登录开发者账号 · <a href="/login.html">去登录</a> 或 <a href="/register.html#publisher">去入驻</a>';
+      return null;
+    }
+    async function loadKey(){
+      if (!whoami()) return;
+      var d = await (await fetch('/api/publisher/key')).json().catch(function(){ return {}; });
+      var el = document.getElementById('key');
+      if (d && d.api_key) { el.innerHTML = '<code style="font-family:ui-monospace;color:#7ee787">' + esc(d.api_key) + '</code>'; window._key = d.api_key; }
+      else el.textContent = (d && d.error) ? d.error : '未取到密钥';
+    }
+    function copyKey(){
+      if (!window._key) return;
+      try { navigator.clipboard.writeText(window._key); var el = document.getElementById('key'); el.innerHTML += ' <span style="color:#34d399">已复制</span>'; }
+      catch (e) { alert('复制失败，请手动选择'); }
+    }
+    async function loadPay(){
+      if (!whoami()) return;
+      var d = await (await fetch('/api/publisher/payment')).json().catch(function(){ return {}; });
+      if (d && !d.error) {
+        document.getElementById('p-name').value = d.payee_name || '';
+        document.getElementById('p-type').value = d.payee_type || '';
+        document.getElementById('p-account').value = d.payee_account || '';
+        document.getElementById('p-invoice').value = d.invoice_title || '';
+        document.getElementById('p-tax').value = d.tax_no || '';
+        document.getElementById('p-currency').value = d.currency || 'CNY';
+        document.getElementById('p-bank').value = d.bank_name || '';
+        document.getElementById('p-swift').value = d.swift_iban || '';
+        document.getElementById('p-taxform').value = d.tax_form_type || '';
+        document.getElementById('p-taxform-url').value = d.tax_form_url || '';
+      }
+    }
+    async function savePay(){
+      var m = document.getElementById('p-msg');
+      if (!whoami()) { m.textContent = '请先登录开发者账号'; return; }
+      var r = await fetch('/api/publisher/payment', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payee_name: document.getElementById('p-name').value.trim(),
+          payee_type: document.getElementById('p-type').value,
+          payee_account: document.getElementById('p-account').value.trim(),
+          invoice_title: document.getElementById('p-invoice').value.trim(),
+          tax_no: document.getElementById('p-tax').value.trim(),
+          currency: document.getElementById('p-currency').value,
+          bank_name: document.getElementById('p-bank').value.trim(),
+          swift_iban: document.getElementById('p-swift').value.trim().toUpperCase(),
+          tax_form_type: document.getElementById('p-taxform').value,
+          tax_form_url: document.getElementById('p-taxform-url').value.trim() }) });
+      var d = await r.json().catch(function(){ return {}; });
+      m.textContent = r.ok ? '已保存收款信息 ✓' : ('失败：' + (d.error || JSON.stringify(d)));
+    }
+    async function loadSettle(){
+      if (!whoami()) return;
+      var el = document.getElementById('settle'); el.textContent = '加载中…';
+      var d = await (await fetch('/api/publisher/report')).json().catch(function(){ return {}; });
+      if (d && d.error) { el.textContent = d.error; return; }
+      el.innerHTML = '<div class="kpi">' +
+        '<div>媒体分成 <b>' + (Number(d.payout_cny || 0)).toFixed(4) + '</b> 元</div>' +
+        '<div>胜出 <b>' + (d.wins || 0) + '</b></div>' +
+        '<div>SSP 毛利 <b>' + (Number(d.ssp_margin_cny || 0)).toFixed(4) + '</b> 元</div>' +
+        '<div>已发奖 <b>' + (d.rewarded_granted || 0) + '/' + (d.rewarded_total || 0) + '</b></div></div>' +
+        '<div class="hint" style="margin-top:8px">回执 / 结算裁决状态见「概览/报表」。</div>';
+    }
+    whoami(); loadKey(); loadPay(); loadSettle();
+  </script>
+
+<script src="/console_top.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a455258d1a672805',t:'MTc5MTEyNjk3NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"ce55610ec9ce4a0da4e9dfc2657616c8","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body></html>

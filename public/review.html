@@ -6,7 +6,7 @@
  h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#e8eefc}
  .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
  .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
- select{padding:6px 9px;border:1px solid #26355c;border-radius:6px;background:#0d1730;color:#e8eefc}
+ select,input{padding:6px 9px;border:1px solid #26355c;border-radius:6px;background:#0d1730;color:#e8eefc}
  button{padding:5px 12px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;font-size:12px}
  button.ghost{background:#5b6b82} button.bad{background:#c0392b}
  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left;vertical-align:top;color:#e8eefc}
@@ -14,6 +14,8 @@
  .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#16203a;color:#7fd1ff;border:1px solid #26355c}
  .tag.ok{background:#16321f;color:#34d399;border-color:#234a35} .tag.no{background:#3a1d24;color:#f87171;border-color:#4a2630}
  pre{margin:0;white-space:pre-wrap;word-break:break-all;max-height:90px;overflow:auto;background:#0f172a;color:#9ae6b4;padding:6px;border-radius:5px;font-size:11px}
+ #ktbl tbody tr{cursor:pointer}
+ #ktbl tbody tr:hover{background:#1b2848}
 </style></head>
 <body>
 <div id="ctop"></div>
@@ -31,15 +33,60 @@
 
   <div class="card">
     <h3>② 素材审核</h3>
-    <div class="hint">停用的素材不再参与投放（A/B 轮播也会剔除）。</div>
-    <table id="ktbl"><thead><tr><th>id</th><th>计划</th><th>广告主</th><th>形态</th><th>标题</th><th>内容</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+    <div class="hint">素材审核通过后才参与投放。驳回必须填原因——广告主会看到原因并据此修改。支持：勾选多行批量操作；点击某行选中后可用快捷键 <b>A</b>=通过 / <b>R</b>=驳回 / <b>↑↓</b>=切换。</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <select id="kst" onchange="loadCr()">
+        <option value="">全部</option><option value="draft">草稿</option><option value="pending">待审核</option><option value="approved">已通过</option>
+        <option value="rejected">已驳回</option><option value="paused">已暂停</option><option value="expired">已过期</option>
+      </select>
+      <button onclick="loadCr()" style="background:#3b82f6">刷新</button>
+      <span style="flex:1"></span>
+      <label><input type="checkbox" id="selAll" onchange="selAll(this)"> 全选</label>
+      <button onclick="batchApprove()">批量通过</button>
+      <button class="bad" onclick="batchReject()">批量驳回</button>
+    </div>
+    <table id="ktbl"><thead><tr><th></th><th>id</th><th>计划</th><th>广告主</th><th>形态</th><th>标题</th><th>内容</th><th>投放</th><th>审核</th><th>驳回原因</th><th>操作/留痕</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>③ 审核规则引擎（关键词 / 敏感词 / 落地域名 / 图片MD5 + 人工兜底）</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <input id="r-name" placeholder="规则名" style="width:150px">
+      <select id="r-type">
+        <option value="keyword">关键词</option>
+        <option value="sensitive_word">敏感词</option>
+        <option value="landing_domain">落地域名</option>
+        <option value="image_hash">图片MD5</option>
+      </select>
+      <input id="r-pattern" placeholder="匹配值（逗号分隔多值）" style="flex:1;min-width:200px">
+      <select id="r-action">
+        <option value="auto_reject">自动驳回</option>
+        <option value="auto_approve">自动通过</option>
+        <option value="flag">标记人工</option>
+      </select>
+      <button onclick="addRule()">添加</button>
+    </div>
+    <table id="rtbl"><thead><tr><th>id</th><th>名称</th><th>类型</th><th>匹配</th><th>动作</th><th>启用</th><th>操作</th></tr></thead><tbody></tbody></table>
+    <div class="hint">图片MD5：填写创意图片的 MD5（已知违规素材），命中即按动作处理（MD5 在素材上报时自动计算）。无命中 → 保持人工审核。</div>
+    <div style="margin-top:8px"><button onclick="autoAll()">对全部待审素材跑一次规则引擎</button></div>
+  </div>
+
+  <div class="card" id="audit-card" style="display:none">
+    <h3>④ 审核留痕 · <span id="audit-target"></span></h3>
+    <table id="atbl"><thead><tr><th>时间</th><th>对象</th><th>动作</th><th>操作人</th><th>说明</th></tr></thead><tbody></tbody></table>
+    <button class="ghost" onclick="document.getElementById('audit-card').style.display='none'">关闭</button>
   </div>
 </div>
 
   <script>window.AUTH_TITLE='平台运营';</script>
   <script src="/admin.js"></script>
+  <script src="/ui.js"></script>
   <script>
     function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    const RS = { draft:'草稿', pending:'待审核', approved:'已通过', rejected:'已驳回', paused:'已暂停', expired:'已过期' };
+    const RSColor = { pending:'#fbbf24', approved:'#34d399', rejected:'#f87171' };
+    let selId = null;
+
     async function loadCamp(){
       const st = document.getElementById('st').value;
       const rows = await (await fetch('/api/campaigns/review?status=' + st)).json().catch(()=>([]));
@@ -55,38 +102,109 @@
       });
       if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="8">暂无</td></tr>';
     }
-    async function approve(id){
-      await fetch('/api/campaign/'+id+'/approve',{method:'PUT'});
-      loadCamp();
-    }
+    async function approve(id){ await fetch('/api/campaign/'+id+'/approve',{method:'PUT'}); loadCamp(); }
     async function reject(id){
-      const note = prompt('填写驳回原因（广告主会看到，请写清如何修改）：');
+      const note = await UI.prompt('填写驳回原因（广告主会看到，请写清如何修改）：');
       if(!note||!note.trim()) return;
       const r = await fetch('/api/campaign/'+id+'/reject',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note.trim()})});
       const d = await r.json().catch(()=>({}));
-      if(!r.ok) alert('失败：'+(d.error||''));
+      if(!r.ok) UI.toast('失败：'+(d.error||''),'err');
       loadCamp();
     }
     async function loadCr(){
+      const st = document.getElementById('kst').value;
       const rows = await (await fetch('/api/creatives')).json().catch(()=>([]));
+      const filtered = st ? (rows||[]).filter(k => (k.creative_status || 'pending') === st) : (rows||[]);
       const tb = document.querySelector('#ktbl tbody'); tb.innerHTML='';
-      (rows||[]).forEach(k=>{
-        const on = String(k.status)==='active';
+      filtered.forEach(k=>{
+        const on = (k.creative_status || 'pending') === 'approved';
+        const rs = k.creative_status || 'pending';
         const tr=document.createElement('tr');
-        tr.innerHTML='<td>'+k.id+'</td><td>'+k.campaign_id+'</td><td>'+esc(k.advertiser)+'</td><td><span class="tag">'+esc(k.format)+'</span></td>'+
-          '<td>'+esc(k.title)+'</td><td style="max-width:260px"><pre>'+esc(String(k.content||'').slice(0,220))+'</pre></td>'+
+        tr.dataset.id = k.id;
+        if (k.id === selId) tr.style.outline = '2px solid #3b82f6';
+        tr.onclick = (e)=>{ if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON') return; selId=k.id; markSel(); };
+        tr.innerHTML='<td><input type="checkbox" class="ck" value="'+k.id+'"></td>'+
+          '<td>'+k.id+'</td><td>'+k.campaign_id+'</td><td>'+esc(k.advertiser)+'</td><td><span class="tag">'+esc(k.format)+'</span></td>'+
+          '<td>'+esc(k.title)+'</td><td style="max-width:200px"><pre>'+esc(String(k.content||'').slice(0,180))+'</pre></td>'+
           '<td><span class="tag '+(on?'ok':'no')+'">'+(on?'启用':'停用')+'</span></td>'+
-          '<td><button class="'+(on?'ghost':'')+'" onclick="toggleCr('+k.id+','+(on?0:1)+')">'+(on?'停用':'启用')+'</button></td>';
+          '<td><span class="tag" style="background:'+RSColor[rs]+'20;color:'+RSColor[rs]+';border-color:'+RSColor[rs]+'40">'+(RS[rs]||rs)+'</span></td>'+
+          '<td style="max-width:160px;color:#f87171">'+esc(k.review_note||'')+(k.review_flagged?' <span class="tag" style="color:#fbbf24;border-color:#fbbf2440">⚑规则</span>':'')+'</td>'+
+          '<td><button onclick="approveCr('+k.id+')">通过</button> <button class="bad" onclick="rejectCr('+k.id+')">驳回</button> <button class="ghost" onclick="showAudit(\'creative\','+k.id+')">留痕</button></td>';
         tb.appendChild(tr);
       });
-      if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="8">暂无素材</td></tr>';
+      if(!filtered.length) tb.innerHTML='<tr><td colspan="11">暂无素材</td></tr>';
     }
-    async function toggleCr(id,on){
-      await fetch('/api/creatives/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:on?'active':'paused'})});
+    function markSel(){ document.querySelectorAll('#ktbl tbody tr').forEach(tr=>{ tr.style.outline = (Number(tr.dataset.id)===selId)?'2px solid #3b82f6':''; }); }
+    async function approveCr(id){ const r=await fetch('/api/creative/'+id+'/approve',{method:'PUT'}); const d=await r.json().catch(()=>({})); if(!r.ok) UI.toast('失败：'+(d.error||''),'err'); loadCr(); }
+    async function rejectCr(id){
+      const note = await UI.prompt('填写驳回原因（广告主会看到，请写清如何修改）：');
+      if(!note||!note.trim()) return;
+      const r = await fetch('/api/creative/'+id+'/reject',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note.trim()})});
+      const d = await r.json().catch(()=>({}));
+      if(!r.ok) UI.toast('失败：'+(d.error||''),'err');
       loadCr();
     }
-    loadCamp(); loadCr();
+    async function toggleCr(id,on){ await fetch('/api/creatives/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({creative_status: on?'approved':'paused'})}); loadCr(); }
+
+    function getSel(){ return Array.from(document.querySelectorAll('#ktbl .ck:checked')).map(c=>+c.value); }
+    function selAll(b){ document.querySelectorAll('#ktbl .ck').forEach(c=>c.checked=b.checked); }
+    async function batchApprove(){ const ids=getSel(); if(!ids.length) return UI.toast('请先勾选','err'); for(const id of ids) await fetch('/api/creative/'+id+'/approve',{method:'PUT'}).catch(()=>{}); loadCr(); }
+    async function batchReject(){
+      const ids=getSel(); if(!ids.length) return UI.toast('请先勾选','err');
+      const note=await UI.prompt('批量驳回原因（广告主会看到）：'); if(!note||!note.trim()) return;
+      for(const id of ids) await fetch('/api/creative/'+id+'/reject',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:note.trim()})}).catch(()=>{});
+      loadCr();
+    }
+    document.addEventListener('keydown', e=>{
+      if(!selId) return;
+      if(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+      if(e.key==='a'||e.key==='A'){ approveCr(selId); }
+      else if(e.key==='r'||e.key==='R'){ rejectCr(selId); }
+      else if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        e.preventDefault();
+        const rows=Array.from(document.querySelectorAll('#ktbl tbody tr'));
+        let i=rows.findIndex(r=>Number(r.dataset.id)===selId); i = i<0?0:(i+(e.key==='ArrowDown'?1:-1));
+        i=Math.max(0,Math.min(rows.length-1,i));
+        if(rows[i]){ selId=Number(rows[i].dataset.id); markSel(); rows[i].scrollIntoView({block:'nearest'}); }
+      }
+    });
+
+    // 规则引擎
+    async function loadRules(){
+      const rows=await (await fetch('/api/admin/review-rules')).json().catch(()=>[]);
+      const tb=document.querySelector('#rtbl tbody'); tb.innerHTML='';
+      (rows||[]).forEach(r=>{ const tr=document.createElement('tr');
+        tr.innerHTML='<td>'+r.id+'</td><td>'+esc(r.name)+'</td><td>'+r.type+'</td><td style="max-width:220px;word-break:break-all">'+esc(r.pattern)+'</td><td>'+r.action+'</td><td>'+(r.enabled?'是':'否')+'</td>'+
+          '<td><button onclick="toggleRule('+r.id+','+(r.enabled?0:1)+')">'+(r.enabled?'停用':'启用')+'</button> <button class="bad" onclick="delRule('+r.id+')">删</button></td>';
+        tb.appendChild(tr); });
+      if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="7">暂无规则</td></tr>';
+    }
+    async function addRule(){
+      const name=document.getElementById('r-name').value.trim();
+      const pattern=document.getElementById('r-pattern').value.trim();
+      if(!name||!pattern) return UI.toast('规则名与匹配值必填','err');
+      const r=await fetch('/api/admin/review-rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,type:document.getElementById('r-type').value,pattern,action:document.getElementById('r-action').value})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) return UI.toast('失败：'+(d.error||''),'err');
+      document.getElementById('r-name').value=''; document.getElementById('r-pattern').value=''; loadRules();
+    }
+    async function toggleRule(id,on){ await fetch('/api/admin/review-rules/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:on})}); loadRules(); }
+    async function delRule(id){ if(!confirm('删除规则？')) return; await fetch('/api/admin/review-rules/'+id,{method:'DELETE'}); loadRules(); }
+    async function autoAll(){ const r=await fetch('/api/admin/review/auto-all',{method:'POST'}); const d=await r.json().catch(()=>({})); UI.toast('已扫描 '+(d.scanned||0)+' 条'); loadCr(); }
+
+    // 审核留痕
+    async function showAudit(type,id){
+      document.getElementById('audit-card').style.display='block';
+      document.getElementById('audit-target').textContent=type+' #'+id;
+      const rows=await (await fetch('/api/admin/review-audit?target_type='+type+'&target_id='+id)).json().catch(()=>[]);
+      const tb=document.querySelector('#atbl tbody'); tb.innerHTML='';
+      (rows||[]).forEach(a=>{ const tr=document.createElement('tr');
+        tr.innerHTML='<td>'+esc(a.created_at)+'</td><td>'+a.target_type+'#'+a.target_id+'</td><td>'+esc(a.action)+'</td><td>'+esc(a.actor)+'</td><td style="max-width:300px">'+esc(a.note)+'</td>';
+        tb.appendChild(tr); });
+      if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="5">暂无留痕</td></tr>';
+    }
+
+    loadCamp(); loadCr(); loadRules();
   </script>
-<script src="/console_nav.js"></script>
+
 <script src="/console_top.js"></script>
 </body></html>

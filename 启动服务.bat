@@ -4,6 +4,8 @@ REM ============================================================
 REM  zhuque ADX 唯一手动启动入口（与开机自启共用 start_stack.ps1，幂等不冲突）
 REM
 REM  服务架构（唯一链路，各层职责）：
+REM   0) 显式声明生产环境，避免生产护栏（强口令/密钥必填/演示账号禁用）被旁路
+set NODE_ENV=production
 REM   1) MySQL267 / redisadx    - Windows 服务（数据库/缓存），下方 net start 兜底拉起
 REM   2) cloudflared 服务       - Windows 服务自启（dellai.xyz 隧道，token 远程管理）
 REM   3) ADX(8080)/媒体端(8081) - 本入口 - start_stack.ps1 拉起

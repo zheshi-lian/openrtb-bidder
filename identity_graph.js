@@ -49,6 +49,10 @@ async function initTables() {
   await pool.query(`CREATE TABLE IF NOT EXISTS identity_app_seen (
     canonical_id VARCHAR(80), bundle VARCHAR(128), last_seen BIGINT, seen_count INT DEFAULT 1,
     PRIMARY KEY (canonical_id, bundle))`).catch(() => {});
+  // 受众信号自动采集表（OS/机型/兴趣/地域分布，按设备汇总，周期刷新）
+  await pool.query(`CREATE TABLE IF NOT EXISTS audience_signal (
+    canonical_id VARCHAR(80) PRIMARY KEY, os_json TEXT, model_json TEXT, interest_json TEXT, country_json TEXT,
+    imps INT DEFAULT 0, created_at BIGINT, updated_at BIGINT)`).catch(() => {});
 }
 
 // ───────── 哈希与归一 ─────────
@@ -276,8 +280,77 @@ function fromOpenRTB(br) {
   };
 }
 
+// ===== 受众信号自动采集（服务端，零用户打扰）=====
+// 第一性原理：定向信号应【自动采集】而非让用户/广告主手填。OS / 机型 / 兴趣 全部由服务端从请求上下文
+// 解析（UA → OS/机型；app 类目 + 关键词 → 兴趣），不增加任何前端交互、不影响加载与体验。
+// 热路径只更新内存累加器（无 I/O）；由 flush 周期落库，避免每次竞价都写库拖慢 RTB。
+let _aud = new Map();   // canonicalId -> { os:{}, model:{}, interest:{}, country:{}, imps }
+function observeContext(canonicalId, ctx = {}) {
+  if (!canonicalId) return;                       // 无标识设备不计入受众画像
+  const id = String(canonicalId);
+  let a = _aud.get(id);
+  if (!a) { a = { os: {}, model: {}, interest: {}, country: {}, imps: 0 }; _aud.set(id, a); }
+  a.imps++;
+  const bump = (m, k) => { if (k) m[k] = (m[k] || 0) + 1; };
+  bump(a.os, String(ctx.os || '').trim());
+  bump(a.model, String(ctx.model || '').trim());
+  bump(a.country, String(ctx.country || '').trim());
+  // 兴趣自动细分：app 类目 + 上下文关键词（去空、小写），累加出现频次（无需用户标注）
+  const tags = [];
+  if (ctx.app_category) tags.push(String(ctx.app_category).toLowerCase().trim());
+  (Array.isArray(ctx.keywords) ? ctx.keywords : [])
+    .concat(Array.isArray(ctx.interest) ? ctx.interest : [])
+    .forEach(k => { const t = String(k || '').toLowerCase().trim(); if (t) tags.push(t); });
+  tags.forEach(t => bump(a.interest, t));
+}
+
+// 周期落库：把内存累加器合并进 audience_signal 表（按设备汇总兴趣分布）。
+// 落库失败不影响热路径（catch 静默），下一轮 flush 会再尝试。
+let _audFlushTimer = null;
+async function flushSignals() {
+  if (!pool || !_aud.size) return;
+  const now = Date.now();
+  const items = [..._aud.entries()];
+  _aud = new Map();
+  try {
+    for (const [cid, a] of items) {
+      await pool.query(
+        `INSERT INTO audience_signal (canonical_id, os_json, model_json, interest_json, country_json, imps, updated_at)
+         VALUES (?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE os_json=VALUES(os_json), model_json=VALUES(model_json),
+           interest_json=VALUES(interest_json), country_json=VALUES(country_json), imps=imps+VALUES(imps), updated_at=VALUES(updated_at)`,
+        [cid, JSON.stringify(a.os), JSON.stringify(a.model), JSON.stringify(a.interest), JSON.stringify(a.country), a.imps, now]
+      ).catch(() => {});
+    }
+  } catch (e) {}
+}
+function startFlush() { if (_audFlushTimer) return; _audFlushTimer = setInterval(() => flushSignals().catch(() => {}), 15000); }
+
+// 受众概览（管理端看数）：跨设备聚合 OS / 机型 / 兴趣 / 地域分布，验证自动采集生效
+async function audienceAggregate() {
+  const agg = (rows, key) => {
+    const m = {};
+    for (const r of rows || []) {
+      let obj; try { obj = JSON.parse(r[key] || '{}'); } catch (e) { obj = {}; }
+      for (const k of Object.keys(obj)) m[k] = (m[k] || 0) + Number(obj[k] || 0);
+    }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([k, v]) => ({ key: k, count: v }));
+  };
+  if (!pool) return { devices: _aud.size, os: [], model: [], interest: [], country: [] };
+  try {
+    const [rows] = await pool.query('SELECT os_json,model_json,interest_json,country_json,imps FROM audience_signal');
+    const totalImps = (rows || []).reduce((s, r) => s + (Number(r.imps) || 0), 0);
+    return {
+      devices: (rows || []).length, total_imps: totalImps,
+      os: agg(rows, 'os_json'), model: agg(rows, 'model_json'),
+      interest: agg(rows, 'interest_json'), country: agg(rows, 'country_json'),
+    };
+  } catch (e) { return { devices: 0, os: [], model: [], interest: [], country: [] }; }
+}
+
 module.exports = {
   attachPool, initTables, load, hashId, normalizeEmail, normalizePhone,
   resolve, apps, appsCount, stats, fromOpenRTB, find, union, linkScore,
   ID_WEIGHT, SIGNAL_WEIGHT, LINK_THRESHOLD,
+  observeContext, flushSignals, startFlush, audienceAggregate,
 };

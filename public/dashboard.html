@@ -61,14 +61,14 @@ async function load(){
     document.getElementById('be').textContent = 'backend: ' + (ms.backend||'-');
     const p = ov.platform||{};
     const kpis = [
-      ['总流水(元)', (p.grossMicros||0)/1e6],
+      ['总流水(元)', ((p.grossMicros||0)/1e6).toFixed(2)],
       ['今日曝光', p.todayImpressions||0],
-      ['今日流水(元)', (p.todayGrossMicros||0)/1e6],
+      ['今日流水(元)', ((p.todayGrossMicros||0)/1e6).toFixed(2)],
       ['激励发放', (ov.reward||{}).granted||0]
     ];
     document.getElementById('kpis').innerHTML = kpis.map(k=>`<div class="card"><div class="k">${k[0]}</div><div class="v">${k[1]}</div></div>`).join('');
     document.getElementById('metrics').textContent = renderMetrics(ms);
-    document.querySelector('#adv tbody').innerHTML = (ov.advertisers||[]).map(a=>`<tr><td>${a.id}</td><td>${a.name}</td><td>${a.app_category||'-'}</td><td>${(a.balance_micros/1e6).toFixed(0)}</td><td>${(a.spend_micros/1e6).toFixed(2)}</td><td>${a.impressions||0}</td><td>${a.clicks||0}</td><td>${a.conversions||0}</td></tr>`).join('');
+    document.querySelector('#adv tbody').innerHTML = (ov.advertisers||[]).map(a=>`<tr><td>${a.id}</td><td>${a.name}</td><td>${a.app_category||'-'}</td><td>${((a.budget_micros||0)/1e6).toFixed(2)}</td><td>${(a.spend_micros/1e6).toFixed(2)}</td><td>${a.impressions||0}</td><td>${a.clicks||0}</td><td>${a.conversions||0}</td></tr>`).join('');
     const repR = await fetch('/ssp/report');
     const rep = repR.ok ? await repR.json() : {};
     document.querySelector('#ssp tbody').innerHTML = (rep.publishers||[]).map(r=>`<tr><td>${r.publisher}</td><td>${r.wins}</td><td>${r.gross_cny.toFixed(2)}</td><td>${r.payout_cny.toFixed(2)}</td><td>${r.ssp_margin_cny.toFixed(2)}</td></tr>`).join('');
@@ -79,7 +79,7 @@ async function load(){
 load();
 setInterval(load, 10000);
 </script>
-<script src="/console_nav.js"></script>
+
 <script src="/console_top.js"></script>
 </body>
 </html>

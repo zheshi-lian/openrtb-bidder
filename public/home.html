@@ -2,113 +2,178 @@
 <html lang="zh-CN"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LinkOS · 轻资产高毛利的程序化广告平台（DSP + SSP + 广告交易引擎）</title>
-<meta name="description" content="LinkOS：DSP+SSP+广告交易引擎 一体。意图 Agent 出价、6 种广告形态、VAST4.0+OMID 可见性、设备指纹风控、S2S 结算+HMAC 防伪造。预付/周结、不设最低充值。本页可当场跑一次真实竞价。">
-<meta property="og:title" content="LinkOS · 程序化广告平台">
-<meta property="og:description" content="意图 Agent 出价 + 轻资产高毛利。预付/周结、不设最低充值。本页可当场跑一次真实竞价验证。">
+<title>AppLink · 程序化广告交易平台（DSP + SSP + 实时竞价引擎）</title>
+<meta name="description" content="AppLink：DSP、SSP 与广告交易引擎。提供实时出价响应检查、媒体接入、人工核验充值和服务端结算；实际成交与费用以平台账本为准。">
+<meta property="og:title" content="AppLink · 程序化广告平台">
+<meta property="og:description" content="检查实时出价响应，了解媒体接入与服务端结算流程。实际成交、扣费和效果以平台账本及双方对账为准。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://dellai.xyz/home.html">
 <meta name="theme-color" content="#0b1020">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EZ%3C/text%3E%3C/svg%3E">
 <style>
-  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24}
+  :root{
+    --bg:#080c1a;
+    --panel:rgba(255,255,255,.045);
+    --panel-hi:rgba(255,255,255,.075);
+    --line:rgba(255,255,255,.09);
+    --line-hi:rgba(255,255,255,.16);
+    --fg:#eef3ff;--mut:#9aa7c7;--dim:#74829f;
+    --acc:#38bdf8;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24;
+    --r:14px;
+    --shadow:0 22px 56px -22px rgba(0,0,0,.72),0 2px 8px rgba(0,0,0,.28);
+  }
   *{box-sizing:border-box}
-  body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.75 system-ui,"Microsoft YaHei",sans-serif}
-  a{color:var(--acc2);text-decoration:none}
-  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
-  .hero{padding:70px 0 36px;text-align:center}
-  .tag{display:inline-block;font-size:12px;letter-spacing:.14em;color:var(--acc2);border:1px solid #2b3c66;background:#132043;padding:5px 14px;border-radius:99px;margin-bottom:22px}
-  h1{font-size:38px;line-height:1.25;margin:0 0 16px;letter-spacing:-.02em}
-  h1 b{background:linear-gradient(92deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{font-size:18px;color:var(--mut);max-width:760px;margin:0 auto 30px}
+  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+  body{margin:0;color:var(--fg);
+    font:400 15px/1.78 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    background:
+      radial-gradient(1100px 520px at 72% -12%,rgba(37,99,235,.30),transparent 60%),
+      radial-gradient(900px 480px at 10% 6%,rgba(34,211,238,.15),transparent 60%),
+      radial-gradient(900px 620px at 50% 112%,rgba(124,58,237,.14),transparent 65%),
+      linear-gradient(180deg,#0a0f22 0%,var(--bg) 48%);
+    background-attachment:fixed;
+  }
+  ::selection{background:rgba(56,189,248,.3);color:#fff}
+  a{color:var(--acc2);text-decoration:none;transition:color .16s ease}
+  a:hover{color:#67e8f9}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 22px}
+
+  .hero{position:relative;padding:92px 0 46px;text-align:center;overflow:hidden}
+  .hero::before{content:'';position:absolute;left:50%;top:-150px;transform:translateX(-50%);
+    width:860px;height:440px;border-radius:50%;
+    background:radial-gradient(circle,rgba(56,189,248,.22),rgba(56,189,248,0) 62%);
+    filter:blur(20px);pointer-events:none}
+  .hero>.wrap{position:relative}
+  .tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.1em;color:#a5e9ff;
+    border:1px solid rgba(56,189,248,.28);background:rgba(56,189,248,.09);
+    backdrop-filter:blur(10px);padding:7px 16px;border-radius:99px;margin-bottom:26px}
+  h1{font-size:clamp(29px,4.6vw,50px);line-height:1.18;margin:0 0 18px;letter-spacing:-.028em;font-weight:800}
+  h1 b{background:linear-gradient(92deg,#60a5fa,#22d3ee 55%,#a7f3d0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{font-size:clamp(15px,1.4vw,18px);color:var(--mut);max-width:790px;margin:0 auto 36px;line-height:1.85}
   .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-  .btn{display:inline-block;padding:13px 24px;border-radius:9px;font-weight:700;font-size:15px;cursor:pointer;border:0}
-  .btn.p{background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a}
-  .btn.g{background:transparent;color:var(--fg);border:1px solid #2f4170}
-  .btn:hover{filter:brightness(1.1)}
-  .live{margin:34px auto 0;max-width:720px;background:var(--card);border:1px solid #26355c;border-radius:14px;padding:20px 22px;box-shadow:0 18px 50px #0007}
-  .live h3{margin:0 0 4px;font-size:16px}
-  .live .d{font-size:12px;color:var(--mut);margin-bottom:14px}
+
+  .btn{display:inline-block;padding:13px 24px;border-radius:11px;font-weight:700;font-size:14.5px;cursor:pointer;
+    border:0;transition:transform .18s ease,box-shadow .18s ease,background .18s ease,border-color .18s ease,color .18s ease}
+  .btn.p{background:linear-gradient(92deg,#38bdf8,#22d3ee);color:#04122a;box-shadow:0 10px 26px -10px rgba(34,211,238,.6)}
+  .btn.p:hover{transform:translateY(-2px);box-shadow:0 16px 34px -12px rgba(34,211,238,.78);color:#04122a}
+  .btn.g{background:var(--panel);color:var(--fg);border:1px solid var(--line-hi);backdrop-filter:blur(10px)}
+  .btn.g:hover{transform:translateY(-2px);background:var(--panel-hi);border-color:rgba(56,189,248,.42);color:#fff}
+
+  .live{margin:40px auto 0;max-width:770px;
+    background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.025));
+    border:1px solid var(--line);border-radius:18px;padding:22px 24px;
+    box-shadow:var(--shadow);backdrop-filter:blur(14px)}
+  .live h3{margin:0 0 4px;font-size:16.5px;letter-spacing:-.01em}
+  .live .d{font-size:12px;color:var(--dim);margin-bottom:14px}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
-  .cell{background:#101a33;border:1px solid #24345c;border-radius:11px;padding:14px}
-  .cell .k{font-size:12px;color:var(--mut)}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;
+    transition:border-color .18s ease,background .18s ease,transform .18s ease}
+  .cell:hover{border-color:rgba(56,189,248,.34);background:var(--panel-hi);transform:translateY(-2px)}
+  .cell .k{font-size:12px;color:var(--dim)}
   .cell .v{font-size:14px;margin-top:4px;word-break:break-all}
-  section{padding:42px 0}
-  h2{font-size:25px;margin:0 0 8px}
-  .h2sub{color:var(--mut);margin:0 0 22px;font-size:14px}
-  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid #26355c}
-  td,th{padding:11px 13px;border-bottom:1px solid #1e2b4c;font-size:13.5px;text-align:left;vertical-align:top}
-  th{background:#132043;color:var(--mut);font-size:12px;letter-spacing:.05em}
+
+  section{padding:46px 0}
+  h2{font-size:clamp(22px,2.6vw,29px);margin:0 0 10px;letter-spacing:-.022em;font-weight:800}
+  .h2sub{color:var(--mut);margin:0 0 24px;font-size:14.5px}
+
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  td,th{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13.5px;text-align:left;vertical-align:top}
+  th{background:rgba(255,255,255,.04);color:var(--dim);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+  tbody tr{transition:background .16s ease}
+  tbody tr:hover{background:rgba(255,255,255,.035)}
   tr:last-child td{border-bottom:0}
   .ok{color:var(--ok);font-weight:700}.mid{color:var(--warn);font-weight:700}
-  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
-  .step{background:var(--card);border:1px solid #26355c;border-radius:12px;padding:18px}
-  .step .n{font-size:12px;color:var(--acc2);font-weight:700;letter-spacing:.1em}
-  .step h3{margin:8px 0 6px;font-size:16px}
-  .step p{margin:0;color:var(--mut);font-size:13px}
-  footer{padding:32px 0 60px;color:var(--mut);font-size:13px;border-top:1px solid #1e2b4c;margin-top:20px}
-  code{background:#0d1730;border:1px solid #223358;padding:1px 6px;border-radius:5px;font-size:12px}
-  .small{font-size:12px;color:var(--mut)}
+
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+  .step{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--panel-hi),var(--panel));
+    border:1px solid var(--line);border-radius:16px;padding:20px;
+    box-shadow:0 14px 34px -22px rgba(0,0,0,.7);
+    transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+  .step::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;
+    background:linear-gradient(92deg,#38bdf8,#22d3ee 55%,transparent)}
+  .step:hover{transform:translateY(-4px);border-color:rgba(56,189,248,.36);box-shadow:0 24px 48px -24px rgba(0,0,0,.8)}
+  .step .n{font-size:11.5px;color:var(--acc2);font-weight:700;letter-spacing:.12em}
+  .step h3{margin:8px 0 6px;font-size:16.5px;letter-spacing:-.012em}
+  .step p{margin:0;color:var(--mut);font-size:13px;line-height:1.72}
+
+  footer{padding:34px 0 64px;color:var(--dim);font-size:13px;border-top:1px solid var(--line);margin-top:24px}
+  code{background:rgba(255,255,255,.06);border:1px solid var(--line);padding:1.5px 6px;border-radius:6px;font-size:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#cbe6ff}
+  .small{font-size:12px;color:var(--dim)}
+  @media (max-width:640px){.hero{padding:64px 0 34px}.wrap{padding:0 16px}}
 </style>
-<style>#linkos-nav{position:sticky;top:0;z-index:99999;display:flex;align-items:center;gap:4px;background:#1f2430;padding:6px 12px;font:13px/1.4 system-ui,"Microsoft YaHei",sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.25)}#linkos-nav .brand{color:#fff;font-weight:700;margin-right:10px;letter-spacing:.5px;text-decoration:none}#linkos-nav .grp{position:relative}#linkos-nav .glabel{display:inline-block;color:#cfd6e4;padding:5px 12px;border-radius:4px;cursor:pointer;user-select:none}#linkos-nav .grp:hover .glabel,#linkos-nav .glabel:hover{background:#323a4d;color:#fff}#linkos-nav .grp.on .glabel{color:#fff;font-weight:600;box-shadow:inset 0 -2px 0 #3b82f6}#linkos-nav .menu{display:none;position:absolute;top:100%;left:0;min-width:220px;background:#262d3d;border:1px solid #3a4358;border-radius:6px;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,.35)}#linkos-nav .grp:hover .menu,#linkos-nav .grp.open .menu{display:block}#linkos-nav .menu a{display:block;color:#cfd6e4;text-decoration:none;padding:6px 12px;border-radius:4px}#linkos-nav .menu a:hover{background:#323a4d;color:#fff}#linkos-nav .menu a.on{background:#3b82f6;color:#fff;font-weight:600}#linkos-nav .gdesc{font-size:11px;color:#8a93a6;padding:4px 12px 2px;line-height:1.4;border-bottom:1px solid #3a4358;margin-bottom:2px}</style></head>
-<body><div id="linkos-nav"><a class="brand" href="/home.html">LinkOS</a><div class="grp"><span class="glabel">广告主 · 投放</span><div class="menu"><div class="gdesc">开户 → 充值 → 建计划 → 传素材 → 创意自动化 → 审核 → 投放看数（对标 AppLovin ADVERTISE / Mintegral AppGrowth）</div><a href="/register.html#advertiser">自助开户</a><a href="/advertiser.html">投放工作台</a><a href="/creative.html">素材管理</a><a href="/creative-auto.html">创意自动化</a></div></div><div class="grp"><span class="glabel">开发者 · 变现</span><div class="menu"><div class="gdesc">入驻 → ① 添加应用 → ② 广告单元 → ③ 埋点码 → ④ 集成自检 → ⑤ 收益报表（对标 AppLovin MAX / Mintegral Monetization）</div><a href="/publisher.html">入驻与接入</a><a href="/apps.html">应用</a><a href="/ad_units.html">广告单元</a><a href="/integrity.html">集成自检</a><a href="/publisher_report.html">收益报表</a></div></div><div class="grp"><span class="glabel">演示与示例</span><div class="menu"><div class="gdesc"></div><a href="/media-demo.html">平台演示</a><a href="/index.html">Prebid 演示</a><a href="/ecpm_demo.html">eCPM 演示</a><a href="/advanced.html">高级能力台</a><a href="/dsp.html">外部 DSP 接入</a></div></div><div class="grp"><span class="glabel">开户·文档</span><div class="menu"><div class="gdesc"></div><a href="/register.html">自助开户</a><a href="/pricing.html">定价</a><a href="/docs.html">接入文档</a><a href="/tool/ecpm-score.html">免费eCPM工具</a></div></div><span style="flex:1"></span><span id="linkos-auth"><a href="/register.html" style="color:#9aa6c0;text-decoration:none;padding:4px 11px;white-space:nowrap">注册</a><a href="/login.html" style="color:#7fd1ff;text-decoration:none;padding:4px 11px;border:1px solid #3a4358;border-radius:5px;white-space:nowrap">登录</a></span></div>
+</head>
+<body><div id="applink-nav"><a class="brand" href="/home.html">AppLink</a><div class="grp"><span class="glabel">Advertiser · 广告主投放</span><div class="menu"><div class="gdesc">开户 → 充值 → 建计划 → 传素材 → 创意自动化 → 审核 → 投放看数</div><a href="/register.html">自助开户</a><a href="/campaigns.html">广告系列</a><a href="/adv-media.html">素材库</a><a href="/adv-media.html?tab=auto">创意自动化</a></div></div><div class="grp"><span class="glabel">Publisher · 开发者变现</span><div class="menu"><div class="gdesc">入驻链路：注册开发者 → 创建应用 → 集成 SDK → 添加广告单元 → 集成自检 → 审核/品牌安全 → 看收益与结算</div><a href="/register.html#publisher">开发者入驻</a><a href="/publisher_report.html">概览/报表</a><a href="/ad_units.html">应用与版位</a><a href="/pub-review.html">审核/品牌安全</a><a href="/pub-account.html">账户与结算</a></div></div><div class="grp"><span class="glabel">演示与示例</span><div class="menu"><div class="gdesc">可交互的真实演示：平台能力 / Prebid 端到端 / eCPM' 价值竞价</div><a href="/media-demo.html">平台演示</a><a href="/index.html">Prebid 演示</a><a href="/ecpm_demo.html">eCPM 演示</a></div></div><div class="grp"><span class="glabel">开户·文档</span><div class="menu"><div class="gdesc">开户与接入文档：自助开户 / 定价 / OpenRTB 接入 / 原生 SDK / 外部 DSP 接入 / 免费 eCPM 工具</div><a href="/register.html">自助开户</a><a href="/pricing.html">定价</a><a href="/docs.html">接入文档</a><a href="/sdk-guide.html">原生 SDK 接入</a><a href="/dsp.html">外部 DSP 接入</a><a href="/tool/ecpm-score.html">免费eCPM工具</a></div></div><span style="flex:1"></span><span id="applink-auth"><a href="/register.html" style="color:#9aa6c0;text-decoration:none;padding:4px 11px;white-space:nowrap">注册</a><a href="/login.html" style="color:#7fd1ff;text-decoration:none;padding:4px 11px;border:1px solid #3a4358;border-radius:5px;white-space:nowrap">登录</a></span></div>
 
 <div class="hero"><div class="wrap">
-  <span class="tag">DSP + SSP + 广告交易引擎 · 轻资产 / 高毛利 / 预付周结</span>
-  <h1>不是再做一个 AppLovin。<br>是把<b>意图</b>变成<b>可成交的曝光</b>。</h1>
-  <p class="sub">聚合长尾 App 流量，接入真实买量引擎，用意图 Agent 出价替代规则出价。<br>每个能力都不是 PPT——本页就能当场跑一次真实竞价给你看。</p>
+  <span class="tag">DSP + SSP + 实时竞价引擎 · 让每一分预算都产生可衡量的回报</span>
+  <h1>广告平台的本质不是抽成。<br>是把<b>预算效率</b>和<b>变现效率</b>做成同一张报表。</h1>
+  <p class="sub">广告主获得更低的 CPA、更高的 ROAS；开发者获得更高的 eCPM、更稳定的填充率。同一个竞价引擎、同一份归因数据、同一张对账报表——每一项都可在下方演示中当场验证。</p>
   <div class="cta">
-    <a class="btn p" href="#live">▶ 当场跑一次真实竞价</a>
-    <a class="btn g" href="/register.html">申请开户</a>
+    <a class="btn p" href="/tour.html">5 分钟看全链路</a>
+    <a class="btn g" href="#live">查看实时出价响应</a>
+    <a class="btn g" href="/register.html">广告主开户</a>
+    <a class="btn g" href="/register.html#publisher">媒体入驻</a>
     <a class="btn g" href="/docs.html">OpenRTB 接入文档</a>
-    <a class="btn g" href="/tool/ecpm-score.html">免费 eCPM' 打分</a>
   </div>
 </div></div>
 
+<section><div class="wrap">
+  <h2>已真实跑通的核心能力</h2>
+  <p class="h2sub">不是 PPT：以下每一项都可在对应演示中当场验证。</p>
+  <div class="steps">
+    <div class="step"><div class="n">优势 01</div><h3>多 DSP 聚合竞价（并发询价 · 二价清算）</h3><p>并发向全部已接入需求方询价，取最高价胜出、按<b>次高价清算</b>（second-price），参拍方越多媒体 eCPM 越高。下方需求方名单由 <code>/api/dsp/active</code> 实时返回，外部 DSP 可通过 <code>/api/dsp/register</code> 自助加入。</p><div id="wf-seats" class="wf-seats" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;font-size:12.5px;color:#93a3c4">正在读取实际接入的需求方…</div><a class="btn g" href="/index.html" style="margin-top:10px">Prebid 端到端演示</a></div>
+    <div class="step"><div class="n">优势 02</div><h3>eCPM' 价值排序</h3><p>不止比出价：效果 × LTV × 出价 × 服务承诺综合排序，把更可能转化、更少拒付的广告排到前面，提升真实 ROI。</p><a class="btn g" href="/ecpm_demo.html" style="margin-top:10px">eCPM' 演示</a></div>
+    <div class="step"><div class="n">优势 03</div><h3>服务端结算 + S2S 防刷 + 双端账本</h3><p>媒体服务端签收回执（HMAC）是结算唯一权威，客户端不可伪造；广告主与媒体双端账本可审计对账，每一笔消耗都可追溯到具体请求。</p><a class="btn g" href="/reports.html" style="margin-top:10px">结算报表</a></div>
+    <div class="step"><div class="n">优势 04</div><h3>GARM 品牌安全 + OMID 可见性</h3><p>IAB/GARM 品牌安全分层 + OMID 可见性度量（几何可见 ≥50% 连续 1s），品牌方可验证流量质量。</p><a class="btn g" href="/media-demo.html" style="margin-top:10px">媒体形态演示</a></div>
+  </div>
+</div></section>
+
 <div class="wrap">
   <div class="live" id="live">
-    <h3>📡 这是 LinkOS 正在跑的一次真实 RTB 竞价</h3>
-    <div class="d">不是录屏、不是模拟数据。点击后你的浏览器直接向 <code>/openrtb2/bid</code> 发一个 OpenRTB 2.6 请求，意图 Agent 实时出价并返回 seatbid。</div>
-    <button class="btn p" onclick="liveBid()">发起一次真实竞价</button>
+    <h3>实时出价响应检查</h3>
+    <div class="d">按钮向 <code>/openrtb2/bid</code> 发送 OpenRTB 2.6 请求，检查 bidder 是否返回报价。该请求不代表广告已赢价，也不会触发扣费；真实扣费须由成交方回调 <code>/notify</code>。</div>
+    <button class="btn p" onclick="liveBid()">请求一次实时出价</button>
     <div class="grid">
-      <div class="cell"><div class="k">本次竞价结果</div><div class="v" id="livebody">点击按钮开始</div></div>
-      <div class="cell"><div class="k">累计成交（全平台）</div><div class="v" id="liverpt">赢价 <b>40</b> 次<br>消耗 <b>271.6959</b> 元<br><span class="small">campaign #11 计划A</span></div></div>
+      <div class="cell"><div class="k">本次出价响应（非成交）</div><div class="v" id="livebody">点击按钮开始</div></div>
+      <div class="cell"><div class="k">平台累计演示账本（与本次请求无关）</div><div class="v" id="liverpt">加载中…</div></div>
     </div>
     <div class="small" style="margin-top:12px">更多真实演示：<a href="/index.html">Prebid.js 端到端竞价</a> · <a href="/media-demo.html">6 种广告形态演示</a> · <a href="/ecpm_demo.html">eCPM' 价值竞价机制</a></div>
   </div>
 </div>
 
 <section><div class="wrap">
-  <h2>为什么不用 AppLovin / 汇量</h2>
-  <p class="h2sub">AppLovin 是重交付的手游买量巨头；汇量 / AppLuck 是同类程序化平台。LinkOS 的定位是轻资产、高毛利、预付周结，并把"效果"写进竞价机制本身。</p>
+  <h2>选择广告平台时，你应该验证什么</h2>
+  <p class="h2sub">不问"谁更大"，问"我的钱花到哪里去了"。以下每一项都可在演示中当场验证——不依赖信任，只看数据。</p>
   <table>
-    <thead><tr><th>能力</th><th>LinkOS（我们）</th><th>同类平台</th><th>当场验证</th></tr></thead>
+    <thead><tr><th>验证维度</th><th>AppLink 实际表现</th><th>常见平台短板</th><th>当场验证</th></tr></thead>
     <tbody>
-      <tr><td>意图 Agent 智能出价</td><td class="ok">✓ LLM 意图画像 + embedding 相关性 + shading <span id="llmstate" class="hint" style="color: rgb(180, 83, 9);">（LLM 已配置，热路径未开启）</span></td><td class="mid">△ 规则 / 传统算法</td><td><a href="/index.html">Prebid 演示</a></td></tr>
-      <tr><td>eCPM' 价值排序</td><td class="ok">✓ 效果 × LTV × 出价 × 服务承诺</td><td class="mid">△ 纯出价排序</td><td><a href="/ecpm_demo.html">eCPM 演示</a></td></tr>
-      <tr><td>广告形态</td><td class="ok">✓ 6 种：激励 / 插屏 / 开屏 / 原生 / icon / push</td><td class="ok">✓ 同类</td><td><a href="/media-demo.html">形态演示</a></td></tr>
-      <tr><td>VAST 4.0 + OMID 可见性</td><td class="ok">✓ 几何可见性 ≥50% 连续 1s</td><td class="mid">△ 部分</td><td><a href="/media-demo.html">媒体侧渲染</a></td></tr>
-      <tr><td>设备指纹风控 + 跨设备重放拦截</td><td class="ok">✓ DEVICE_FP_MISMATCH / RATE_LIMIT</td><td class="mid">△</td><td><a href="/media-demo.html">风控层</a></td></tr>
-      <tr><td>S2S 结算 + HMAC 防伪造</td><td class="ok">✓ 双端账本对账</td><td class="ok">✓ 同类</td><td><a href="/reports.html">结算报表</a></td></tr>
-      <tr><td>需求方接入（买量）</td><td class="ok">✓ 自有 DSP + 通用 OpenRTB 需求方开箱参拍</td><td class="mid">△ 以聚合为主</td><td><a href="/dsp.html">DSP 接入</a></td></tr>
-      <tr><td>长尾流量聚合（SSP 核心）</td><td class="ok">✓ 核心（AppLuck 模式）</td><td class="ok">✓ 同类</td><td><a href="/publisher.html">媒体入驻</a></td></tr>
-      <tr><td>轻资产 / 高毛利 / 预付周结</td><td class="ok">✓ 不设最低充值</td><td class="ok">✓ 同类</td><td><a href="/pricing.html">定价</a></td></tr>
+      <tr><td>竞价引擎透明度</td><td class="ok">竞价热路径跑的是<b>多特征 LR 实时打分 + 一价 shading + 双塔 embedding</b>；LLM 用于慢速冷启动画像，<b>不进竞价热路径</b>（避免 p99 抖动），端点可达后可开启<span id="llmstate" class="hint" style="display:inline-block;margin-top:6px;padding:2px 8px;border:1px solid #b45309;border-radius:6px;color:#b45309;font-weight:700"></span></td><td class="mid">△ 黑盒 / 传统规则</td><td><a href="/index.html">Prebid 演示</a></td></tr>
+      <tr><td>排序逻辑可解释性</td><td class="ok">✓ eCPM' = 效果 × LTV × 出价 × 服务承诺</td><td class="mid">△ 纯出价排序，出价高但效果差</td><td><a href="/ecpm_demo.html">eCPM 演示</a></td></tr>
+      <tr><td>广告形态覆盖</td><td class="ok">✓ 6 种：激励 / 插屏 / 开屏 / 原生 / icon / push</td><td class="ok">✓ 多数覆盖 3-4 种</td><td><a href="/media-demo.html">形态演示</a></td></tr>
+      <tr><td>可见性度量</td><td class="ok">✓ VAST 4.0 + OMID 几何可见性 ≥50% 连续 1s</td><td class="mid">△ 仅自报 / 部分支持</td><td><a href="/media-demo.html">媒体侧渲染</a></td></tr>
+      <tr><td>反作弊深度</td><td class="ok">✓ 设备指纹 + 跨设备重放拦截 + Redis 实时黑名单</td><td class="mid">△ 仅 IP 过滤</td><td><a href="/media-demo.html">风控层</a></td></tr>
+      <tr><td>结算可审计性</td><td class="ok">✓ S2S HMAC 签收回执 + 双端账本逐笔对账</td><td class="ok">✓ 多数支持</td><td><a href="/reports.html">结算报表</a></td></tr>
+      <tr><td>需求方生态开放度</td><td class="ok">✓ 通用 OpenRTB 端点开箱参拍，自助注册</td><td class="mid">△ 以自营聚合为主</td><td><a href="/dsp.html">DSP 接入</a></td></tr>
+      <tr><td>填充率与 eCPM 平衡</td><td class="ok">✓ 多 DSP 并发询价 + 二价清算，媒体侧收入最大化</td><td class="mid">△ 单源询价 / 收入受限</td><td><a href="/publisher.html">媒体入驻</a></td></tr>
+      <tr><td>开户与结算灵活性</td><td class="ok">✓ 不设最低充值门槛，按实际消耗结算</td><td class="ok">✓ 多数类似</td><td><a href="/pricing.html">定价</a></td></tr>
     </tbody>
   </table>
 </div></section>
 
 <section><div class="wrap">
   <h2>平台核心能力架构</h2>
-  <p class="h2sub">对标 AppLovin / 汇量 Mintegral 的真实落地模块（均非 PPT）：流量侧与需求侧在交易所内实时撮合，所有结果回流到数据飞轮。</p>
+  <p class="h2sub">流量侧与需求侧在交易所内实时撮合，所有结果回流到数据飞轮。以下每一项均非 PPT，可在演示中实际运行。</p>
   <div class="steps">
-    <div class="step"><div class="n">CAP 01</div><h3>双向 OpenRTB 实时竞价</h3><p>自有 DSP 出价引擎 + SSP 多需求方二价清算（second-price），媒体分成透明、可审计。</p></div>
-    <div class="step"><div class="n">CAP 02</div><h3>全链路归因与增量度量</h3><p>多触点归因、SKAN 视图归因，holdout / ghost ads / geo-lift 增量实验，证明广告「真的有效」（对标 Adjust）。</p></div>
-    <div class="step"><div class="n">CAP 03</div><h3>创意自动化工厂</h3><p>可玩广告、DCO 元素级组合、文生图 / 图生视频、多语言本地化（对标 Mindworks / Spark）。</p></div>
-    <div class="step"><div class="n">CAP 04</div><h3>ESMM 多目标预估 + 智能出价</h3><p>CTR/CVR 多任务模型（pCTCVR = pCTR·pCVR 规避样本选择偏差）+ pLTV 多目标 + bid shading + eCPM′ 贝叶斯冷启动（对标 AXON 内核）。</p></div>
+    <div class="step"><div class="n">CAP 01</div><h3>双向 OpenRTB 实时竞价 · 进程内核</h3><p>自有 DSP 进程内参拍（无自回环 HTTP）+ campaign 内存快照 &amp; 倒排索引（热路径零 DB，微秒级取候选）+ SSP 多需求方二价清算（second-price），媒体分成透明、可审计。</p></div>
+    <div class="step"><div class="n">CAP 02</div><h3>全链路归因与增量度量</h3><p>多触点归因、SKAN 视图归因，holdout / ghost ads / geo-lift 增量实验——用数据证明广告「真的有效」，而非自报转化率。</p></div>
+    <div class="step"><div class="n">CAP 03</div><h3>创意自动化工厂</h3><p>可玩广告、DCO 元素级组合、文生图 / 图生视频、多语言本地化——批量派生多形态素材，零生成成本、秒级产出。</p></div>
+    <div class="step"><div class="n">CAP 04</div><h3>ESMM 多目标预估 + 智能出价</h3><p>多特征 LR 实时打分（相关性）+ 可插拔双塔向量通道 + CTR/CVR 多任务（pCTCVR = pCTR·pCVR 规避样本选择偏差）+ pLTV 多目标 + bid shading + eCPM′ 贝叶斯冷启动。</p></div>
     <div class="step"><div class="n">CAP 05</div><h3>增长 Agent + 数据飞轮</h3><p>读懂 Brief → 生成创意 → 真实建 campaign 参拍 → 读实测 eCPM/eCPA → 回流重训模型，闭环自进化（领先于竞品的智能体编排层）。</p></div>
     <div class="step"><div class="n">CAP 06</div><h3>合规与品牌安全基线</h3><p>IAB/GARM 品牌安全、post-ATT 设备身份图谱、ads.txt / app-ads.txt / sellers.json 校验。</p></div>
   </div>
-  <p class="h2sub" style="margin-top:18px">第一性原理：广告平台的本质是「撮合 + 数据飞轮」——平台赚的是广告主 eCPM 与给媒体 payout 之间的差价；真正的护城河是模型预测的 ROI 比对手更准。模型越准 → 广告主 ROI 越高 → 预算越多 → 数据越厚 → 模型更准，飞轮一旦转起来后来者很难追（这也是 AppLovin / 汇量把 AI 引擎当核心资产的原因）。</p>
+  <p class="h2sub" style="margin-top:18px">第一性原理：广告平台的本质是「撮合 + 数据飞轮」——模型越准，广告主 ROI 越高，预算越多，数据越厚，模型越准。飞轮一旦转起来，后来者很难追。这是 AppLink 把 AI 引擎当核心资产的原因。</p>
 </div></section>
 
 <section><div class="wrap">
@@ -116,7 +181,7 @@
   <p class="h2sub">全部自助完成，无需销售介入。开发者 5 分钟拿到广告位代码，广告主提交开户后进入审核（未通过审核不产生任何扣费）。</p>
   <div class="steps">
     <div class="step"><div class="n">STEP 01</div><h3>开发者取密钥</h3><p><a href="/register.html#publisher">填写域名</a>，立即拿到 <code>api_key</code>，随后可在后台创建广告单元并拿到埋点代码；落地页会被合规爬取补全品类/地域，自动抬升 eCPM。</p></div>
-    <div class="step"><div class="n">STEP 02</div><h3>广告主开户</h3><p><a href="/register.html#advertiser">提交开户信息</a>（登录用户名 / 密码 / 广告主名称），生成待审计划；运营审核 + 充值后即可参拍。或 <a href="/dsp.html">注册你的 OpenRTB 端点</a> 作为 DSP。</p></div>
+    <div class="step"><div class="n">STEP 02</div><h3>广告主开户</h3><p><a href="/register.html">提交开户信息</a>（登录用户名 / 密码 / 广告主名称），生成待审计划；运营审核 + 充值后即可参拍。或 <a href="/dsp.html">注册你的 OpenRTB 端点</a> 作为 DSP。</p></div>
     <div class="step"><div class="n">STEP 03</div><h3>跑一次真实竞价</h3><p>本页按钮或 <a href="/index.html">Prebid 端到端</a> 当场验证：<code>/openrtb2/bid</code> 出价 → <code>/notify</code> 扣预算 → 报表。</p></div>
   </div>
 </div></section>
@@ -131,14 +196,14 @@
 </div></section>
 
 <footer><div class="wrap">
-  <div>LinkOS · 程序化广告平台（DSP + SSP + 广告交易引擎）</div>
+  <div>AppLink · 程序化广告平台（DSP + SSP + 广告交易引擎）</div>
   <div style="margin-top:8px">
     <a href="/home.html">首页</a> · <a href="/media-demo.html">平台演示</a> · <a href="/docs.html">接入文档</a> ·
     <a href="/register.html">自助开户</a> · <a href="/pricing.html">定价</a> ·
     <a href="/tool/ecpm-score.html">免费工具</a> · <a href="/ads.txt">ads.txt</a> ·
     <a href="/app-ads.txt">app-ads.txt</a> · <a href="/sellers.json">sellers.json</a> · <a href="/health">健康检查</a>
   </div>
-  <div class="small" style="margin-top:10px">eCPM' = 效果预测 × LTV × 折算出价 × 服务承诺。所有演示页均为可当场运行的真实接口，非模拟截图。</div>
+  <div class="small" style="margin-top:10px">报价响应、成交扣费与归因效果是不同环节；实际账务以平台服务器记录和双方对账为准。</div>
 </div></footer>
 
 <script>
@@ -155,24 +220,59 @@
       var d=await r.json(), ms=Math.round(performance.now()-t);
       var s=d.seatbid&&d.seatbid[0]&&d.seatbid[0].bid&&d.seatbid[0].bid[0];
       if(s){
-        b.innerHTML='✅ 出价成功 · '+ms+'ms<br>cpm: <b>'+(s.price/1e6).toFixed(4)+' 元</b> · campaign #'+s.cid+'<br>'
+        b.innerHTML='✅ 返回报价 · '+ms+'ms<br>CPM: <b>'+(s.price/1e6).toFixed(4)+' 元</b> · campaign #'+s.cid+'<br>'
           + '意图分 '+(s.ext&&s.ext.intent_score!=null?(s.ext.intent_score*100).toFixed(0)+'%':'-')
           + ' · 来源 '+(s.ext&&s.ext.intent_source||'-')
-          + ' · 目标价 '+(s.ext&&s.ext.bid_basis||'-');
+          + ' · 目标价 '+(s.ext&&s.ext.bid_basis||'-')+'<br>'+wfHtml(d)
+          + '<span class="small">报价响应，不代表已赢价或已扣费</span>';
         liveReport();
       } else {
         b.innerHTML='本次无出价（nbr: '+(d.nbr!=null?d.nbr:'无')+') · '+ms+'ms<br><span class="small"> nbr=8 容量节流 · 3 未过审 · 2 无匹配创意</span>';
       }
     }catch(e){ b.textContent='请求失败：'+e.message; }
   }
+  // 本次竞价"几家参拍"如实展示（数据来自 /openrtb2/bid 响应的 ext.waterfall）
+  function wfHtml(d){
+    var wf=d&&d.ext&&d.ext.waterfall;
+    if(!wf||!wf.participant_count) return '';
+    var seats=(wf.seats||[]).map(function(x){
+      var won=(x.seat===wf.winner);
+      return (won?'<b>'+x.seat+'</b>':x.seat)+' '+(x.bid_micros/1e6).toFixed(3);
+    }).join(' · ');
+    return '<span class="small">本次参拍 '+wf.participant_count+' 家：'+seats+'（'+wf.auction+'）</span><br>';
+  }
   async function liveReport(){
     try{
       var r=await fetch('/api/demo/report'), d=await r.json();
-      document.getElementById('liverpt').innerHTML='赢价 <b>'+d.wins+'</b> 次<br>消耗 <b>'+d.spent_cny.toFixed(4)+'</b> 元<br>'
-        + '<span class="small">campaign #'+d.campaign.id+' '+(d.campaign.name||'')+'</span>';
+      document.getElementById('liverpt').innerHTML='赢价 <b>'+d.wins+'</b> 次<br>消耗 <b>'+d.spent_cny.toFixed(4)+'</b> 元';
     }catch(e){ document.getElementById('liverpt').textContent='加载失败'; }
   }
   liveReport();
+</script>
+<script>
+  // ④ 优势 01 的"实际接入需求方"名单取自 /api/dsp/active —— 不再把"4 家同场"写死在文案里。
+  // 走查报告 N-P0-6：首页承诺 4 家 DSP 同场，实际每次竞价只回 1 个 seat，当场验证不了。
+  // 现在：名单实时渲染；每次 /openrtb2/bid 响应的 ext.waterfall 也会回传本次真实参拍座席与出价。
+  (async function () {
+    var box = document.getElementById('wf-seats');
+    if (!box) return;
+    try {
+      var d = await (await fetch('/api/dsp/active')).json();
+      var ps = d.partners || [];
+      if (!ps.length) { box.textContent = '当前未接入外部需求方'; return; }
+      box.innerHTML = '';
+      box.appendChild(Object.assign(document.createElement('span'), {
+        style: 'width:100%;color:#64748b',
+        textContent: '实际接入 ' + ps.length + ' 家（外部 ' + d.external_count + ' 家）· ' + (d.auction === 'second_price' ? '二价清算' : '一价清算')
+      }));
+      ps.forEach(function (p) {
+        var s = document.createElement('span');
+        s.style.cssText = 'padding:2px 8px;border:1px solid #26355c;border-radius:999px;background:#0d1730;color:#cbd5e1';
+        s.textContent = p.name + (p.isOwn ? '（自有）' : '');
+        box.appendChild(s);
+      });
+    } catch (e) { box.textContent = '需求方列表读取失败'; }
+  })();
 </script>
 <script>
   // ⑥ LLM 真实接入状态：不能文案写着 LLM、竞价里实际跑 heuristic。
@@ -189,10 +289,10 @@
     } catch (e) {}
   })();
 </script>
-<script src="/console_nav.js"></script>
+
 <script src="/nav.js"></script>
 
 
 
 
-</body></html>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a454f86f0f149526',t:'MTc5MTEyNTEyNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>

@@ -16,12 +16,17 @@
  .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#16203a;color:#7fd1ff;border:1px solid #26355c}
  .tag.off{background:#3a1d24;color:#f87171;border-color:#4a2630} .tag.on{background:#16321f;color:#34d399;border-color:#234a35}
  code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+ .msg{margin-top:10px;font-size:12.5px;min-height:18px}
+ .msg.ok{color:#34d399}.msg.err{color:#f87171}
+ .ops{white-space:nowrap}
+ .ops button{padding:4px 9px;margin:2px 3px 0 0;font-size:12px}
+ .ops select{width:auto;padding:3px 6px;font-size:12px}
 </style></head>
 <body>
 <div id="ctop"></div>
 <div class="wrap">
   <h2>账号与权限</h2>
-  <div class="hint">一个账号 = 一个角色 + 一个数据作用域。权限由后端 <code>requireAuth</code> 强制；停用即时生效（令牌未过期也会被拦）。</div>
+  <div class="hint">一个账号 = 一个角色 + 一个数据作用域。数据全部来自服务端 <code>accounts</code> 表；权限由后端 <code>requireAuth</code> 强制；停用即时生效（令牌未过期也会被拦）。</div>
 
   <div class="card">
     <h3>① 开通账号</h3>
@@ -31,27 +36,28 @@
         <option value="publisher">开发者（媒体）</option>
         <option value="admin">平台运营（管理员）</option>
       </select></div>
-      <div><label>登录用户名</label><input id="f-user" placeholder="如 ruankao_adv"></div>
+      <div><label>登录账号（广告主/媒体必须邮箱）</label><input id="f-user" placeholder="如 adv@company.com"></div>
       <div><label>密码（≥6 位）</label><input id="f-pass" type="password" placeholder="登录密码"></div>
-      <div><label>作用域 scope</label><input id="f-scope" placeholder="广告主填名称 / 媒体填域名"></div>
-      <div><label>显示名</label><input id="f-disp" placeholder="如 软考高项"></div>
+      <div><label>作用域 scope（业务口径，不是登录名）</label><input id="f-scope" placeholder="广告主填名称 / 媒体填域名（如 dellai.xyz）"></div>
     </div>
     <button onclick="createAccount()">开通</button>
-    <div class="hint" id="f-msg"></div>
+    <div class="msg" id="f-msg"></div>
   </div>
 
   <div class="card">
-    <h3>② 账号清单</h3>
-    <table id="tbl"><thead><tr><th>id</th><th>角色</th><th>用户名</th><th>作用域</th><th>显示名</th><th>状态</th><th>创建者</th><th>操作</th></tr></thead><tbody></tbody></table>
+    <h3>② 账号清单（服务端真实数据）</h3>
+    <div class="msg" id="list-msg"></div>
+    <table id="tbl"><thead><tr><th>id</th><th>唯一码</th><th>角色</th><th>登录账号</th><th>作用域</th><th>显示名</th><th>状态</th><th>创建者</th><th>操作</th></tr></thead><tbody></tbody></table>
   </div>
 
   <div class="card">
     <h3>③ 角色与作用域（口径）</h3>
     <table><thead><tr><th>角色</th><th>后台入口</th><th>作用域 scope 取值</th><th>能看到什么</th></tr></thead><tbody>
-      <tr><td><span class="tag">广告主</span></td><td>/advertiser.html</td><td>广告主名称（如 软考高项）</td><td>只看自己名下的计划、素材、消耗</td></tr>
+      <tr><td><span class="tag">广告主</span></td><td>/campaigns.html</td><td>广告主名称（如 软考高项）</td><td>只看自己名下的计划、素材、消耗</td></tr>
       <tr><td><span class="tag" style="background:#16321f;color:#34d399;border-color:#234a35">开发者</span></td><td>/publisher_report.html</td><td>域名（如 example.com）</td><td>只看自己域名的广告单元、曝光与收益</td></tr>
       <tr><td><span class="tag" style="background:#2a2410;color:#fbbf24;border-color:#4a3f1a">平台运营</span></td><td>/console.html</td><td>*（全量）</td><td>全部数据 + 账号与权限管理</td></tr>
     </tbody></table>
+    <div class="hint">忘记密码：管理员在这里点「重置密码」直接设新密码；登录后也可在「修改密码」自助改（登录态即可，无需管理员）。</div>
   </div>
 </div>
 
@@ -59,46 +65,100 @@
   <script src="/admin.js"></script>
   <script>
     var ROLE = { admin: '平台运营', advertiser: '广告主', publisher: '开发者' };
+    function say(id, msg, ok){ var el=document.getElementById(id); if(!el) return; el.textContent=msg||''; el.className='msg '+(ok?'ok':'err'); }
+    function api(url, opt){
+      return fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opt||{}))
+        .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return { ok:r.ok, status:r.status, data:d }; }); });
+    }
     async function createAccount(){
-      var m = document.getElementById('f-msg'); m.textContent = '开通中…';
+      say('f-msg','开通中…', true);
       var body = { type: document.getElementById('f-type').value,
         username: document.getElementById('f-user').value.trim(),
         password: document.getElementById('f-pass').value,
-        scope: document.getElementById('f-scope').value.trim(),
-        display: document.getElementById('f-disp').value.trim() };
-      if (!body.username || !body.password || !body.scope) { m.textContent = '用户名 / 密码 / 作用域 必填（作用域决定数据可见范围，务必填准）'; return; }
+        scope: document.getElementById('f-scope').value.trim() };
+      if (!body.username || !body.password || !body.scope) { say('f-msg','登录账号 / 密码 / 作用域 必填（作用域决定数据可见范围，务必填准）', false); return; }
+      var isEmail = function(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); };
+      var isDomain = function(v){ return /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/.test(v); };
+      if (body.type !== 'admin' && !isEmail(body.username)) { say('f-msg','广告主/媒体的登录账号必须是邮箱（唯一、便于找回）', false); return; }
+      if (body.type === 'publisher' && !isDomain(body.scope)) { say('f-msg','媒体作用域必须是合法域名（如 dellai.xyz）；域名是数据作用域，不是登录名', false); return; }
       try {
-        var r = await fetch('/api/account/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        var d = await r.json().catch(function(){ return {}; });
-        m.textContent = r.ok ? ('已开通 ✓ ' + body.username + '（' + ROLE[body.type] + '，作用域 ' + body.scope + '）') : ('失败：' + (d.error || JSON.stringify(d)));
-        if (r.ok) load();
-      } catch (e) { m.textContent = 'ERR ' + e.message; }
+        var r = await api('/api/account/register', { method: 'POST', body: JSON.stringify(body) });
+        if (r.ok) { say('f-msg','已开通 ✓ ' + body.username + '（' + (ROLE[body.type]||body.type) + '，唯一码 ' + (r.data.account_code||'-') + '，作用域 ' + body.scope + '）', true); load(); }
+        else say('f-msg','开通失败（HTTP '+r.status+'）：' + (r.data.error || JSON.stringify(r.data)), false);
+      } catch(e){ say('f-msg','网络错误：' + e.message, false); }
     }
     async function load(){
-      var rows = await (await fetch('/api/accounts')).json().catch(function(){ return []; });
-      if (rows && rows.error) { document.querySelector('#tbl tbody').innerHTML = '<tr><td colspan="8">' + rows.error + '（需平台运营账号）</td></tr>'; return; }
-      var tb = document.querySelector('#tbl tbody'); tb.innerHTML = '';
-      (rows || []).forEach(function (a) {
+      var tb = document.querySelector('#tbl tbody');
+      var r;
+      try { r = await api('/api/accounts'); }
+      catch(e){ say('list-msg','加载失败（网络错误）：' + e.message, false); tb.innerHTML=''; return; }
+      if (!r.ok) {
+        say('list-msg', (r.status===401||r.status===403)
+          ? '无权查看账号清单：请用「平台运营」管理员身份登录（当前身份权限不足）。'
+          : '加载失败（HTTP '+r.status+'）：' + (r.data.error||JSON.stringify(r.data)), false);
+        tb.innerHTML='<tr><td colspan="8">加载失败，见上方提示</td></tr>'; return;
+      }
+      var rows = r.data || [];
+      say('list-msg','共 ' + rows.length + ' 个账号（服务端 accounts 表）', true);
+      tb.innerHTML='';
+      rows.forEach(function(a){
+        var on = Number(a.status)===1;
         var tr = document.createElement('tr');
-        var on = Number(a.status) === 1;
-        tr.innerHTML = '<td>' + a.id + '</td>' +
-          '<td>' + (ROLE[a.type] || a.type) + '</td>' +
-          '<td><code>' + a.username + '</code></td>' +
-          '<td>' + (a.scope || '') + '</td>' +
-          '<td>' + (a.display || '') + '</td>' +
-          '<td><span class="tag ' + (on ? 'on' : 'off') + '">' + (on ? '启用' : '已停用') + '</span></td>' +
-          '<td>' + (a.created_by || '-') + '</td>' +
-          '<td><button class="' + (on ? 'ghost' : '') + '" onclick="setStatus(' + a.id + ',' + (on ? 0 : 1) + ')">' + (on ? '停用' : '启用') + '</button></td>';
+        tr.innerHTML = '<td>'+a.id+'</td>' +
+          '<td><code>'+ (a.account_code||'-') +'</code></td>' +
+          '<td><span class="tag">'+ (ROLE[a.type]||a.type) +'</span></td>' +
+          '<td><code>'+ a.username +'</code></td>' +
+          '<td>'+ (a.scope||'') +'</td>' +
+          '<td>'+ (a.display||'') +'</td>' +
+          '<td><span class="tag '+(on?'on':'off')+'">'+(on?'启用':'已停用')+'</span></td>' +
+          '<td>'+ (a.created_by||'-') +'</td>' +
+          '<td class="ops">' +
+            '<select onchange="changeRole('+a.id+',this.value)">' +
+              ['admin','advertiser','publisher'].map(function(t){
+                return '<option value="'+t+'"'+(a.type===t?' selected':'')+'>'+(ROLE[t]||t)+'</option>'; }).join('') +
+            '</select>' +
+            '<button class="'+(on?'ghost':'')+'" onclick="setStatus('+a.id+','+(on?0:1)+')">'+(on?'停用':'启用')+'</button>' +
+            '<button class="ghost" onclick="resetPassword('+a.id+')">重置密码</button>' +
+            '<button class="bad" onclick="delAccount('+a.id+')">删除</button>' +
+          '</td>';
         tb.appendChild(tr);
       });
     }
     async function setStatus(id, st){
-      if (st === 0 && !confirm('停用后该账号立即失去访问能力（令牌未过期也会被拦截）。确认停用？')) return;
-      await fetch('/api/accounts/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: st }) });
-      load();
+      if (st===0 && !confirm('停用后该账号立即失去访问能力。确认停用？')) return;
+      try {
+        var r = await api('/api/accounts/'+id, { method:'PUT', body: JSON.stringify({ status: st }) });
+        if (r.ok){ say('list-msg','已'+(st?'启用':'停用')+'账号 #'+id, true); load(); }
+        else say('list-msg','操作失败（HTTP '+r.status+'）：'+(r.data.error||JSON.stringify(r.data)), false);
+      } catch(e){ say('list-msg','网络错误：'+e.message, false); }
+    }
+    async function changeRole(id, t){
+      try {
+        var r = await api('/api/accounts/'+id, { method:'PUT', body: JSON.stringify({ type: t }) });
+        if (r.ok){ say('list-msg','账号 #'+id+' 角色已改为 '+(ROLE[t]||t), true); load(); }
+        else { say('list-msg','改角色失败（HTTP '+r.status+'）：'+(r.data.error||JSON.stringify(r.data)), false); load(); }
+      } catch(e){ say('list-msg','网络错误：'+e.message, false); load(); }
+    }
+    async function resetPassword(id){
+      var p = prompt('为账号 #'+id+' 设置新密码（≥6 位）：');
+      if (p===null) return;
+      if (!p || p.length<6){ say('list-msg','密码至少 6 位', false); return; }
+      try {
+        var r = await api('/api/accounts/'+id+'/password', { method:'POST', body: JSON.stringify({ password: p }) });
+        if (r.ok) say('list-msg','已重置账号 #'+id+' 的密码 ✓', true);
+        else say('list-msg','重置失败（HTTP '+r.status+'）：'+(r.data.error||JSON.stringify(r.data)), false);
+      } catch(e){ say('list-msg','网络错误：'+e.message, false); }
+    }
+    async function delAccount(id){
+      if (!confirm('确认删除账号 #'+id+'？该操作不可恢复（其名下数据不再归属任何账号）。')) return;
+      try {
+        var r = await api('/api/accounts/'+id, { method:'DELETE' });
+        if (r.ok){ say('list-msg','已删除账号 #'+id, true); load(); }
+        else say('list-msg','删除失败（HTTP '+r.status+'）：'+(r.data.error||JSON.stringify(r.data)), false);
+      } catch(e){ say('list-msg','网络错误：'+e.message, false); }
     }
     load();
   </script>
-<script src="/console_nav.js"></script>
+
 <script src="/console_top.js"></script>
 </body></html>

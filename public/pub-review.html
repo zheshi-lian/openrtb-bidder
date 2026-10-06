@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>审核 / 品牌安全 · 开发者后台</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1100px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#cdd8f2}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left;vertical-align:top;color:#e8eefc}
+ th{background:#0d1730;color:#93a3c4}
+ .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#16321f;color:#34d399;border:1px solid #234a35}
+ .tag.off{background:#3a1d24;color:#f87171;border-color:#4a2630}
+ textarea{width:100%;min-height:54px;padding:7px 9px;border:1px solid #2f4170;border-radius:6px;box-sizing:border-box;background:#0d1730;color:#e8eefc}
+ button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;margin-top:10px}
+ code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>审核 / 品牌安全</h2>
+  <div class="hint" id="who">—</div>
+
+  <div class="card">
+    <h3>品牌安全说明</h3>
+    <div class="hint">平台对所有创意在投放前做审核（计划审核 + 素材审核），<b>只有通过审核的创意才会投到你的库存</b>。下方「品牌安全创意池」即当前有资格在你的广告位展示的创意；你可据此评估内容调性，并对不希望出现的广告主提交屏蔽申请。</div>
+  </div>
+
+  <div class="card">
+    <h3>我的广告位（库存）</h3>
+    <div id="units"><span class="hint">加载中…</span></div>
+  </div>
+
+  <div class="card">
+    <h3>品牌安全创意池（已审核通过、可投到你的库存）</h3>
+    <div id="pool"><span class="hint">加载中…</span></div>
+  </div>
+
+  <div class="card">
+    <h3>广告主屏蔽申请（演示：本地偏好，提交后由运营处理）</h3>
+    <div class="hint">填写你不想展示其广告的广告主作用域（逗号分隔），保存为本地偏好并示意提交给运营审核。例如：<code>blocked_adv1, blocked_adv2</code></div>
+    <textarea id="block" placeholder="广告主作用域，逗号分隔"></textarea>
+    <button onclick="saveBlock()">保存并提交屏蔽申请</button>
+    <div class="hint" id="b-msg"></div>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='开发者后台';</script>
+  <script src="/admin.js"></script>
+  <script>
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    function whoami(){
+      var me = (window.Auth && Auth.get()) || null;
+      var w = document.getElementById('who');
+      if (me && me.type === 'publisher') { w.textContent = '当前开发者：' + me.scope + '（登录账号 ' + me.username + '）'; return me.scope; }
+      w.innerHTML = '尚未登录开发者账号 · <a href="/login.html">去登录</a> 或 <a href="/register.html#publisher">去入驻</a>';
+      return null;
+    }
+    async function loadUnits(){
+      if (!whoami()) return;
+      var rows = await (await fetch('/api/ad-units')).json().catch(function(){ return []; });
+      var el = document.getElementById('units');
+      if (!Array.isArray(rows) || !rows.length) { el.innerHTML = '<span class="hint">暂无广告位，请到「应用与版位 → 广告单元」创建。</span>'; return; }
+      var h = '<table><thead><tr><th>广告单元</th><th>名称</th><th>形态</th><th>底价(元)</th><th>状态</th></tr></thead><tbody>';
+      rows.forEach(function(u){
+        h += '<tr><td>' + esc(u.ad_unit_id) + '</td><td>' + esc(u.name || '') + '</td><td>' + esc(u.format || 'banner') +
+          '</td><td>' + (Number(u.floor_cny || 0)).toFixed(2) + '</td><td>' + (u.status ? '<span class="tag">启用</span>' : '<span class="tag off">停用</span>') + '</td></tr>';
+      });
+      el.innerHTML = h + '</tbody></table>';
+    }
+    async function loadPool(){
+      if (!whoami()) return;
+      var rows = await (await fetch('/api/publisher/creatives')).json().catch(function(){ return []; });
+      var el = document.getElementById('pool');
+      if (!Array.isArray(rows) || !rows.length) { el.innerHTML = '<span class="hint">当前没有已审核通过的创意。</span>'; return; }
+      var h = '<table><thead><tr><th>创意ID</th><th>广告主</th><th>形态</th><th>标题</th><th>落地页</th><th>审核</th></tr></thead><tbody>';
+      rows.forEach(function(k){
+        h += '<tr><td>' + k.id + '</td><td>' + esc(k.advertiser) + '</td><td>' + esc(k.format || '') + '</td><td>' +
+          esc(String(k.title || '').slice(0, 40)) + '</td><td style="max-width:220px;word-break:break-all">' + esc(k.landing_url || '') +
+          '</td><td><span class="tag">已通过</span></td></tr>';
+      });
+      el.innerHTML = h + '</tbody></table>';
+    }
+    function saveBlock(){
+      var v = document.getElementById('block').value.trim();
+      try { localStorage.setItem('pub_block_' + (whoami() || 'x'), v); } catch (e) {}
+      document.getElementById('b-msg').textContent = '已保存屏蔽申请（演示）✓ 实际生效需运营在审核台处理。';
+    }
+    whoami(); loadUnits(); loadPool();
+    try { var sv = localStorage.getItem('pub_block_' + (Auth.get() && Auth.get().scope || 'x')); if (sv) document.getElementById('block').value = sv; } catch (e) {}
+  </script>
+
+<script src="/console_top.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4552585ee432805',t:'MTc5MTEyNjk3NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"ce55610ec9ce4a0da4e9dfc2657616c8","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body></html>

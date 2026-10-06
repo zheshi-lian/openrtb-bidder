@@ -12,39 +12,41 @@
  button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;margin-top:10px}
  pre{background:#0a0f1d;color:#7ee787;padding:10px;border-radius:6px;overflow:auto;font-size:12px}
  code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+ .step{display:block;padding:9px 10px;border:1px solid #26355c;border-radius:8px;background:#0d1730;color:#7fd1ff;text-decoration:none;font-size:12px;font-weight:700;text-align:center}
+ .step:hover{border-color:#3b82f6;color:#7dd3fc}
 </style></head>
 <body>
 <div id="ctop"></div>
 <div class="wrap">
-  <h2>入驻与接入</h2>
+  <h2>接入引导向导</h2>
   <div class="hint" id="who">—</div>
 
   <div class="card">
-    <h3>入驻信息（只读 · 对标竞品：入驻是一次性动作，完成后只给接入信息）</h3>
+    <h3>一次性接入向导</h3>
+    <div class="hint">接入是一次性动作，完成后常驻能力都在「概览/报表 · 应用与版位 · 审核/品牌安全 · 账户与结算」四个域。按下面顺序走完即可开始变现：</div>
+    <div class="row" style="margin-top:10px">
+      <div><a class="step" href="/publisher_report.html">① 入驻信息 / 密钥</a></div>
+      <div><a class="step" href="/ad_units.html">② 添加应用</a></div>
+      <div><a class="step" href="/ad_units.html">③ 创建广告单元</a></div>
+      <div><a class="step" href="/sdk-guide.html">④ 埋 SDK</a></div>
+      <div><a class="step" href="/integrity.html">⑤ 集成自检</a></div>
+      <div><a class="step" href="/pub-account.html">⑥ 收款与结算</a></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>入驻信息（只读 · 一次性动作的产物）</h3>
     <div class="hint" id="info">加载中…</div>
   </div>
 
   <div class="card">
     <h3>把这段代码贴到你的页面（广告位标签）</h3>
-    <pre id="snippet">&lt;div class="ad-slot" data-ad-unit="你的 ad_unit_id" data-format="banner" data-floor="1.0"&gt;&lt;/div&gt;
-&lt;script src="https://dellai.xyz/pub_sdk.js"&gt;&lt;/script&gt;</pre>
-    <p class="hint">data-floor=底价(元) · data-format=广告形态 · data-kw=关键词(逗号分隔) · <b>data-ad-unit=在「广告单元」创建后拿到的 ID</b>（用于按单元归因与自检）。移动端用 SDK：见 docs/PUBLISHER-GUIDE.md</p>
-    <p class="hint">尚未入驻？请先到 <a href="/register.html#publisher">自助开户 · 开发者入驻</a> 取 api_key 并开通账号（入驻入口只此一处）。</p>
-  </div>
-
-  <div class="card">
-    <h3>收款信息（对标 AppLovin Payments：不填则无法结算）</h3>
-    <div class="row">
-      <div><label>收款户名</label><input id="p-name" placeholder="公司 / 个人姓名"></div>
-      <div><label>收款方式</label><select id="p-type">
-        <option value="">请选择</option><option>对公银行转账</option><option>支付宝</option><option>微信</option><option>PayPal</option>
-      </select></div>
-      <div><label>收款账号</label><input id="p-account" placeholder="银行卡号 / 支付宝账号"></div>
-      <div><label>发票抬头</label><input id="p-invoice" placeholder="公司名"></div>
-      <div><label>税号</label><input id="p-tax" placeholder="纳税人识别号"></div>
-    </div>
-    <button onclick="savePay()">保存收款信息</button>
-    <div class="hint" id="p-msg"></div>
+    <label>选择广告单元（在「广告单元」为应用创建后，这里自动出现）</label>
+    <select id="unitSel" onchange="renderSnippet()"></select>
+    <pre id="snippet">登录后自动填充你真实的 ad_unit_id…</pre>
+    <p class="hint">代码里的 <b>data-ad-unit 已自动替换为你真实的广告单元 ID</b>（用于按单元归因与「集成自检」），<b>不用再手动改</b>。data-floor=底价(元) · data-format=广告形态 · data-kw=关键词(逗号分隔)。移动端用 SDK：见 docs/PUBLISHER-GUIDE.md</p>
+    <p class="hint">尚未入驻？请先到 <a href="/register.html#publisher">自助开户 · 开发者入驻</a>（登录账号用邮箱，域名是数据作用域不是登录名）。</p>
+    <p class="hint">收款方式、税务、结算与密钥管理请到 <a href="/pub-account.html">账户与结算</a>（入驻是一次性动作，常驻在账户域）。</p>
   </div>
 
   <div class="card">
@@ -64,33 +66,10 @@
       w.innerHTML = '尚未登录开发者账号 · <a href="/login.html">去登录</a> 或 <a href="/register.html#publisher">去入驻</a>';
       return null;
     }
-    async function loadPay(){
-      if (!whoami()) return;
-      var d = await (await fetch('/api/publisher/payment')).json().catch(function(){ return {}; });
-      if (d && !d.error) {
-        document.getElementById('p-name').value = d.payee_name || '';
-        document.getElementById('p-type').value = d.payee_type || '';
-        document.getElementById('p-account').value = d.payee_account || '';
-        document.getElementById('p-invoice').value = d.invoice_title || '';
-        document.getElementById('p-tax').value = d.tax_no || '';
-      }
-    }
-    async function savePay(){
-      var m = document.getElementById('p-msg');
-      if (!whoami()) { m.textContent = '请先登录开发者账号'; return; }
-      var r = await fetch('/api/publisher/payment', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payee_name: document.getElementById('p-name').value.trim(),
-          payee_type: document.getElementById('p-type').value,
-          payee_account: document.getElementById('p-account').value.trim(),
-          invoice_title: document.getElementById('p-invoice').value.trim(),
-          tax_no: document.getElementById('p-tax').value.trim() }) });
-      var d = await r.json().catch(function(){ return {}; });
-      m.textContent = r.ok ? '已保存收款信息 ✓' : ('失败：' + (d.error || JSON.stringify(d)));
-    }
     function loadReport(){
       var d = whoami();
       var el = document.getElementById('report');
-      if (!d) { el.textContent = '请先登录开发者账号（用户名=你的域名）。未入驻请先到「自助开户 · 开发者入驻」。'; return; }
+      if (!d) { el.textContent = '请先登录开发者账号（登录账号=邮箱或手机号）。未入驻请先到「自助开户 · 开发者入驻」。'; return; }
       el.textContent = '加载中…';
       fetch('/api/publisher/report').then(function(r){ return r.json(); }).then(function(x){
         el.textContent = (x && x.error) ? x.error : JSON.stringify(x, null, 2);
@@ -106,8 +85,30 @@
           '<br>api_key 仅在首次入驻时展示一次；未保存请联系运营轮换（运营在「账号与权限」操作）。';
       } else { el.textContent = '（未取到入驻信息）'; }
     }
-    whoami(); loadPay(); loadInfo();
+    var _units = [];
+    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    async function loadUnits(){
+      if (!whoami()) return;
+      var rows = await (await fetch('/api/ad-units')).json().catch(function(){ return []; });
+      _units = Array.isArray(rows) ? rows : [];
+      var sel = document.getElementById('unitSel');
+      sel.innerHTML = _units.length ? _units.map(function(u){
+        return '<option value="' + u.ad_unit_id + '">' + (u.name || u.ad_unit_id) + '（' + (u.format || 'banner') + '） · ' + u.ad_unit_id + '</option>';
+      }).join('') : '<option value="">（暂无广告单元，请先到「广告单元」创建）</option>';
+      renderSnippet();
+    }
+    function renderSnippet(){
+      var sel = document.getElementById('unitSel');
+      var id = sel ? sel.value : '';
+      var u = _units.filter(function(x){ return x.ad_unit_id === id; })[0] || {};
+      var el = document.getElementById('snippet');
+      if (!id) { el.textContent = '请先在「广告单元」为该应用创建广告位，这里会自动生成带真实 ID 的代码。'; return; }
+      el.innerHTML = esc('<div class="ad-slot" data-ad-unit="' + id + '" data-format="' + (u.format || 'banner') + '" data-floor="1.0"></div>') +
+        '\n' + esc('<script src="' + location.origin + '/pub_sdk.js"></' + 'script>');
+    }
+    whoami(); loadInfo(); loadUnits();
   </script>
-<script src="/console_nav.js"></script>
+
 <script src="/console_top.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a455255b1ba42805',t:'MTc5MTEyNjk2Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"ce55610ec9ce4a0da4e9dfc2657616c8","r":1,"spa":2}' crossorigin="anonymous"></script>
 </body></html>

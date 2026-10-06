@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>知乎好物变现指南 · 免费领取</title>
+<meta name="description" content="知乎创作 / 好物推荐 / 引流变现 资料包，免费领取">
+<style>
+  :root{--bg:#060b18;--card:#0e1626;--line:#1c2942;--tx:#e6edf7;--dim:#8ea0bd;--a1:#3b82f6;--a2:#22d3ee;--ok:#34d399;--err:#f87171}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh}
+  .wrap{max-width:620px;margin:0 auto;padding:44px 20px 60px}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.14em;color:var(--a2);border:1px solid var(--line);border-radius:999px;padding:4px 12px;margin-bottom:18px}
+  h1{font-size:28px;line-height:1.35;font-weight:700;margin-bottom:10px}
+  h1 b{background:linear-gradient(92deg,var(--a1),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--dim);margin-bottom:26px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .card h2{font-size:14px;letter-spacing:.06em;color:var(--dim);margin-bottom:12px;font-weight:600}
+  .item{display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-bottom:1px dashed var(--line)}
+  .item:last-child{border-bottom:0}
+  .item .n{flex:0 0 22px;height:22px;border-radius:6px;background:linear-gradient(92deg,var(--a1),var(--a2));color:#04122a;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .item .t{flex:1}
+  .item .t b{font-weight:600;display:block}
+  .item .t span{font-size:12.5px;color:var(--dim)}
+  label{display:block;font-size:13px;color:var(--dim);margin-bottom:5px}
+  input{width:100%;background:#080e1c;border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--tx);font-size:15px;outline:none;transition:.15s}
+  input:focus{border-color:var(--a1);box-shadow:0 0 0 3px rgba(59,130,246,.16)}
+  .row{margin-bottom:13px}
+  .hint{font-size:12px;color:var(--dim);margin-top:4px}
+  button{width:100%;border:0;border-radius:10px;padding:13px;font-size:16px;font-weight:700;cursor:pointer;color:#04122a;background:linear-gradient(92deg,var(--a1),var(--a2));transition:.15s}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .msg{font-size:13px;min-height:18px;margin-top:9px}
+  .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .done{display:none} .done.on{display:block}
+  .live{display:block} .live.off{display:none}
+  footer{text-align:center;color:#4d5c78;font-size:12px;margin-top:26px;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="tag">知乎引流 · 免费领取</span>
+  <h1>知乎 <b>好物变现指南</b><br>创作定位 + 好物推荐 + 引流变现</h1>
+  <p class="sub">回答涨粉、好物推荐带货、合规引流到私域。留下知乎 ID，即刻获取下载链接。</p>
+  <div class="card live" id="list">
+    <h2>资料包包含</h2>
+    <div class="item"><div class="n">1</div><div class="t"><b>创作定位清单</b><span>擅长领域 / 回答策略 / 人设搭建</span></div></div>
+    <div class="item"><div class="n">2</div><div class="t"><b>好物推荐模板</b><span>高转化回答结构 + 选品思路</span></div></div>
+    <div class="item"><div class="n">3</div><div class="t"><b>引流变现 SOP</b><span>合规导流私域 + 带货分润流程</span></div></div>
+    <div class="item"><div class="n">4</div><div class="t"><b>数据复盘表</b><span>回答表现追踪，周更迭代</span></div></div>
+  </div>
+  <div class="card live" id="formCard">
+    <h2>填写联系方式领取</h2>
+    <form id="f" autocomplete="off">
+      <div class="row"><label>知乎 ID 或 微信号</label><input id="ct" maxlength="60" placeholder="zhihu_id 或微信号" required></div>
+      <button id="go" type="submit">领取资料包</button>
+      <div class="msg" id="msg"></div>
+      <p class="hint">仅用于发送资料包下载链接，不外传、不共享。</p>
+    </form>
+  </div>
+  <div class="card done" id="done">
+    <h2>✓ 已记录，请查收</h2>
+    <p class="sub" id="okMsg"></p>
+  </div>
+  <div class="card live" id="sponsorCard">
+    <h2>赞助内容</h2>
+    <div class="ad-slot" data-floor="0.5" data-cat="puzzle" data-geo="CN" data-kw="game,casual" style="min-height:120px"></div>
+  </div>
+  <footer>本页面由 AppLink 平台自托管 · 留资数据仅存联系方式，不含敏感信息<br>Powered by AppLink</footer>
+</div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var ch = q.get('ch') || 'zhihu';
+  var src = q.get('src') || (document.referrer ? new URL(document.referrer).hostname : '') || 'direct';
+  // 广告归因参数：SDK 点击透传（imp=曝光ID / cid=计划ID / pub=媒体方）；本页展示广告则用页面内当前 impid
+  var imp = (q.get('imp') || '').slice(0, 64);
+  try { var _imps = (window.平台 && 平台.getImps && 平台.getImps()) || []; if (!imp && _imps.length) imp = _imps[_imps.length - 1].impid; } catch (e) {}
+  var f = document.getElementById('f'), go = document.getElementById('go'), msg = document.getElementById('msg');
+  function say(t, c) { msg.textContent = t; msg.className = 'msg ' + (c || ''); }
+  f.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var ct = document.getElementById('ct').value.trim();
+    if (!ct) { say('请填写知乎 ID 或微信号', 'err'); return; }
+    go.disabled = true; say('提交中…');
+    // 开发者链路闭环：用通用 /api/public/conv 回传转化，服务端以 bid_win_log 归因
+    fetch('/api/public/conv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact: ct, project: ch, source: src, imp: imp })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (o) {
+        var extra = (o.j && o.j.conv) ? ' ｜已归因为广告转化回流' : (o.j && o.j.dup ? ' ｜该曝光已归因过（去重）' : (o.j && o.j.attributed === false ? ' ｜未匹配曝光，仅记录留资' : ''));
+        document.getElementById('okMsg').textContent = '提交成功，资料包将通过私信发送' + extra;
+        document.getElementById('formCard').classList.remove('live');
+        document.getElementById('done').classList.add('on');
+        window.scrollTo({ top: document.getElementById('done').offsetTop - 90, behavior: 'smooth' });
+      })
+      .catch(function () { say('网络异常', 'err'); go.disabled = false; });
+  });
+})();
+</script>
+<script async src="/pub_sdk.js"></script>
+</body>
+</html>

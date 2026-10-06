@@ -1,0 +1,68 @@
+{
+  "_comment": "参考投放配置。启动时被载入 SQLite(campaigns / apps 表)，同 cid 重复启动会更新而非重复插入。media_url / click_url 支持 ${ENV} 占位符（未设置则展开为空）。视频形态(rewarded/interstitial/splash)必须有素材，否则该计划被置为暂停；也可把 mp4 放到 ./creatives/ 目录并用 file 名（脚本会自动映射为 /media/<name>）。",
+
+  "apps": [
+    { "app_key": "demo_appkey", "bundle": "com.zhuque.adsdk.demo", "name": "Demo App", "rate": 0.7 }
+  ],
+
+  "campaigns": [
+    {
+      "cid": "camp_rwd_game",
+      "advertiser": "示例广告主-游戏",
+      "ad_type": "rewarded",
+      "bid_type": "CPA",
+      "bid_micros": 45000000,
+      "pctr": 0.035,
+      "pcvr": 0.06,
+      "budget_micros": 200000000,
+      "country": "CN",
+      "cats": "gaming",
+      "duration_sec": 52,
+      "media_url": "${ADX_VIDEO_URL}",
+      "click_url": "${ADX_CLICK_URL}"
+    },
+    {
+      "cid": "camp_rwd_ecom",
+      "advertiser": "示例广告主-电商",
+      "ad_type": "rewarded",
+      "bid_type": "CPC",
+      "bid_micros": 900000,
+      "pctr": 0.028,
+      "pcvr": 0.04,
+      "budget_micros": 120000000,
+      "country": "CN",
+      "cats": "ecommerce",
+      "duration_sec": 30,
+      "media_url": "${ADX_VIDEO_URL}",
+      "click_url": "${ADX_CLICK_URL}"
+    },
+    {
+      "cid": "camp_int_tool",
+      "advertiser": "示例广告主-工具",
+      "ad_type": "interstitial",
+      "bid_type": "CPM",
+      "bid_micros": 2600000,
+      "pctr": 0.02,
+      "pcvr": 0.02,
+      "budget_micros": 80000000,
+      "country": "CN",
+      "cats": "tools",
+      "keywords": "tool,utility",
+      "media_url": "${ADX_VIDEO_URL}",
+      "click_url": "${ADX_CLICK_URL}"
+    },
+    {
+      "cid": "camp_ban_edu",
+      "advertiser": "示例广告主-教育",
+      "ad_type": "banner",
+      "bid_type": "CPC",
+      "bid_micros": 420000,
+      "pctr": 0.015,
+      "pcvr": 0.02,
+      "budget_micros": 50000000,
+      "country": "CN",
+      "cats": "education",
+      "adm_html": "<div style='width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#16203a;color:#e8eefc;font:600 20px system-ui'><a style='color:#7fd1ff;text-decoration:none' href='{CLICK_URL}' onclick=\"fetch('{TRACKING}')\">{ADVERTISER}</a></div>"
+    }
+  ]
+}

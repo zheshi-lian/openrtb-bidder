@@ -188,5 +188,5 @@ async function supplyLeads() {
   console.log('\n=== 供给侧：合规爬虫阶段 ===');
   await enrichPublishers();
   await supplyLeads();
-  console.log('\n[意图Agent-LLM] 完成。可在 /advertiser.html 查看自动建/并的 campaign；媒体方供给标签已补全→其库存被意图匹配时 eCPM 更高。');
+  console.log('\n[意图Agent-LLM] 完成。可在 /campaigns.html 查看自动建/并的 campaign；媒体方供给标签已补全→其库存被意图匹配时 eCPM 更高。');
 })();

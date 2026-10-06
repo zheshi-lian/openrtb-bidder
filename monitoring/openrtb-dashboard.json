@@ -1,0 +1,42 @@
+{
+  "title": "AppLink OpenRTB Bidder",
+  "uid": "openrtb-bidder",
+  "schemaVersion": 39,
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "title": "竞价请求 QPS（按实例）", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "sum by (instance) (rate(openrtb_bid_requests_qps[1m]))", "legendFormat": "{{instance}}" }
+      ]
+    },
+    {
+      "id": 2, "title": "DSP 端到端延迟 p99 / p95 (ms)", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "max by (instance) (openrtb_dsp_latency{quantile=\"0.99\"})", "legendFormat": "p99 {{instance}}" },
+        { "expr": "max by (instance) (openrtb_dsp_latency{quantile=\"0.95\"})", "legendFormat": "p95 {{instance}}" }
+      ]
+    },
+    {
+      "id": 3, "title": "胜出 / 转化（闭环）", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "sum(rate(openrtb_bid_win[1m]))", "legendFormat": "胜出/s" },
+        { "expr": "sum(rate(openrtb_conv[1m]))", "legendFormat": "转化/s" }
+      ]
+    },
+    {
+      "id": 4, "title": "限流 / 品牌安全拦截", "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "sum(rate(openrtb_throttled[1m]))", "legendFormat": "限流/s" },
+        { "expr": "sum(rate(openrtb_brand_safety_blocked[1m]))", "legendFormat": "品牌安全拦截/s" }
+      ]
+    }
+  ],
+  "annotations": { "list": [] },
+  "templating": { "list": [] },
+  "edges": []
+}

@@ -519,6 +519,10 @@
         var winH = Number(ex.freq_window_hours || 0) || 24;
         if (freqHit(slot, cap, winH)) { collapse(slot, 'freq_capped'); return; }
         slot.lastBid = bid;
+        slot.impid = bid.impid || '';
+        slot.cid = (bid.ext && bid.ext.cid) || bid.cid || '';
+        // 暴露当前 impid 给宿主页：落地页既展示广告又回传自己的转化时，用 平台.getImps() 取 impid 归因
+        try { if (typeof 平台.onImpression === 'function') 平台.onImpression(slot.impid, slot.id); } catch (e) {}
         freqBump(slot, winH);
         // 自动刷新：仅 banner / MREC，间隔由服务端下发（0=不刷新）
         var ri = Number(ex.refresh_interval || 0) || (slot.spec && slot.spec.refreshInterval) || 0;
@@ -644,6 +648,12 @@
     refresh: refresh,
     destroy: destroy,
     onReward: null,
+    onImpression: null,
+    getImps: function () {
+      var out = [];
+      Object.keys(slots).forEach(function (k) { out.push({ slot: k, impid: slots[k].impid || '', cid: slots[k].cid || '' }); });
+      return out;
+    },
     skan: skan,
     consent: consent,
     attStatus: attStatus,

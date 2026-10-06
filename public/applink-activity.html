@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AppLink · 运营活动领奖</title>
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1000px 500px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+  .wrap{max-width:560px;margin:0 auto;padding:24px 18px 60px}
+  h1{font-size:24px;margin:0 0 4px}
+  .sub{color:var(--mut);margin:0 0 20px;font-size:13px}
+  .card{background:var(--card);border:1px solid #26355c;border-radius:12px;padding:16px;margin-bottom:14px}
+  .k{font-size:12px;color:var(--mut)} .v{font-size:15px;margin-top:2px;word-break:break-all}
+  .bar{height:8px;background:#2563eb;border-radius:4px;margin:8px 0;width:0%}
+  .btn{display:inline-block;padding:12px 20px;border-radius:9px;font-weight:700;cursor:pointer;border:0;background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .rules{display:flex;flex-direction:column;gap:8px}
+  .rule{background:#101a33;border:1px solid #24345c;border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center}
+  .rule .rw{font-size:13px}
+  .msg{font-size:13px;margin-top:10px;min-height:20px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:#f87171}
+  label{font-size:12px;color:var(--mut)} input{width:100%;padding:7px;margin:4px 0 10px;background:#0d1730;color:var(--fg);border:1px solid #2f4170;border-radius:7px;box-sizing:border-box}
+  video{width:100%;border-radius:8px;background:#000;margin-top:6px}
+</style></head>
+<body>
+<div class="wrap">
+  <h1>运营活动 · 领奖</h1>
+  <div class="sub">本页 <code>grantReward()</code> 对接真实「运营活动模块」接口（/api/activity/:id/grant）。<b>激励视频为真实播放上报</b>：监听 <code>timeupdate/ended</code> 计算完播比，仅真实播完才发放；服务端再校验设备指纹/预算/频次。</div>
+
+  <div class="card">
+    <label>活动 ID（或在地址栏加 ?act=ID）</label>
+    <input id="act" placeholder="例如 1">
+    <button class="btn" onclick="loadActivity()">载入活动</button>
+    <div class="msg" id="info"></div>
+  </div>
+
+  <div class="card" id="playCard" style="display:none">
+    <div class="k">激励视频（真实播放，播完自动领奖）</div>
+    <video id="rv" controls preload="metadata" playsinline webkit-playsinline></video>
+    <div class="bar" id="bar"></div>
+    <div class="msg" id="playmsg">点击播放，播完（≥规则要求的完播比）自动领奖</div>
+  </div>
+
+  <div class="card" id="rulesCard" style="display:none">
+    <div class="k">奖励规则</div>
+    <div class="rules" id="rules"></div>
+  </div>
+
+  <div class="card">
+    <div class="k">本次身份（用于防刷：同一用户/设备有领取上限）</div>
+    <div class="v" id="ident"></div>
+  </div>
+</div>
+
+<script>
+  // 稳定身份：localStorage 生成一次，模拟「同一用户/设备」
+  function identity(){
+    let u = localStorage.getItem('act_user'); let f = localStorage.getItem('act_fp');
+    if (!u){ u = 'u_' + Math.random().toString(36).slice(2, 10); localStorage.setItem('act_user', u); }
+    if (!f){ f = 'fp_' + Math.random().toString(36).slice(2, 12); localStorage.setItem('act_fp', f); }
+    return { user_key: u, device_fp: f };
+  }
+  const me = identity();
+  document.getElementById('ident').textContent = 'user_key=' + me.user_key + ' · device_fp=' + me.device_fp;
+
+  const q = new URLSearchParams(location.search);
+  // 默认激励视频素材：可在活动规则 conditions.video_url 中覆盖为本平台真实创意
+  const DEFAULT_VIDEO = 'https://media.w3.org/2010/05/sintel/trailer.mp4';
+  if (q.get('act')) document.getElementById('act').value = q.get('act');
+
+  // 真实播放完播上报：监听 video 事件，计算完播比；播完才触发领奖
+  const rv = document.getElementById('rv');
+  let currentRule = null;
+  rv.addEventListener('loadedmetadata', () => { document.getElementById('bar').style.width = '0%'; });
+  rv.addEventListener('timeupdate', () => {
+    const d = rv.duration || 1; const r = Math.min(1, rv.currentTime / d);
+    document.getElementById('bar').style.width = (r * 100).toFixed(1) + '%';
+  });
+  rv.addEventListener('ended', () => {
+    document.getElementById('bar').style.width = '100%';
+    const code = currentRule; currentRule = null;
+    if (code) grantReward(code, 1.0, Math.round((rv.duration || 30) * 1000)); // ratio=1：真实播完，带上视频时长供媒体端校验
+  });
+  rv.addEventListener('error', () => {
+    const m = document.getElementById('playmsg'); m.className = 'msg err'; m.textContent = '视频加载失败（请检查规则 conditions.video_url 是否可访问）';
+  });
+
+  function watchAndEarn(code, videoUrl){
+    const card = document.getElementById('playCard'); const m = document.getElementById('playmsg');
+    const src = videoUrl || q.get('video') || DEFAULT_VIDEO;
+    if (!src){ grantReward(code, 1.0); return; } // 无视频配置：直接发放（非视频类奖励）
+    currentRule = code; card.style.display = 'block'; rv.src = src; m.className = 'msg'; m.textContent = '播放中…（播完自动领奖）';
+    card.scrollIntoView({ behavior: 'smooth' });
+    rv.play().catch(() => { m.className = 'msg warn'; m.textContent = '浏览器拦截了自动播放，请点击视频手动播放，播完自动领奖'; });
+  }
+
+  async function loadActivity(){
+    const id = document.getElementById('act').value.trim();
+    if (!id) return;
+    const r = await fetch('/api/activity/' + id + '/public').then(x=>x.json()).catch(e=>({error:e.message}));
+    const info = document.getElementById('info');
+    if (r.error || !r.activity){ info.className='msg err'; info.textContent='活动不存在或加载失败：' + (r.error||''); document.getElementById('playCard').style.display='none'; document.getElementById('rulesCard').style.display='none'; return; }
+    info.className='msg ok';
+    info.innerHTML = '活动：<b>'+r.activity.name+'</b> · 状态：'+(r.active?'<span class="ok">进行中</span>':'<span class="warn">未开始/已结束</span>')+' · 剩余预算：¥'+r.budget_cny;
+    document.getElementById('playCard').style.display = r.active ? 'block' : 'none';
+    document.getElementById('rulesCard').style.display = r.active ? 'block' : 'none';
+    const box = document.getElementById('rules'); box.innerHTML='';
+    (r.rules||[]).forEach(ru=>{
+      const cond = (ru.conditions && typeof ru.conditions === 'object') ? ru.conditions : {};
+      const hasVideo = !!cond.video_url;
+      const el = document.createElement('div'); el.className='rule';
+      el.innerHTML = '<div class="rw"><b>'+ru.title+'</b><br>奖励 ¥'+ru.reward_cny+' · 每人限 '+ru.cap_per_user+' 次'+(ru.daily_cap?(' · 日限 '+ru.daily_cap):'')+(cond.minRatio?(' · 需完播≥'+(cond.minRatio*100)+'%'):'')+'</div>';
+      const b = document.createElement('button'); b.className='btn'; b.style.padding='8px 14px';
+      b.textContent = hasVideo ? '▶ 看视频领奖' : '领奖';
+      b.onclick = () => hasVideo ? watchAndEarn(ru.code, cond.video_url) : grantReward(ru.code, 1.0);
+      el.appendChild(b); box.appendChild(el);
+    });
+    if (!(r.rules||[]).length) box.innerHTML='<div class="rw">该活动暂无生效的奖励规则</div>';
+  }
+
+  // ===== 真实领奖：调用运营活动模块接口（服务端校验 + 真实完播比 ratio）=====
+  async function grantReward(ruleCode, ratio, durationMs){
+    const id = document.getElementById('act').value.trim();
+    const m = document.getElementById('playmsg');
+    m.className='msg'; m.textContent='领取中…';
+    try{
+      const d = await fetch('/api/activity/' + id + '/grant', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ rule_code: ruleCode, user_key: me.user_key, device_fp: me.device_fp, ratio }) }).then(x=>x.json());
+      if (d.ok && d.granted){
+        m.className='msg ok';
+        m.textContent = '✅ 发放成功：' + (d.reward_cny||'0') + ' 元（reward_micros=' + d.reward_micros + '）' + (d.dup?'（幂等，未重复发放）':'');
+        return;
+      }
+      // S2S 二次防刷（S2S_ENFORCE=1）：客户端信号已登记，转交真实媒体服务端(持 PUB_API_KEY)做设备指纹/风控权威回执后才发放
+      if (d.ok && d.pending === 'await_s2s'){
+        m.textContent = 'S2S 回执确认中（媒体服务端持密钥做二次防刷）…';
+        const c = await fetch('/api/activity/' + id + '/s2s/confirm', { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ receipt_id: d.receipt_id, receipt: d.receipt, device_fp: me.device_fp,
+            watchedMs: durationMs || 0, durationMs: durationMs || 0, ts: Date.now() }) }).then(x=>x.json());
+        if (c.ok && c.granted){
+          m.className='msg ok';
+          m.textContent = '✅ S2S 二次防刷通过，发放成功：' + (c.reward_cny||'0') + ' 元（reward_micros=' + c.reward_micros + '）' + (c.dup?'（幂等）':'');
+        } else {
+          m.className='msg warn';
+          m.textContent = '❌ S2S 确认未通过：' + (c.why || c.error || '未知原因');
+        }
+        return;
+      }
+      m.className='msg warn';
+      m.textContent = '❌ 未发放：' + (d.why || d.error || '未知原因');
+    }catch(e){ m.className='msg err'; m.textContent='请求失败：'+e.message; }
+  }
+
+  if (q.get('act')) loadActivity();
+</script>
+</body></html>

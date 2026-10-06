@@ -1,0 +1,39 @@
+# Grafana + Prometheus 一键起（本地观测栈，不侵入生产进程）
+# 用法：在 monitoring/ 目录执行
+#   docker compose up -d
+# 然后访问：
+#   Prometheus  http://localhost:9090   （Targets 看 openrtb-workers 是否 UP）
+#   Grafana     http://localhost:3000   （admin/admin，导入 openrtb-dashboard.json）
+#
+# 数据来源：server.js 的 /metrics 端点（Prometheus 文本格式），由 cluster.js 的 worker 端口暴露。
+# 生产建议：Prometheus 数据落盘到持久卷；Grafana 接企业微信/飞书/Slack 告警（与 ALERT_WEBHOOK 互补）。
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: openrtb-prom
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom_data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: openrtb-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./openrtb-dashboard.json:/var/lib/grafana/dashboards/openrtb-dashboard.json:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prom_data:
+  grafana_data:

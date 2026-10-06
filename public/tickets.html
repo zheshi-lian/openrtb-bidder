@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>运营工单 · 平台</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1080px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px} h3{margin:0 0 10px;font-size:14px;color:#e8eefc}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ input,select,textarea{padding:6px 9px;border:1px solid #26355c;border-radius:6px;background:#0d1730;color:#e8eefc;width:100%;box-sizing:border-box}
+ textarea{height:64px;resize:vertical} button{padding:5px 12px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;font-size:12px}
+ button.ghost{background:#5b6b82} button.bad{background:#c0392b}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left;vertical-align:top;color:#e8eefc}
+ th{background:#0d1730;color:#93a3c4}
+ .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#16203a;color:#7fd1ff;border:1px solid #26355c}
+ .tag.open{background:#3a2a12;color:#fbbf24;border-color:#5a4416}
+ .tag.pending{background:#16203a;color:#7fd1ff}
+ .tag.resolved{background:#16321f;color:#34d399;border-color:#234a35}
+ .tag.closed{background:#2a2f3a;color:#9aa7bd}
+ .row{display:flex;gap:8px;flex-wrap:wrap}
+ .msg{background:#0f172a;padding:8px 10px;border-radius:6px;margin:6px 0;font-size:12.5px}
+ .msg b{color:#7fd1ff}
+ #ctop{margin-bottom:10px}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>运营工单</h2>
+  <div class="hint">广告主 / 开发者提交问题，运营分类、流转、关闭。支持回复对话。</div>
+
+  <div class="card">
+    <h3>① 提交工单</h3>
+    <div class="row">
+      <select id="c-cat" style="width:160px"><option value="billing">计费</option><option value="creative">素材</option><option value="review">审核</option><option value="tech">技术</option><option value="other">其他</option></select>
+      <select id="c-pri" style="width:120px"><option value="normal">普通</option><option value="high">紧急</option><option value="low">低</option></select>
+    </div>
+    <div class="row" style="margin-top:8px"><input id="c-subject" placeholder="主题"></div>
+    <textarea id="c-body" placeholder="问题描述" style="margin-top:8px"></textarea>
+    <div style="margin-top:8px"><button onclick="createTicket()">提交工单</button></div>
+  </div>
+
+  <div class="card">
+    <h3>② 工单列表</h3>
+    <table id="ttbl"><thead><tr><th>id</th><th>范围</th><th>分类</th><th>优先级</th><th>主题</th><th>状态</th><th>处理人</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card" id="tk-card" style="display:none">
+    <h3>工单 #<span id="tk-id"></span> · <span id="tk-subject"></span></h3>
+    <div id="tk-body" class="hint"></div>
+    <div id="tk-msgs"></div>
+    <textarea id="tk-reply" placeholder="回复内容（运营或提交方均可）" style="margin-top:8px"></textarea>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button onclick="replyTicket()">回复</button>
+      <span style="flex:1"></span>
+      <select id="tk-status" style="width:140px"><option value="open">open</option><option value="pending">pending</option><option value="resolved">resolved</option><option value="closed">closed</option></select>
+      <button class="ghost" onclick="setStatus()">更新状态</button>
+    </div>
+    <button class="ghost" onclick="document.getElementById('tk-card').style.display='none'" style="margin-top:8px">关闭</button>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='平台';</script>
+  <script src="/admin.js"></script>
+  <script src="/ui.js"></script>
+  <script>
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    async function loadTickets(){
+      const rows=await (await fetch('/api/tickets')).json().catch(()=>[]);
+      const tb=document.querySelector('#ttbl tbody'); tb.innerHTML='';
+      (rows||[]).forEach(t=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML='<td>'+t.id+'</td><td><span class="tag">'+t.scope+'</span><br>'+esc(t.scope_id)+'</td><td>'+esc(t.category)+'</td><td>'+esc(t.priority)+'</td>'+
+          '<td>'+esc(t.subject)+'</td><td><span class="tag '+t.status+'">'+t.status+'</span></td><td>'+esc(t.assignee||'—')+'</td>'+
+          '<td><button onclick="openTicket('+t.id+')">打开</button></td>';
+        tb.appendChild(tr);
+      });
+      if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="8">暂无工单</td></tr>';
+    }
+    async function createTicket(){
+      const subject=document.getElementById('c-subject').value.trim(); if(!subject) return UI.toast('请填主题','err');
+      const r=await fetch('/api/tickets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:document.getElementById('c-cat').value,priority:document.getElementById('c-pri').value,subject,body:document.getElementById('c-body').value.trim()})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) return UI.toast('失败：'+(d.error||''),'err');
+      document.getElementById('c-subject').value=''; document.getElementById('c-body').value=''; UI.toast('已提交 #'+d.id); loadTickets();
+    }
+    async function openTicket(id){
+      const [t,msgs]=await Promise.all([(await fetch('/api/tickets')).json(), (await fetch('/api/tickets/'+id+'/replies')).json().catch(()=>[])]);
+      const cur=(t||[]).find(x=>x.id===id)||{};
+      document.getElementById('tk-id').textContent=id;
+      document.getElementById('tk-subject').textContent=cur.subject||'';
+      document.getElementById('tk-body').textContent=(cur.body||'')+'\n状态：'+cur.status+' · 处理人：'+(cur.assignee||'—');
+      const box=document.getElementById('tk-msgs'); box.innerHTML='';
+      (msgs||[]).forEach(m=>{ const d=document.createElement('div'); d.className='msg'; d.innerHTML='<b>'+esc(m.sender)+'</b>：'+esc(m.message); box.appendChild(d); });
+      document.getElementById('tk-status').value=cur.status||'open';
+      document.getElementById('tk-card').style.display='block'; window._curTk=id;
+    }
+    async function replyTicket(){
+      const id=window._curTk; const msg=document.getElementById('tk-reply').value.trim(); if(!msg) return UI.toast('请填回复','err');
+      const r=await fetch('/api/tickets/'+id+'/reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) return UI.toast('失败：'+(d.error||''),'err');
+      document.getElementById('tk-reply').value=''; openTicket(id);
+    }
+    async function setStatus(){
+      const id=window._curTk; const st=document.getElementById('tk-status').value;
+      const r=await fetch('/api/tickets/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:st})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) return UI.toast('失败：'+(d.error||''),'err');
+      UI.toast('状态已更新'); openTicket(id); loadTickets();
+    }
+    loadTickets();
+  </script>
+<script src="/console_top.js"></script>
+</body></html>

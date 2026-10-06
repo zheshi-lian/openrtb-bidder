@@ -5,46 +5,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>程序化广告平台演示 · DSP + SSP + 广告交易引擎</title>
 <style>
-  /* 调色板已归并到 /tokens.css（--card 原为 #141b2e、--line 原为 #26304a） */
-  :root{--bg:#0b1020;--card:#16203a;--line:#26355c;--accent:#3b82f6;--ok:#22c55e;--bad:#ef4444;--warn:#f59e0b;--txt:#e8eefc;--muted:#93a3c4}
+  :root{--bg:#080c1a;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.09);--line-hi:rgba(255,255,255,.16);
+    --accent:#38bdf8;--accent2:#22d3ee;--ok:#34d399;--bad:#fb7185;--warn:#fbbf24;--txt:#eef3ff;--muted:#9aa7c7;--dim:#74829f}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 'Microsoft YaHei',system-ui,sans-serif}
-  header{padding:18px 22px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,#101830,#0b1020)}
-  h1{margin:0 0 4px;font-size:18px}
-  .sub{color:var(--muted);font-size:12px}
-  .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
-  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-  .fcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:120px}
-  .fcard h3{margin:0;font-size:14px;display:flex;justify-content:space-between;align-items:center}
-  .badge{font-size:11px;padding:2px 8px;border-radius:999px;background:#1f2942;color:var(--muted)}
-  .badge.ok{background:#0e2a1a;color:var(--ok)} .badge.bad{background:#2a1212;color:var(--bad)}
-  .render{flex:1;background:#0a0f1d;border:1px dashed var(--line);border-radius:8px;padding:8px;overflow:auto;min-height:90px;font-size:12px;color:var(--muted)}
-  .render video{width:100%;border-radius:6px;background:#000}
+  html{scroll-behavior:smooth}
+  body{margin:0;color:var(--txt);
+    font:400 14px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    background:
+      radial-gradient(1000px 460px at 78% -8%,rgba(37,99,235,.22),transparent 60%),
+      radial-gradient(760px 420px at 6% 4%,rgba(34,211,238,.12),transparent 60%),
+      linear-gradient(180deg,#0a0f22,var(--bg) 46%);
+    background-attachment:fixed}
+  ::selection{background:rgba(56,189,248,.3);color:#fff}
+  a{color:var(--accent2);text-decoration:none;transition:color .16s ease}
+  header{padding:20px 24px;border-bottom:1px solid var(--line);
+    background:linear-gradient(90deg,rgba(16,24,48,.88),rgba(11,16,32,.72));backdrop-filter:blur(12px)}
+  h1{margin:0 0 6px;font-size:20px;font-weight:800;letter-spacing:-.022em}
+  .sub{color:var(--muted);font-size:12.5px;line-height:1.72}
+  .wrap{padding:20px 24px;max-width:1240px;margin:0 auto}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:18px;
+    box-shadow:0 18px 40px -26px rgba(0,0,0,.75);backdrop-filter:blur(12px)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .fcard{position:relative;overflow:hidden;
+    background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.028));
+    border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:120px;
+    box-shadow:0 16px 38px -26px rgba(0,0,0,.75);
+    transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+  .fcard::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;
+    background:linear-gradient(92deg,#38bdf8,#22d3ee 55%,transparent)}
+  .fcard:hover{transform:translateY(-3px);border-color:rgba(56,189,248,.34);box-shadow:0 26px 52px -26px rgba(0,0,0,.85)}
+  .fcard h3{margin:0;font-size:14px;display:flex;justify-content:space-between;align-items:center;letter-spacing:-.01em}
+  .badge{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.07);color:var(--muted);white-space:nowrap}
+  .badge.ok{background:rgba(52,211,153,.14);color:var(--ok)} .badge.bad{background:rgba(251,113,133,.14);color:var(--bad)}
+  .render{flex:1;background:#070b16;border:1px dashed var(--line-hi);border-radius:10px;padding:10px;overflow:auto;min-height:90px;font-size:12px;color:var(--muted)}
+  .render video{width:100%;border-radius:8px;background:#000}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px}
-  button.ghost{background:#1f2942;color:var(--txt)} button:disabled{opacity:.5;cursor:default}
-  a.btn-link{display:inline-block;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px;font-weight:700;text-decoration:none}
-  a.btn-link:hover{filter:brightness(1.1)}
-  input{background:#0a0f1d;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font-size:12px;width:200px}
+  button{background:linear-gradient(92deg,#38bdf8,#22d3ee);color:#04122a;border:0;border-radius:10px;padding:8px 13px;cursor:pointer;
+    font-size:13px;font-weight:700;font-family:inherit;box-shadow:0 8px 20px -12px rgba(34,211,238,.65);
+    transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
+  button:hover{transform:translateY(-1px);box-shadow:0 12px 26px -12px rgba(34,211,238,.8)}
+  button.ghost{background:rgba(255,255,255,.05);color:var(--txt);border:1px solid var(--line-hi);box-shadow:none}
+  button.ghost:hover{background:rgba(255,255,255,.09);border-color:rgba(56,189,248,.4);box-shadow:none}
+  button:disabled{opacity:.45;cursor:default;transform:none;box-shadow:none}
+  a.btn-link{display:inline-block;background:linear-gradient(92deg,#38bdf8,#22d3ee);color:#04122a;border:0;border-radius:10px;
+    padding:9px 15px;cursor:pointer;font-size:13px;font-weight:700;text-decoration:none;
+    box-shadow:0 8px 20px -12px rgba(34,211,238,.65);transition:transform .16s ease,box-shadow .16s ease}
+  a.btn-link:hover{transform:translateY(-1px);box-shadow:0 12px 26px -12px rgba(34,211,238,.8);color:#04122a}
+  input{background:rgba(255,255,255,.04);border:1px solid var(--line-hi);color:var(--txt);border-radius:10px;padding:8px 10px;
+    font-size:12px;width:200px;font-family:inherit;transition:border-color .16s ease,box-shadow .16s ease}
+  input:focus{outline:0;border-color:rgba(56,189,248,.55);box-shadow:0 0 0 3px rgba(56,189,248,.16)}
   label{font-size:12px;color:var(--muted)}
-  code{background:#0a0f1d;padding:1px 5px;border-radius:4px;color:#9fd0ff;font-size:12px}
-  .log{background:#060a14;border:1px solid var(--line);border-radius:8px;height:200px;overflow:auto;padding:10px;font:12px/1.45 ui-monospace,Consolas,monospace;color:#9fb3d1}
+  code{background:rgba(255,255,255,.06);border:1px solid var(--line);padding:1.5px 6px;border-radius:6px;color:#cbe6ff;font-size:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .log{background:#060a14;border:1px solid var(--line);border-radius:12px;height:200px;overflow:auto;padding:12px;
+    font:12px/1.5 ui-monospace,Consolas,monospace;color:#9fb3d1}
   .log .t{color:#5b6b86} .log .g{color:var(--ok)} .log .r{color:var(--bad)} .log .y{color:var(--warn)}
   .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
   .kv b{color:var(--muted);font-weight:600}
-  .push{position:fixed;right:18px;top:18px;width:280px;background:#1a2238;border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);display:none;z-index:99}
-  .push img{width:40px;height:40px;border-radius:8px;vertical-align:middle;margin-right:8px}
-  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:6px;background:#15203a;color:#7fd1ff;margin-right:4px}
-  table{width:100%;border-collapse:collapse;font-size:12px} th,td{border:1px solid var(--line);padding:6px 8px;text-align:left}
-  th{background:#101830;color:var(--muted)}
+  .push{position:fixed;right:18px;top:74px;width:290px;background:rgba(20,28,52,.97);backdrop-filter:blur(14px);
+    border:1px solid var(--line-hi);border-radius:16px;padding:13px;box-shadow:0 24px 50px -18px rgba(0,0,0,.75);display:none;z-index:99}
+  .push img{width:40px;height:40px;border-radius:10px;vertical-align:middle;margin-right:8px}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:7px;background:rgba(56,189,248,.13);color:#7fd1ff;margin-right:4px}
+  .attrib{font-size:11px;color:var(--muted);margin-top:6px;padding:6px 8px;background:rgba(255,255,255,.03);
+    border-radius:8px;border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:12px;border-radius:12px;overflow:hidden}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left}
+  th{background:rgba(255,255,255,.04);color:var(--muted);letter-spacing:.04em}
   .pill{font-size:11px;padding:2px 7px;border-radius:999px}
+  @media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:680px){.grid{grid-template-columns:1fr}.wrap{padding:16px}}
 </style>
 </head>
 <body>
 <header>
-  <h1>程序化广告平台演示 · DSP + SSP + 广告交易引擎（对标 汇量 / Appluck）</h1>
-  <div class="sub">本平台 = <b>DSP + SSP + 广告交易引擎</b>，对标 AppLuck / 汇量（轻资产、高毛利、预付/周结的程序化广告平台）。商业模式：<b>开发者侧</b>聚合长尾流量（App 开发者的广告位，6 种形态呈现），<b>广告主侧</b>投放买量；另有<b>外部需求方（DSP）接入</b>：把其他买方的 OpenRTB 出价端点接入本平台拍卖来买我们的流量（示例见「外部 DSP 接入」页）。盈利=投放差价+技术服务费。① <b>广告形式</b>（6 种形态，同 AppLuck 披露，可对照 <a href="https://zheshi-lian.github.io/rewarded/" target="_blank" style="color:#7fd1ff">rewarded 参考实现</a>）；② <b>外部需求方(DSP)接入</b>：注册 OpenRTB 出价端点参与拍卖；③ 风控/可见性。（注：汇量 / Appluck 为同类竞争对手；代理去外部平台投放由投放中台处理，不在本平台范围内。）</div>
+  <h1>程序化广告平台演示 · DSP + SSP + 实时竞价引擎</h1>
+  <div class="sub">本平台 = <b>DSP + SSP + 实时竞价引擎</b>，聚合长尾 App 流量，连接广告需求与媒体供给。商业模式：<b>开发者侧</b>聚合长尾流量（App 开发者的广告位，6 种形态呈现），<b>广告主侧</b>投放买量；另有<b>外部需求方（DSP）接入</b>：把其他买方的 OpenRTB 出价端点接入本平台拍卖来买我们的流量（示例见「外部 DSP 接入」页）。盈利 = 投放差价 + 技术服务费。① <b>广告形式</b>（6 种形态，可对照 <a href="https://zheshi-lian.github.io/rewarded/" target="_blank" style="color:#7fd1ff">rewarded 参考实现</a>）；② <b>外部需求方(DSP)接入</b>：注册 OpenRTB 出价端点参与拍卖；③ 风控/可见性。</div>
 </header>
 
 <div class="wrap">
@@ -64,13 +100,13 @@
       <b>设备指纹</b><span id="fp" class="muted">— 计算中 —</span>
       <b>指纹置信度</b><span id="fpconf" class="muted">—</span>
     </div>
-    <div style="font-size:12px;color:var(--muted);margin-top:8px">上方「① 媒体入驻（自助开户）」会跳到 <a href="/register.html#publisher" style="color:#7fd1ff">自助开户</a> 开通<b>可登录的开发者账号</b>；本页展示用的「沙箱密钥」已自动获取（仅供 6 种形态演示，无法登录后台）。</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px">上方「① 媒体入驻（自助开户）」会跳到 <a href="/register.html#publisher" style="color:#7fd1ff">统一登录 / 开户页</a> 开通<b>可登录的开发者账号</b>；本页展示用的「沙箱密钥」已自动获取（仅供 6 种形态演示，无法登录后台）。</div>
   </div>
 
   <!-- ① 广告形式（开发者 / 媒体方渲染） -->
   <div class="panel" style="margin-bottom:14px">
     <h3 style="margin:0 0 6px">① 广告形式（开发者 / 媒体侧渲染，激励广告只是其中一种）</h3>
-    <div class="sub" style="font-size:12px"><b>聚合长尾流量（AppLuck 模式）</b> = 把大量长尾 App 开发者的广告位聚合起来（AppLuck 披露：近千家开发者），以不同<b>形态</b>呈现；下方用"假想媒体"代表被聚合的一家长尾流量，把 6 种形态跑一遍：竞价 → 渲染 →（激励视频）S2S 结算 + OMID + 设备指纹。形态 ≠ 平台，真正的"外部需求方(DSP)接入"见「外部 DSP 接入」页。（注：汇量 / Appluck 是同类竞争平台，不是媒体。）</div>
+    <div class="sub" style="font-size:12px"><b>聚合长尾流量</b> = 把大量长尾 App 开发者的广告位聚合起来，以不同<b>形态</b>呈现；下方用"假想媒体"代表被聚合的一家长尾流量，把 6 种形态跑一遍：竞价 → 渲染 →（激励视频）S2S 结算 + OMID + 设备指纹。形态 ≠ 平台，真正的"外部需求方(DSP)接入"见「外部 DSP 接入」页。</div>
   </div>
   <div class="grid" id="cards"></div>
 
@@ -114,15 +150,15 @@
     </div>
   </div>
 
-  <!-- ④ 对标 汇量 / Appluck 能力矩阵 -->
+  <!-- ④ 能力矩阵 -->
   <div class="panel">
-    <h3 style="margin:0 0 8px">④ 对标 汇量 / Appluck 能力矩阵 <span class="tag">定位</span></h3>
-    <div class="sub" style="font-size:12px">本平台目标＝能力超过汇量 / Appluck 等同类型程序化平台。下表为能力对照（✓ 具备 / △ 部分或待补 / ✗ 无）。</div>
+    <h3 style="margin:0 0 8px">④ 能力矩阵 <span class="tag">平台定位</span></h3>
+    <div class="sub" style="font-size:12px">本平台目标＝在广告交易的全链路透明度、竞价深度与结算可审计性上，为广告主和开发者提供最优 ROI。下表为能力对照（✓ 具备 / △ 部分或待补 / ✗ 无）。</div>
     <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px">
       <thead><tr style="background:#16203a;color:#cfe0ff">
         <th style="border:1px solid #243152;padding:6px;text-align:left">能力维度</th>
         <th style="border:1px solid #243152;padding:6px">dellai.xyz 平台（我们）</th>
-        <th style="border:1px solid #243152;padding:6px">汇量 / Appluck（同类）</th>
+        <th style="border:1px solid #243152;padding:6px">常见平台水平</th>
       </tr></thead>
       <tbody style="color:#dbe6f5">
         <tr><td style="border:1px solid #243152;padding:6px">实时竞价 RTB 引擎（毫秒级）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 自研</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 行业标配</td></tr>
@@ -131,8 +167,8 @@
         <tr><td style="border:1px solid #243152;padding:6px">设备指纹风控 + 跨设备重放拦截</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">△</td></tr>
         <tr><td style="border:1px solid #243152;padding:6px">S2S 服务端结算 + HMAC 防伪造</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
         <tr><td style="border:1px solid #243152;padding:6px">外部需求方(DSP)接入（OpenRTB 出价端点）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 可注册接入</td><td style="border:1px solid #243152;padding:6px;text-align:center">△ 以聚合为主</td></tr>
-        <tr><td style="border:1px solid #243152;padding:6px">长尾流量聚合（SSP 核心）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 核心(AppLuck 模式)</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
-        <tr><td style="border:1px solid #243152;padding:6px">轻资产 / 高毛利 / 预付周结</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 同披露</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">长尾流量聚合（SSP 核心）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 核心能力</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
+        <tr><td style="border:1px solid #243152;padding:6px">开户与结算灵活性</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 不设最低充值</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 类似</td></tr>
         <tr><td style="border:1px solid #243152;padding:6px">多形态广告（激励/插屏/开屏/原生/icon/push）</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓ 6 种</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
         <tr><td style="border:1px solid #243152;padding:6px">反作弊 / 数据安全体系</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td><td style="border:1px solid #243152;padding:6px;text-align:center">✓</td></tr>
       </tbody>
@@ -161,7 +197,7 @@ function computeFP(){
   let px='no-canvas';
   try{ const c=document.createElement('canvas'); const x=c.getContext('2d');
     x.textBaseline='top'; x.font="16px 'Arial'"; x.fillStyle='#f60'; x.fillRect(2,2,120,20);
-    x.fillStyle='#0a0'; x.fillText('linkos-fp',4,4); x.fillStyle='rgba(0,0,255,.4)'; x.fillText('linkos-fp',6,6);
+    x.fillStyle='#0a0'; x.fillText('applink-fp',4,4); x.fillStyle='rgba(0,0,255,.4)'; x.fillText('applink-fp',6,6);
     px=c.toDataURL();
   }catch(e){}
   const s=[navigator.userAgent,navigator.language,screen.width+'x'+screen.height+'x'+screen.colorDepth,
@@ -188,14 +224,16 @@ async function post(path,body){ const r=await fetch(path,{method:'POST',headers:
 function durToMs(s){ if(!s||s.indexOf(':')<0) return 52000; const p=s.split(':').map(Number); return (p[0]*3600+p[1]*60+p[2])*1000; }
 
 /* ===== 竞价 ===== */
-async function bid(format){
+async function bid(format, extraExt){
   const id='demo_'+format+'_'+Date.now();
+  // device 必须带 ua/os/w/h：反作弊据此判 bot 信号，缺字段会被整单拦截（演示页"6 形态不显示"的真实根因）
+  const extExt = Object.assign({ cat:'game', ad_type:format, device_fp:FP }, extraExt||{});
   const body={ id, site:{domain:PUB(),keywords:'休闲游戏,激励视频,'+format},
-    imp:[{ id, bidfloor:2.0, ext:{ cat:'gaming', ad_type:format, device_fp:FP } }],
-    device:{ geo:{country:'CN'} } };
+    imp:[{ id, bidfloor:2.0, ext:extExt }],
+    device:{ ua:navigator.userAgent||'', os:(navigator.platform||'web'), w:screen.width||0, h:screen.height||0, geo:{country:'CN'} } };
   const r=await post(PLATFORM()+'/ssp/bid',body); const j=await r.json();
   const seat=j.seatbid&&j.seatbid[0]; const b=seat&&seat.bid&&seat.bid[0];
-  return {id,bid:b,ext:b&&b.ext};
+  return {id,bid:b,crid:b&&b.crid,ext:b&&b.ext,raw:j};
 }
 
 /* ===== 解析 VAST 4.0 ===== */
@@ -215,6 +253,15 @@ function renderCard(fmt, render){
   const card=document.querySelector(`.fcard[data-fmt="${fmt}"] .render`);
   card.innerHTML=''; render(card);
 }
+// 用 iframe 承载 HTML 创意：position:fixed 等全屏样式被限制在 iframe 视口内，不再溢出卡片/遮盖整页
+function renderHtmlAd(box, html){
+  box.innerHTML='';
+  const f=document.createElement('iframe');
+  f.setAttribute('sandbox','allow-scripts allow-same-origin');
+  f.style.cssText='width:100%;height:260px;border:0;background:#fff;border-radius:6px';
+  f.srcdoc=html;
+  box.appendChild(f);
+}
 function fireImp(impid){ fire(PLATFORM()+'/ssp/imp?pub='+encodeURIComponent(PUB())+'&imp='+encodeURIComponent(impid)); }
 
 const FORMATS=[
@@ -222,6 +269,9 @@ const FORMATS=[
   {fmt:'interstitial',name:'插屏',desc:'全屏 HTML'},
   {fmt:'splash',name:'开屏',desc:'启动页 HTML'},
   {fmt:'native',name:'原生',desc:'结构化 JSON 自渲染'},
+  {fmt:'float',name:'浮标广告',desc:'右下角悬浮小窗（可关闭/拖拽）'},
+  {fmt:'interactive',name:'互动广告',desc:'富媒体（转盘/抽奖/游戏化）'},
+  {fmt:'view',name:'应用内 View',desc:'Activity + 像素坐标 → addView 到视图树'},
   {fmt:'icon',name:'图标/下载',desc:'小图 + 落地'},
   {fmt:'push',name:'推送',desc:'服务端下发'}
 ];
@@ -230,8 +280,21 @@ function buildCards(){
   const wrap=$('#cards'); wrap.innerHTML='';
   FORMATS.forEach(f=>{
     const el=document.createElement('div'); el.className='fcard'; el.dataset.fmt=f.fmt;
+    // view 格式：附带 Activity + 像素坐标(x,y,w,h) 输入，模拟 SDK 里往 Activity 视图树 addView 的入参
+    const viewFields = f.fmt==='view' ? `
+      <div class="viewcfg" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:6px 0;font-size:11px">
+        <label style="grid-column:1/-1;color:#8a93a6">SDK addView 入参（Activity + 像素坐标）</label>
+        <input data-v="activity" value="com.dellai.game.GameActivity" style="grid-column:1/4;padding:3px 6px;background:#0d1526;color:#dbe6f5;border:1px solid #243152;border-radius:4px;font-family:monospace">
+        <input data-v="x" type="number" value="40" style="grid-column:4/5;padding:3px 6px;background:#0d1526;color:#dbe6f5;border:1px solid #243152;border-radius:4px;font-family:monospace">
+        <input data-v="y" type="number" value="160" style="grid-column:5/6;padding:3px 6px;background:#0d1526;color:#dbe6f5;border:1px solid #243152;border-radius:4px;font-family:monospace">
+        <input data-v="w" type="number" value="300" style="grid-column:1/3;padding:3px 6px;background:#0d1526;color:#dbe6f5;border:1px solid #243152;border-radius:4px;font-family:monospace">
+        <input data-v="h" type="number" value="140" style="grid-column:3/4;padding:3px 6px;background:#0d1526;color:#dbe6f5;border:1px solid #243152;border-radius:4px;font-family:monospace">
+        <span style="grid-column:4/6;color:#8a93a6;align-self:center">x,y,w,h（像素）</span>
+      </div>` : '';
     el.innerHTML=`<h3>${f.name}<span class="badge">${f.desc}</span></h3>
-      <div class="render">点击右侧按钮请求创意</div>
+      ${viewFields}
+      <div class="render" style="${f.fmt==='view'?'position:relative;min-height:220px;background:linear-gradient(180deg,#0f172a 0%,#111a2e 100%);border:1px solid #1f2a44;box-sizing:border-box;overflow:hidden':''}">${f.fmt==='view'?'<div style="padding:8px;color:#64748b;font-size:12px">Activity 视图树预览 — 点击右侧按钮请求创意，广告 View 会按 x,y 坐标 addView 到此处</div>':'点击右侧按钮请求创意'}</div>
+      <div class="attrib" data-attrib>— 尚未请求 —</div>
       <div class="row"><button data-act="req">请求创意</button><span class="badge" data-st>待命</span></div>`;
     el.querySelector('[data-act="req"]').onclick=()=>runOne(f.fmt,false);
     wrap.appendChild(el);
@@ -244,32 +307,49 @@ async function runOne(fmt, simulate){
   const st=card.querySelector('[data-st]'); const render=card.querySelector('.render');
   st.textContent='竞价中…'; st.className='badge';
   log(`[${fmt}] 请求平台竞价 (publisher=${PUB()}, device_fp=${FP.slice(0,8)}…)`);
-  let r; try{ r=await bid(fmt); }catch(e){ st.textContent='竞价失败'; st.className='badge bad'; log('['+fmt+'] 竞价异常: '+e.message,'r'); return false; }
-  if(!r.bid){ st.textContent='NO_FILL'; st.className='badge bad'; log('['+fmt+'] 无填充','r'); return false; }
+  // view 格式：把卡片上的 Activity + 像素坐标输入作为额外 ext 传给平台（SDK addView 入参）
+  let viewExt=null;
+  if(fmt==='view'){
+    const g=k=>{ const el=card.querySelector(`[data-v="${k}"]`); return el?el.value:k; };
+    viewExt={ activity:g('activity'), x:Number(g('x')), y:Number(g('y')), w:Number(g('w')), h:Number(g('h')) };
+    log(`[${fmt}] addView 入参: Activity=${viewExt.activity} @(${viewExt.x},${viewExt.y}) ${viewExt.w}×${viewExt.h}px`,'y');
+  }
+  let r; try{ r=await bid(fmt, viewExt); }catch(e){ st.textContent='竞价失败'; st.className='badge bad'; log('['+fmt+'] 竞价异常: '+e.message,'r'); return false; }
+  if(!r.bid){ const why=(r.raw&&r.raw.ext&&r.raw.ext.anticheat)||''; st.textContent='NO_FILL'; st.className='badge bad'; log('['+fmt+'] 无填充'+(why?('（反作弊：'+why+'）'):''),'r'); return false; }
   const adm=String(r.bid.adm||''); const ext=r.ext||{};
   st.textContent=(ext.adm_type||'-')+' · '+(ext.ad_format||'-'); st.className='badge ok';
   addSummary(fmt,(ext.adm_type||'-'),'展示成功');
-  log(`[${fmt}] 命中: cid=${ext.cid} price=${r.bid.price} adm_type=${ext.adm_type} len=${adm.length}`);
+  log(`[${fmt}] 命中: 广告主=${ext.advertiser} cid=${ext.cid} crid=${r.crid} price=${r.bid.price} adm_type=${ext.adm_type} len=${adm.length}`);
   fireImp(r.id);
+  // 创意归因：明确"本素材由哪家广告主在 adv-media 生产"，呼应审核/投放链路可追溯（cid=计划，crid=素材）
+  const attr=card.querySelector('[data-attrib]');
+  if(attr) attr.innerHTML=`🏷 本素材由广告主 <b style="color:#7fd1ff">${ext.advertiser||'—'}</b> 在 adv-media 生产 · 计划#${ext.cid} · 素材#${r.crid||'—'}`;
 
   if(fmt==='rewarded'){ return await renderRewarded(render,r,simulate); }
 
-  render.innerHTML='';
   if(fmt==='native'){
     try{ const n=JSON.parse(adm);
       fire(n.impTrackers&&n.impTrackers[0]||'');
       const d=document.createElement('div'); d.style.cssText='padding:6px';
-      d.innerHTML=`<img src="${n.icon}" width="48" height="48" style="border-radius:8px"><b>${n.title}</b><div style="color:#8a93a6;font-size:12px">${n.body}</div><a href="${n.clickUrl}" target="_blank" style="display:inline-block;margin-top:6px;background:#3b82f6;color:#fff;padding:6px 12px;border-radius:8px;text-decoration:none">${n.cta}</a>`;
-      render.appendChild(d);
-    }catch(e){ render.textContent='native 解析失败'; }
+      d.innerHTML=`<img src="${n.icon}" width="48" height="48" style="border-radius:8px"><b>${n.title}</b><div style="color:#8a93a6;font-size:12px">${n.body}</div><a href="${n.clickUrl||'#'}" target="_blank" style="display:inline-block;margin-top:6px;background:#3b82f6;color:#fff;padding:6px 12px;border-radius:8px;text-decoration:none">${n.cta||'查看'}</a>`;
+      render.innerHTML=''; render.appendChild(d);
+    }catch(e){
+      renderHtmlAd(render, adm);
+      log('['+fmt+'] 原生素材为 HTML 形态，按 HTML 渲染','y');
+    }
   } else if(fmt==='push'){
     const p=(ext.push)||{};
     const pn=$('#push'); $('#pushimg').src=p.icon||''; $('#pushtitle').textContent=p.title||'推送'; $('#pushbody').textContent=p.body||'';
     pn.style.display='block'; setTimeout(()=>pn.style.display='none',6000);
     fire(p.impUrl||'');
     render.innerHTML=`<div class="tag">push</div> 已以系统推送样式下发（右上方 toast），不经 SDK 渲染，由媒体推送系统投递。`;
-  } else { // interstitial / splash / icon (HTML)
-    const host=document.createElement('div'); host.innerHTML=adm; render.appendChild(host);
+  } else if(fmt==='view'){
+    // 应用内 View：SDK 把返回的 HTML addView 到 Activity 视图树的指定像素坐标位置。
+    // 演示端直接把 HTML 插到"Activity 视图树预览"容器（相对定位），广告 div 自带 x,y 定位生效。
+    render.innerHTML = adm;
+    log('['+fmt+'] addView 完成: 已插入 Activity 视图树 (view_html)');
+  } else { // interstitial / splash / icon (HTML) → 用 iframe 承载，避免 position:fixed 溢出卡片
+    renderHtmlAd(render, adm);
   }
   return true;
 }
@@ -330,7 +410,7 @@ function addSummary(fmt,type,result){
 
 /* ===== 入驻 ===== */
 async function join(){
-  const r=await post(PLATFORM()+'/api/publisher',{domain:PUB(),name:'假想媒体',payout_rate:0.7,cat:'gaming',geo:'CN',keywords:'休闲游戏,激励视频'});
+  const r=await post(PLATFORM()+'/api/publisher',{domain:PUB(),name:'假想媒体',payout_rate:0.7,cat:'game',geo:'CN',keywords:'休闲游戏,激励视频'});
   const j=await r.json(); API_KEY=j.api_key||'';
   $('#apikey').textContent = API_KEY? (API_KEY.slice(0,16)+'…'):'(空)';
   log('① 媒体入驻 '+PUB()+' → api_key='+(API_KEY?API_KEY.slice(0,16)+'…':'(空)'), API_KEY?'g':'r');
@@ -351,7 +431,8 @@ $('#rejoin').onclick=join;
 $('#runall').onclick=runAll;
 join().then(()=>log('页面就绪：① 点单个「请求创意」或「一次性跑完 6 种形态」；② 外部需求方(DSP)接入见 /dsp.html','g'));
 </script>
-<script src="/console_nav.js"></script>
+
 <script src="/nav.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a45cd5087efe53dd',t:'MTc5MTIwNzU2Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"ce55610ec9ce4a0da4e9dfc2657616c8","r":1,"spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>

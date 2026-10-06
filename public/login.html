@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>统一登录 · LinkOS 三方后台</title>
+<title>统一登录 · AppLink 三方后台</title>
 <style>
   :root{--bg:#0b1220;--card:#131f38;--card2:#0d1730;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24;--danger:#f87171}
   *{box-sizing:border-box}
@@ -23,6 +23,7 @@
   .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--mut);cursor:pointer;font-size:14px;padding:4px 7px;border-radius:5px;line-height:1}
   .eye:hover{color:var(--fg)}
   .hint{font-size:11.5px;color:var(--mut);margin-top:5px;min-height:14px}
+  .hide{display:none!important}
   .row{display:flex;justify-content:space-between;align-items:center;margin:13px 0 2px;font-size:12.5px;color:var(--mut)}
   .cbx{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;margin:0}
   .cbx input{width:auto;margin:0}
@@ -35,6 +36,13 @@
   .demos button{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
   .d{padding:5px 9px;border:1px solid #2f4170;background:#131f38;color:var(--fg);border-radius:6px;cursor:pointer;font-size:11.5px}
   .d:hover{border-color:var(--acc2);color:#7dd3fc}
+  .hint-box{margin-top:12px;background:var(--card2);border:1px solid #26355c;border-radius:9px;padding:12px;font-size:12px;color:var(--mut)}
+  .hint-box ul{padding-left:16px;margin:6px 0}
+  .hint-box li{margin:3px 0}
+  .hint-sub{opacity:.7;font-size:11.5px;display:block;margin-top:6px}
+  .key-box{margin-top:10px;background:var(--card2);border:1px solid var(--ok);border-radius:8px;padding:10px;font-family:monospace;font-size:12px;word-break:break-all;color:var(--ok)}
+  .back{margin-top:14px;font-size:12.5px;color:var(--mut);text-align:center}
+  .back a{color:var(--acc2);text-decoration:none}
   .adv{margin-top:12px;border-top:1px solid #26355c;padding-top:11px}
   details{margin-top:2px}
   summary{cursor:pointer;color:var(--mut);font-size:12px;list-style:none}
@@ -43,14 +51,17 @@
 </style>
 </head>
 <body>
-<div class="card">
+<div class="card" id="login-box">
   <div class="brand">
-    <div class="logo">L</div>
+    <div class="logo">A</div>
     <div>
-      <h1>LinkOS 登录</h1>
-      <p class="sub">管理员 / 广告主 / 媒体 三套后台共用一套账号，登录后只看自己作用域的数据。</p>
+      <h1>AppLink 登录</h1>
+      <p class="sub">三类账号<b>彼此独立</b>：广告主（买量）/ 媒体开发者（变现）/ 平台运营。一个账号只能进对应后台，
+        跨链路请切换或另注册账号——数据与结算同样隔离，不会互看。</p>
     </div>
   </div>
+
+  <div id="sess-note"></div>
 
   <div class="roles" id="roles">
     <button type="button" data-r="admin" class="on">管理员</button>
@@ -75,17 +86,14 @@
   </div>
 
   <button class="go" id="go" type="button" onclick="doLogin()">登 录</button>
+  <button class="go hide" id="ssoBtn" type="button" style="margin-top:10px;background:transparent;border:1px solid #2f4170;color:var(--acc2);font-size:13.5px" onclick="startSSO()">使用企业 SSO 登录</button>
   <div class="msg" id="m"></div>
 
-  <div class="demos">
+  <div class="demos" id="demos">
     演示账号（点击一键填充）
-    <div>
-      <button class="d" type="button" onclick="fill('admin','admin123')">管理员 admin / admin123</button>
-      <button class="d" type="button" onclick="fill('demobrand','demo123')">广告主 demobrand / demo123</button>
-      <button class="d" type="button" onclick="fill('demomedia','demo123')">媒体 demomedia / demo123</button>
-    </div>
+    <div id="demo-btns"><span style="color:#64748b">加载中…</span></div>
     <div style="margin-top:9px">
-      <a href="/register.html#advertiser">广告主自助开户</a> · <a href="/register.html#publisher">媒体入驻</a> · <a href="/register.html#advertiser">需求侧申请</a>
+      还没有账号？<a href="/register.html" id="to-reg">注册 / 自助开户</a>
     </div>
   </div>
 
@@ -97,6 +105,124 @@
       </div>
     </details>
   </div>
+</div>
+
+<!-- 注册区：分角色注册，简化字段 -->
+<div id="reg" class="hide">
+  <div class="roles" id="reg-roles">
+    <button type="button" data-r="publisher" class="on" id="reg-pub-btn">媒体入驻</button>
+    <button type="button" data-r="advertiser" id="reg-adv-btn">广告主开户</button>
+    <button type="button" data-r="admin" id="reg-admin-btn">平台运营</button>
+  </div>
+
+  <!-- 媒体入驻表单 -->
+  <div id="reg-pub">
+    <div class="hint" style="margin:2px 0 10px;color:var(--acc2)">宽进严管：首屏只收集身份与媒体基本资料；收款方式 / 税务信息 / 域名验证在入驻后于媒体后台补全。</div>
+
+    <label>联系邮箱（登录用）*</label>
+    <input id="p-email" type="email" placeholder="you@company.com" autocomplete="email">
+
+    <label>登录密码（≥6 位）*</label>
+    <input id="p-pwd" type="password" placeholder="设置登录密码" autocomplete="new-password">
+
+    <label>确认密码 *</label>
+    <input id="p-pwd2" type="password" placeholder="再次输入密码" autocomplete="new-password">
+
+    <label>媒体 / 公司名称 *</label>
+    <input id="p-name" placeholder="如：EduRobot 或 公司全称" autocomplete="organization">
+
+    <label>媒体域名（数据作用域，裸域名）*</label>
+    <input id="p-domain" placeholder="如：edurobot.cn" autocomplete="off">
+    <div class="hint">唯一标识，用于 SDK 接入与收益归属；不要带 http:// 或路径</div>
+
+    <label>联系人姓名</label>
+    <input id="p-contact" placeholder="如：张三" autocomplete="name">
+
+    <label>公司网站</label>
+    <input id="p-site" placeholder="https://yourcompany.com" autocomplete="url">
+
+    <label>应用商店链接</label>
+    <input id="p-store" placeholder="https://play.google.com/store/apps/details?id=..." autocomplete="url">
+
+    <label class="cbx"><input type="checkbox" id="p-terms"> 我已阅读并同意 <a href="/docs.html#terms" target="_blank">服务条款</a> 与隐私政策</label>
+
+    <div class="hint-box">
+      <strong>注册后自动获得：</strong>
+      <ul>
+        <li>API Key（SDK 接入用）</li>
+        <li>媒体后台账号</li>
+        <li>70% 默认分成率</li>
+      </ul>
+      <span class="hint-sub">收款方式、税务信息、域名验证将在后台「账户」中补全与核验</span>
+    </div>
+
+    <button class="go" onclick="regPub()">完成入驻 →</button>
+    <div class="msg" id="p-msg"></div>
+    <div id="p-key" class="key-box hide"></div>
+    <div id="p-account" class="key-box hide"></div>
+  </div>
+
+  <!-- 广告主开户表单（宽进严管：身份 + 品牌 + 确认密码 + 条款；推广目标/网站/支付后置） -->
+  <div id="reg-adv" class="hide">
+    <label>联系邮箱（登录用）*</label>
+    <input id="a-email" type="email" placeholder="you@company.com" autocomplete="email">
+
+    <label>登录密码（≥6 位）*</label>
+    <input id="a-pwd" type="password" placeholder="设置登录密码" autocomplete="new-password">
+
+    <label>确认密码 *</label>
+    <input id="a-pwd2" type="password" placeholder="再次输入密码" autocomplete="new-password">
+
+    <label>公司名 / 品牌名 *</label>
+    <input id="a-name" placeholder="如：AppLink" required>
+
+    <label>推广目标 *（决定出价策略默认口径，后续可在计划中修改）</label>
+    <select id="a-goal" style="width:100%;padding:11px 12px;border:1px solid #2f4170;border-radius:8px;background:var(--card2);color:var(--fg);font-size:14px">
+      <option value="install">应用安装 Install</option>
+      <option value="purchase">付费 / 购买 Purchase</option>
+      <option value="retention">留存 / ROE Retention</option>
+      <option value="brand">品牌曝光 Brand Awareness</option>
+    </select>
+
+    <label class="cbx"><input type="checkbox" id="a-terms"> 我已阅读并同意 <a href="/docs.html#terms" target="_blank">服务条款</a> 与隐私政策</label>
+
+    <div class="hint-box">
+      <strong>注册后自动获得：</strong>
+      <ul>
+        <li>广告主后台账号</li>
+        <li>API Key（Open API 接入用）</li>
+        <li>免费素材自动生成</li>
+      </ul>
+      <span class="hint-sub">推广目标、网站URL、支付方式可后续在后台补充</span>
+    </div>
+
+    <button class="go" onclick="regAdv()">完成开户 →</button>
+    <div class="msg" id="a-msg"></div>
+    <div id="a-account" class="key-box hide"></div>
+  </div>
+
+  <!-- 平台运营（管理员）：邀请码开通，与广告主/开发者隔离 -->
+  <div id="reg-admin" class="hide">
+    <label>邀请码 *（现有管理员在「运营台 → 账号与权限」生成的一次性码）</label>
+    <input id="ad-code" placeholder="如：AB12CD34EF56" autocomplete="off" style="text-transform:uppercase">
+    <label>登录邮箱 *</label>
+    <input id="ad-email" type="email" placeholder="admin@yourcompany.com" autocomplete="email">
+    <label>登录密码（≥8 位）*</label>
+    <input id="ad-pwd" type="password" placeholder="设置强密码" autocomplete="new-password">
+    <label>确认密码 *</label>
+    <input id="ad-pwd2" type="password" placeholder="再次输入密码" autocomplete="new-password">
+    <label>显示名（可选）</label>
+    <input id="ad-display" placeholder="如：运营-张三">
+    <label class="cbx"><input type="checkbox" id="ad-terms"> 我已阅读并同意 <a href="/docs.html#terms" target="_blank">服务条款</a> 与隐私政策</label>
+    <div class="hint-box">
+      <strong>平台运营管理员：</strong>
+      <ul><li>凭一次性邀请码自助开通独立管理员账号</li><li>开通后请立即开启 2FA</li><li>与广告主 / 开发者链路完全隔离</li></ul>
+    </div>
+    <button class="go" onclick="regAdmin()">开通管理员账号 →</button>
+    <div class="msg" id="ad-msg"></div>
+  </div>
+
+  <div class="back"><a href="#login" id="to-login">已有账号？去登录</a></div>
 </div>
 <script>
 const $=id=>document.getElementById(id);
@@ -110,11 +236,69 @@ function setRole(r){
 }
 [...$('roles').children].forEach(b=>b.onclick=()=>setRole(b.dataset.r));
 $('eye').onclick=()=>{const p=$('p');p.type=p.type==='password'?'text':'password';};
-function fill(u,p){
-  const roleOf = u===DEMOS.admin?'admin':(u===DEMOS.advertiser?'advertiser':(u===DEMOS.publisher?'publisher':''));
+function fill(u,p,type){
+  const roleOf = type || (u===DEMOS.admin?'admin':(u===DEMOS.advertiser?'advertiser':(u===DEMOS.publisher?'publisher':'')));
   $('u').value=u;$('p').value=p;$('m').textContent='';
   if(roleOf) setRole(roleOf);
 }
+// Fix-01：演示账号不再硬编码在页面里。
+// 原页面写死 demobrand/demomedia + demo123，而服务端早已删除这两个账号 → 点了必然 401（走查报告 N-P0-1）。
+// 现在改为拉 /api/demo/accounts：服务端真的开通了才渲染按钮，没开通就不显示，页面上不会再有登不上的演示账号。
+async function loadDemos(){
+  const box=$('demo-btns'); if(!box) return;
+  let items=[];
+  try{
+    const r=await fetch('/api/demo/accounts',{cache:'no-store'});
+    const d=await r.json().catch(()=>({}));
+    items=(d && d.enabled && Array.isArray(d.items)) ? d.items : [];
+  }catch(e){ items=[]; }
+  box.innerHTML='';
+  if(!items.length){
+    $('demos').style.display='none';   // 无可用演示账号（如生产环境）：整块隐藏，不给死链
+    return;
+  }
+  const CN={admin:'管理员',advertiser:'广告主',publisher:'媒体'};
+  items.forEach(it=>{
+    const b=document.createElement('button');
+    b.className='d'; b.type='button';
+    b.textContent=(CN[it.type]||it.type)+' '+it.username+' / '+it.password;
+    b.onclick=()=>fill(it.username,it.password,it.type);
+    box.appendChild(b);
+  });
+}
+loadDemos();
+
+// 已登录时把"当前是谁"讲清楚：避免用户以为换个角色标签就能用同一个账号进另一条链路。
+// 参考行业实践：买量与变现是两套账号体系，登录后先明确身份再决定是继续还是切换。
+(function renderSessionNote(){
+  var box=document.getElementById('sess-note'); if(!box) return;
+  var s=null;
+  try{ var j=localStorage.getItem('applink_admin')||sessionStorage.getItem('applink_admin'); s=j?JSON.parse(j):null; }catch(e){ s=null; }
+  if(!s||!s.token){ box.innerHTML=''; return; }
+  var M={admin:{cn:'平台运营',home:'/console.html',tone:'#f59e0b'},
+         advertiser:{cn:'广告主',home:'/campaigns.html',tone:'#3b82f6'},
+         publisher:{cn:'媒体开发者',home:'/publisher_report.html',tone:'#22c55e'}};
+  var m=M[s.type]||{cn:s.type,home:'/home.html',tone:'#64748b'};
+  var other = s.type==='advertiser'
+    ? { cn:'媒体开发者', reg:'/register.html#publisher' }
+    : (s.type==='publisher' ? { cn:'广告主', reg:'/register.html#advertiser' } : null);
+  box.innerHTML='<div style="margin-bottom:14px;background:#0d1730;border:1px solid #26355c;border-radius:10px;padding:11px 14px;font-size:13.5px;line-height:1.7">'
+    +'当前已登录 <b style="color:'+m.tone+'">'+m.cn+'</b> · <code style="color:#9fb4dc">'+String(s.username||'')+'</code>'
+    +'<div style="color:#8a93a6;font-size:12.5px;margin-top:4px">该账号只能进入「'+m.cn+'」后台。'
+    +(other? '需要用到'+other.cn+'链路，请切换账号或<a href="'+other.reg+'" style="color:#7fd1ff">另行开通</a>；两套账号不互通。' : '')
+    +'</div>'
+    +'<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap">'
+    +'<a href="'+m.home+'" style="background:linear-gradient(92deg,#3b82f6,#22d3ee);color:#04122a;border-radius:7px;padding:6px 13px;text-decoration:none;font-weight:700">继续进入'+m.cn+'后台</a>'
+    +'<button type="button" id="sess-out" style="background:#1f2942;color:#e8eefc;border:1px solid #26355c;border-radius:7px;padding:6px 13px;cursor:pointer;font:inherit">登出并切换账号</button>'
+    +'</div></div>';
+  var ob=document.getElementById('sess-out');
+  if(ob) ob.onclick=function(){
+    try{ localStorage.removeItem('applink_admin'); sessionStorage.removeItem('applink_admin'); }catch(e){}
+    ['auth_token','auth_role','auth_scope','auth_user'].forEach(function(k){ try{ localStorage.removeItem(k); sessionStorage.removeItem(k); }catch(e){} });
+    fetch('/api/admin/logout',{method:'POST'}).catch(function(){});
+    location.reload();
+  };
+})();
 // 跳转目标：只允许同源相对路径。修掉原 next 未校验（open redirect）与读旧 sessionStorage 角色导致跳错后台的缺陷
 function safeNext(){
   const n=new URLSearchParams(location.search).get('next');
@@ -122,24 +306,24 @@ function safeNext(){
   return null;
 }
 function defaultHome(type){
-  if(type==='advertiser') return '/advertiser.html';
+  if(type==='advertiser') return '/campaigns.html';
   if(type==='publisher') return '/publisher_report.html';
   return '/console.html';
 }
-// 统一会话真源：linkos_admin（JSON{token,type,scope,username}）是 admin.js/console_top.js 读取的唯一真源。
-// 此前 login.html 只写 auth_* 旧键，导致在 console 页 Auth.get() 优先命中旧 linkos_admin（如残留的广告主会话），
-// 出现「管理员登录却显示成广告主」「广告主身份切不出去」的错乱。这里让 login.html 与后台页共用同一套会话键。
-function readLinkos(){ try{ return JSON.parse(localStorage.getItem('linkos_admin')||sessionStorage.getItem('linkos_admin')||'null'); }catch(e){ return null; } }
-// 必须同时写 localStorage 与 sessionStorage：admin.js/nav.js 读 linkos_admin 是「localStorage 优先」，
+// 统一会话真源：applink_admin（JSON{token,type,scope,username}）与 admin.js/console_top.js(Auth.get) 完全一致。
+// 此前 login.html 写的是 linkos_admin，而后台页只读 applink_admin → 旧会话的 applink_admin 残留从不被覆盖，
+// 出现「管理员登录却显示成广告主」「广告主身份切不出去」的错乱。现已统一到 applink_admin 单一真源。
+function readLinkos(){ try{ return JSON.parse(localStorage.getItem('applink_admin')||sessionStorage.getItem('applink_admin')||'null'); }catch(e){ return null; } }
+// 必须同时写 localStorage 与 sessionStorage：admin.js 读 applink_admin 是「localStorage 优先」，
 // 若只写其一（如未勾记住我时只写 sessionStorage），本地残留的旧会话（在 localStorage）会胜出 → 角色错乱。
 // 与 admin.js 的 writeSession 保持一致：两个存储都写，确保无论旧值落在哪都能被覆盖。
-function writeLinkos(o,rem){ try{ var j=JSON.stringify(o||{}); localStorage.setItem('linkos_admin',j); sessionStorage.setItem('linkos_admin',j); }catch(e){} }
+function writeLinkos(o,rem){ try{ var j=JSON.stringify(o||{}); localStorage.setItem('applink_admin',j); sessionStorage.setItem('applink_admin',j); }catch(e){} }
 function load(k){
   if(k==='auth_role'){ var l=readLinkos(); if(l&&l.type) return l.type; }
   if(k==='auth_user'){ var l2=readLinkos(); if(l2&&l2.username) return l2.username; }
   return localStorage.getItem(k)||sessionStorage.getItem(k)||'';
 }
-function wipe(){['auth_token','auth_role','auth_scope','auth_user'].forEach(k=>{localStorage.removeItem(k);sessionStorage.removeItem(k);}); localStorage.removeItem('linkos_admin'); sessionStorage.removeItem('linkos_admin');}
+function wipe(){['auth_token','auth_role','auth_scope','auth_user'].forEach(k=>{localStorage.removeItem(k);sessionStorage.removeItem(k);}); localStorage.removeItem('applink_admin'); sessionStorage.removeItem('applink_admin'); localStorage.removeItem('linkos_admin'); sessionStorage.removeItem('linkos_admin');}
 function saveSession(k,v,rem){(rem?localStorage:sessionStorage).setItem(k,v);}
 // 已登录则直接给入口，不再要求重复输密码
 function alreadyIn(){
@@ -150,6 +334,29 @@ function alreadyIn(){
   const m=$('m'); m.className='msg info';
   m.innerHTML='已登录为 <b>'+user+'</b>（'+type+'）· <a href="'+defaultHome(type)+'">进入后台</a> · <a href="#" id="sw">切换账号</a>';
   const sw=$('sw'); if(sw) sw.onclick=e=>{e.preventDefault();wipe();location.reload();};
+// 同一邮箱多角色选择
+function showRoleSelect(roles,u,p,rem){
+  const m=$('m');
+  m.className='msg info';
+  let html='该邮箱有多个角色，请选择登录身份：<br>';
+  roles.forEach(r=>{
+    html+='<button class="d" type="button" style="margin-top:6px;width:100%;text-align:left;padding:8px" onclick="loginWithRole(\''+r.type+'\',\''+u+'\',\''+p+'\',\''+rem+'\')">'+
+      (r.type==='admin'?'管理员':r.type==='advertiser'?'广告主':'媒体')+' ('+r.account_code+')</button>';
+  });
+  html+='<button class="d" type="button" style="margin-top:6px;width:100%" onclick="hideRoleSelect()">取消</button>';
+  m.innerHTML=html;
+}
+function hideRoleSelect(){$('m').className='msg';$('m').textContent='';}
+async function loginWithRole(type,u,p,rem){
+  const m=$('m'),btn=$('go'); m.className='msg'; m.textContent='登录中…';
+  try{
+    const r=await fetch('/api/account/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,type})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.token){loginAs(j.token,j.type,j.scope,j.username||u,rem);return;}
+    m.textContent=j.error||'登录失败';
+  }catch(e){m.textContent='网络错误：'+e.message;}
+  btn.disabled=false;btn.textContent='登 录';
+}
 }
 async function doLogin(){
   const m=$('m'),btn=$('go'); m.className='msg';
@@ -171,6 +378,8 @@ async function doLogin(){
     const r=await fetch('/api/account/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const j=await r.json().catch(()=>({}));
     if(r.ok&&j.token){loginAs(j.token,j.type,j.scope,j.username||u,rem);return;}
+    // 同一邮箱多角色：需要选择身份
+    if(r.ok&&j.need_role){showRoleSelect(j.roles,u,p,rem);return;}
     if(r.status===429){m.textContent='尝试次数过多，请 '+Math.ceil((j.wait||900)/60)+' 分钟后再试';btn.disabled=true;return;}
     m.textContent=j.error||'用户名或密码错误';
   }catch(e){m.textContent='网络错误：'+e.message;}
@@ -199,6 +408,163 @@ $('p').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 setRole(role);
 alreadyIn();
 if(!load('auth_token')) $('u').focus();
+// 模式切换：登录 / 注册开户
+function setMode(m){
+  const login=m==='login';
+  $('login-box').classList.toggle('hide',!login);
+  $('reg').classList.toggle('hide',login);
+}
+$('to-reg').onclick=e=>{e.preventDefault();location.href='/register.html';};
+$('to-login').onclick=e=>{e.preventDefault();location.hash='login';};
+// 真实 hash 入口：点击注册/登录链接即更新地址栏 hash，刷新/分享都能还原当前模式（修掉原 href="#" 空哈希入口缺陷）
+window.addEventListener('hashchange', syncModeFromHash);
+function syncModeFromHash(){
+  var h=(location.hash||'').toLowerCase();
+  if(h.indexOf('register')>-1){ setMode('reg'); setRegRole(h.indexOf('admin')>-1?'admin':(h.indexOf('adv')>-1?'advertiser':'publisher')); }
+  else { setMode('login'); }
+}
+
+// 注册角色切换：媒体 / 广告主
+function setRegRole(r){
+  $('reg-pub').classList.toggle('hide', r!=='publisher');
+  $('reg-adv').classList.toggle('hide', r!=='advertiser');
+  $('reg-admin').classList.toggle('hide', r!=='admin');
+  [...$('reg-roles').children].forEach(b=>b.classList.toggle('on',b.dataset.r===r));
+}
+[...$('reg-roles').children].forEach(b=>b.onclick=()=>setRegRole(b.dataset.r));
+
+// 媒体入驻
+async function regPub(){
+  var m=document.getElementById('p-msg'); m.className='msg'; m.textContent='提交中…';
+  var p_email=document.getElementById('p-email'), p_pwd=document.getElementById('p-pwd'), p_pwd2=document.getElementById('p-pwd2');
+  var p_name=document.getElementById('p-name'), p_domain=document.getElementById('p-domain');
+  var p_contact=document.getElementById('p-contact'), p_site=document.getElementById('p-site'), p_store=document.getElementById('p-store');
+  var p_terms=document.getElementById('p-terms');
+  if(!(p_email && p_email.value.trim())){ m.textContent='请填写联系邮箱'; return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p_email.value.trim())){ m.textContent='邮箱格式不正确'; return; }
+  if(!(p_pwd && p_pwd.value) || p_pwd.value.length<6){ m.textContent='请设置至少 6 位的登录密码'; return; }
+  if(!(p_pwd2 && p_pwd2.value) || p_pwd2.value!==p_pwd.value){ m.textContent='两次输入的密码不一致'; return; }
+  if(!(p_name && p_name.value.trim())){ m.textContent='请填写媒体/公司名称'; return; }
+  if(!(p_domain && p_domain.value.trim())){ m.textContent='请填写媒体域名'; return; }
+  if(!(p_terms && p_terms.checked)){ m.textContent='请先勾选同意服务条款与隐私政策'; return; }
+  try{
+    var r=await fetch('/api/publisher',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      domain:p_domain.value.trim(), email:p_email.value.trim(), password:p_pwd.value,
+      name:p_name.value.trim(), contact:p_contact.value.trim(), site_url:p_site.value.trim(), store_url:p_store.value.trim()})});
+    var d=await r.json();
+    if(d.api_key){
+      var k=document.getElementById('p-key'); k.style.display='block';
+      k.textContent='api_key: '+d.api_key+'   ·   分成率 '+(d.payout_rate!=null?d.payout_rate:'70%');
+      var acc=document.getElementById('p-account');
+      if(d.account && d.account.password){
+        acc.style.display='block';
+        acc.textContent='媒体后台登录：用户名 '+d.account.username+'  ·  密码 '+d.account.password+'（请立刻保存，之后不再显示）';
+      } else if(d.account){
+        acc.style.display='block';
+        acc.innerHTML='<b style="color:#fbbf24">该邮箱已注册，密码未变更</b>：登录账号 '+d.account.username+'，请用<b>首次入驻时设定的密码</b>登录';
+      } else { acc.style.display='none'; }
+      m.className='msg ok'; m.innerHTML='媒体入驻成功 ✓  SDK 用上方 api_key 嵌入广告位；后台用账号在 <a href="/publisher_report.html">媒体收益</a> 看报表。';
+    } else { m.textContent='结果: '+JSON.stringify(d); }
+  }catch(e){ m.textContent='请求失败: '+e.message; }
+}
+
+// 广告主开户（宽进严管：身份 + 品牌 + 确认密码 + 条款）
+async function regAdv(){
+  var m=document.getElementById('a-msg'); m.className='msg'; m.textContent='提交中…';
+  var a_email=document.getElementById('a-email'), a_pwd=document.getElementById('a-pwd'), a_pwd2=document.getElementById('a-pwd2'), a_name=document.getElementById('a-name'), a_terms=document.getElementById('a-terms');
+  if(!a_email.value.trim()){ m.textContent='请填写联系邮箱'; return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a_email.value.trim())){ m.textContent='邮箱格式不正确'; return; }
+  if(!a_pwd.value || a_pwd.value.length<6){ m.textContent='请设置至少 6 位的登录密码'; return; }
+  if(!a_pwd2.value || a_pwd2.value!==a_pwd.value){ m.textContent='两次输入的密码不一致'; return; }
+  if(!a_name.value.trim()){ m.textContent='请填写公司名/品牌名'; return; }
+  if(!a_terms.checked){ m.textContent='请先勾选同意服务条款与隐私政策'; return; }
+  try{
+    var r=await fetch('/api/signup/advertiser',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      username:a_email.value.trim(), password:a_pwd.value, advertiser:a_name.value.trim(), display:a_name.value.trim(),
+      goal:(document.getElementById('a-goal')||{}).value||'install'})});
+    var d=await r.json();
+    if(d.ok){
+      m.className='msg ok';
+      m.innerHTML='广告主账号已开通 ✓  作用域：'+d.scope+'  ·  唯一码 '+(d.account&&d.account.account_code||'-')+'<br>已为您下发一套示例素材，3 秒后自动进入「广告系列」建计划 →';
+      var acc=document.getElementById('a-account');
+      if(d.account && d.account.password){
+        acc.style.display='block';
+        acc.textContent='登录账号：用户名 '+d.account.username+'  ·  密码 '+d.account.password+'（请立刻保存，之后不再显示）';
+      } else { acc.style.display='none'; }
+      // 开户完成后不再停在开户环节：自动登录并跳到下一环节（建计划 campaigns.html）
+      setTimeout(function(){ loginAs(d.token,'advertiser',d.scope,d.username||a_email.value.trim(),true); }, 3000);
+    } else { m.textContent='结果: '+(d.error||JSON.stringify(d)); }
+  }catch(e){ m.textContent='请求失败: '+e.message; }
+}
+
+// 平台运营（管理员）邀请码开通
+async function regAdmin(){
+  var m=document.getElementById('ad-msg'); m.className='msg'; m.textContent='提交中…';
+  var code=document.getElementById('ad-code').value.trim().toUpperCase();
+  var email=(document.getElementById('ad-email')||{}).value||''; email=email.trim();
+  var pwd=(document.getElementById('ad-pwd')||{}).value||'';
+  var pwd2=(document.getElementById('ad-pwd2')||{}).value||'';
+  var disp=(document.getElementById('ad-display')||{}).value||''; disp=disp.trim();
+  if(!code){ m.className='msg err'; m.textContent='请填写邀请码'; return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ m.className='msg err'; m.textContent='请填写有效的登录邮箱'; return; }
+  if(!pwd || pwd.length<8){ m.className='msg err'; m.textContent='管理员密码至少 8 位'; return; }
+  if(pwd!==pwd2){ m.className='msg err'; m.textContent='两次输入的密码不一致'; return; }
+  if(!(document.getElementById('ad-terms')||{}).checked){ m.className='msg err'; m.textContent='请先勾选同意服务条款与隐私政策'; return; }
+  try{
+    var r=await fetch('/api/account/register-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code,username:email,password:pwd,display:disp})});
+    var d=await r.json().catch(function(){ return {}; });
+    if(d.ok){ m.className='msg ok'; m.innerHTML='平台运营管理员账号已开通 ✓ 登录名 '+d.username+'（唯一码 '+d.account_code+'）<br>请登录后立即开启 2FA。正在进入登录页…'; setTimeout(function(){ location.href='/login.html'; }, 3000); }
+    else { m.className='msg err'; m.textContent=(d.error||('开通失败 HTTP '+r.status)); }
+  }catch(e){ m.className='msg err'; m.textContent='请求失败: '+e.message; }
+}
+
+// 初始化：根据 URL hash 设置模式
+(function initMode(){
+  var h=(location.hash||'').toLowerCase();
+  setRole(role);
+  if(h.indexOf('register')>-1){
+    setMode('reg');
+    setRegRole(h.indexOf('adv')>-1 ? 'advertiser' : 'publisher');
+  } else {
+    setMode('login');
+  }
+  alreadyIn();
+  if(!load('auth_token')) $('u').focus();
+})();
+
+// ── #11 企业 SSO（OIDC）────────────────────────────────────────────
+// 未配置 OIDC_* 时 /api/auth/oidc/status 返回 enabled:false，按钮保持隐藏。
+async function initSSO(){
+  try{
+    const r=await fetch('/api/auth/oidc/status');
+    const j=await r.json();
+    if(j && j.enabled && j.reachable){ $('ssoBtn').classList.remove('hide'); $('ssoBtn').textContent='使用 '+j.provider+' SSO 登录'; }
+  }catch(e){}
+}
+function startSSO(){ location.href='/api/auth/oidc/login'; }
+// 回调只带一次性 code（长效 token 不进 URL），在此换取本平台令牌后复用既有 loginAs 落库逻辑
+async function handleSSOCallback(){
+  const h=location.hash||'';
+  const mErr=h.match(/sso_error=([^&]+)/);
+  const mCode=h.match(/sso_code=([^&]+)/);
+  if(!mErr && !mCode) return;
+  if(mErr){
+    $('m').className='msg err';
+    $('m').textContent='SSO 登录失败：'+decodeURIComponent(mErr[1]);
+    history.replaceState(null,'',location.pathname);
+    return;
+  }
+  const code=decodeURIComponent(mCode[1]);
+  $('m').className='msg info'; $('m').textContent='SSO 验证成功，正在进入后台…';
+  try{
+    const r=await fetch('/api/auth/oidc/exchange',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})});
+    const j=await r.json();
+    history.replaceState(null,'',location.pathname);
+    if(r.ok && j.token){ loginAs(j.token, j.type, j.scope, j.username, true); return; }
+    $('m').className='msg err'; $('m').textContent=j.error||'SSO 换取令牌失败';
+  }catch(e){ history.replaceState(null,'',location.pathname); $('m').className='msg err'; $('m').textContent='网络错误：'+e.message; }
+}
+initSSO(); handleSSOCallback();
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a454f878d9ccdf2f',t:'MTc5MTEyNTEyOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

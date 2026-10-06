@@ -1,0 +1,18 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Syntax check all JS (no DB needed)
+        run: |
+          set -e
+          for f in server.js cluster.js scripts/*.js sdk/media-server/appServer.js; do
+            if [ -f "$f" ]; then node --check "$f" && echo "ok: $f"; fi
+          done
+      - name: Smoke note
+        run: echo "集成/压测需 MySQL + Redis，见 scripts/loadtest.js（本地或 staging 跑）"

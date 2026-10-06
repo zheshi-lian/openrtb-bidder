@@ -21,8 +21,7 @@
 <div id="ctop"></div>
 <div class="wrap">
   <h2>原生 App SDK 接入（iOS / Android）</h2>
-  <div class="hint">对标 AppLovin MAX / 巨量引擎「变现 SDK」：在 App 内植入 SDK，即可让平台在你
-    的流量上竞价售卖激励视频、插屏、开屏、原生等广告。SDK 遵循<b>客户端不可信原则</b>——只负责拉取、
+  <div class="hint">    的流量上竞价售卖激励视频、插屏、开屏、原生等广告。SDK 遵循<b>客户端不可信原则</b>——只负责拉取、
     播放、上报，是否发奖由你的服务端 S2S 回调平台裁决。</div>
 
   <div class="card">
@@ -33,16 +32,20 @@
         <a class="dl" href="/sdk-files/ios/RewardedAdSdk.swift" download>⬇ RewardedAdSdk.swift</a>
       </div>
       <div>
-        <p class="hint">Android（Kotlin，含 VAST 解析 + VideoView 播放 + S2S 发奖）</p>
+        <p class="hint">Android 新版（Kotlin，全形态 + S2S 发奖）</p>
+        <a class="dl alt" href="/sdk-files/android/AdView.kt" download>⬇ AdView.kt</a>
+      </div>
+      <div>
+        <p class="hint">Android 旧版（激励视频专用，保留兼容）</p>
         <a class="dl alt" href="/sdk-files/android/RewardedAdSdk.kt" download>⬇ RewardedAdSdk.kt</a>
       </div>
       <div>
-        <p class="hint">Web / 落地页 接入（对标 PUB_SDK）</p>
+        <p class="hint">Web / 落地页 接入</p>
         <a class="dl alt2" href="/pub_sdk.js" download>⬇ pub_sdk.js</a>
       </div>
     </div>
-    <div class="note">演示示例为「激励视频」原生 SDK 工程化原型；插屏/开屏/原生/icon/push 等多种形态由
-      同一 SDK 按平台返回的 <code>ad_format</code> 自动分发渲染（见源码 <code>showAny</code> 分支）。</div>
+    <div class="note">推荐新接入的媒体方使用 <b>AdView.kt</b>（单文件、无外部依赖、支持 banner/interstitial/splash/icon/rewarded/native/push 全形态，激励视频走 S2S 发奖）；已有激励视频接入的媒体方可继续使用 RewardedAdSdk.kt。</div>
+    <div class="note"><b>需要 AAR（预编译包）？</b>直接用现成包接入最快：<a class="dl" href="/sdk-files/android/applink-adsdk-release.aar" download>下载 applink-adsdk-release.aar</a>（包名 <code>com.zhuque.adsdk</code>，零第三方依赖）。放入宿主工程 <code>app/libs/</code> 后依赖 <code>implementation fileTree(dir: 'libs', include: ['*.aar'])</code> 即可。<br>持续集成会自动出包：仓库 Actions 每次 push 产出 Artifacts，打 <code>v*</code> tag 自动发布到 Releases（始终是最新可用包）。也可源码工程本地构建：<code>./gradlew assembleRelease</code>，产物在 <code>build/outputs/aar/applink-adsdk-release.aar</code>。工程含 <a class="dl" href="/sdk-files/android/build.gradle" download>build.gradle</a>、<a class="dl" href="/sdk-files/android/README.md" download>README（集成文档）</a>、<a class="dl" href="/sdk-files/android/consumer-rules.pro" download>混淆规则</a>；权限已在 <code>src/main/AndroidManifest.xml</code> 声明（INTERNET / ACCESS_NETWORK_STATE）。</div>
   </div>
 
   <div class="card">
@@ -85,12 +88,35 @@ RewardedAdSdk.shared.load(cfg: cfg, keywords: "休闲游戏,激励视频") { res
 }</pre>
     </div>
     <div id="and" style="display:none">
-      <p class="hint">1) 将 <code>RewardedAdSdk.kt</code> 加入工程（包名 <code>com.zhuque.adsdk</code>）；2) 调用：</p>
-<pre>val cfg = RewardedAdSdk.Config(
-    adxBase = "https://你的平台域名",
-    siteDomain = "你的媒体域名",
-    appServerRewardUrl = "https://你的服务端/reward"
-)
+      <p class="hint">1) 将 <code>AdView.kt</code> 加入工程（包名 <code>com.zhuque.adsdk</code>）；2) 在布局中放一个 AdView；3) 调用三个 load 方法：</p>
+<pre>val adView = AdView(this)
+adView.adUnitId = "首页-banner"
+adView.siteDomain = "你的媒体域名"
+adView.adxBase = "https://你的平台域名"
+adView.appServerRewardUrl = "https://你的服务端/reward"  // S2S 发奖回调（仅 rewarded 需要）
+
+// Banner（信息流内嵌 / 底部横幅）
+adView.loadBanner({ ad -> adView.setBannerHtml(ad.html) },
+                  { reason -> Log.w("Ad", "banner: $reason") })
+
+// Interstitial（全屏插屏）
+adView.loadInterstitial({ ad ->
+    activity?.addContentView(adView.showInterstitial(ad.html),
+        ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                              ViewGroup.LayoutParams.MATCH_PARENT))
+}, { reason -> Log.w("Ad", "interstitial: $reason") })
+
+// Rewarded（激励视频，VideoView 播放 VAST 4.0；完播后由 appServerRewardUrl S2S 发奖）
+adView.loadRewarded({ ad ->
+    adView.playRewarded(videoView, ad) { reward -> /* 发奖 */ }
+}, { reason -> Log.w("Ad", "rewarded: $reason") })
+
+// Native（结构化 JSON，由 App 自渲染样式）
+adView.loadNative({ ad -> renderMyOwn(ad.nativeJson) },
+                  { reason -> Log.w("Ad", "native: $reason") })</pre>
+      <p class="hint"><b>旧版</b>（仅激励视频）仍可用 <code>RewardedAdSdk.kt</code>：</p>
+<pre>val cfg = RewardedAdSdk.Config(adxBase = "https://你的平台域名",
+    siteDomain = "你的媒体域名", appServerRewardUrl = "https://你的服务端/reward")
 RewardedAdSdk.load(cfg, "休闲游戏,激励视频", object : RewardedAdSdk.LoadCallback {
     override fun onLoaded(ad: RewardedAdSdk.Ad) {
         RewardedAdSdk.show(videoView, ad, object : RewardedAdSdk.RewardCallback {
@@ -127,5 +153,5 @@ RewardedAdSdk.load(cfg, "休闲游戏,激励视频", object : RewardedAdSdk.Load
   function sw(el, id){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on')); el.classList.add('on');
     ['ios','and','s2s'].forEach(x=>document.getElementById(x).style.display = (x===id?'block':'none')); }
 </script>
-<script src="/console_nav.js"></script>
+
 <script src="/console_top.js"></script>

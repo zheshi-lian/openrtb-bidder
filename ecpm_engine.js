@@ -90,9 +90,16 @@ function gamma(shape) {
   }
 }
 function sampleBeta(a, b) { return gamma(a) / (gamma(a) + gamma(b)); }
-function thompsonPick(candidates) {
+function thompsonPick(candidates, opts = {}) {
   // 用"成功/失败"计数构造 Beta 后验；样本越少不确定性越大，越易被探索选中
-  const s = candidates.map((c) => ({ c, v: sampleBeta((c.successes || 0) + 1, (c.failures || 0) + 1) }));
+  // opts.weightKey：额外乘数（如素材预算公平分配权重），把"均摊"偏置注入采样比较，
+  // 实现「择优」(Thompson) 与「均摊」(fairness) 同时生效。
+  const wk = opts.weightKey || null;
+  const s = candidates.map((c) => {
+    const base = sampleBeta((c.successes || 0) + 1, (c.failures || 0) + 1);
+    const w = (wk && Number(c[wk]) > 0) ? Number(c[wk]) : 1;
+    return { c, v: base * w };
+  });
   s.sort((a, b) => b.v - a.v);
   return s[0].c;
 }

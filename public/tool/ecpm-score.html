@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>免费 eCPM' 打分器 · LinkOS</title>
-<meta name="description" content="免费在线测算 eCPM'：效果预测 × LTV × 折算出价 × 服务承诺。与 LinkOS 生产竞价同款引擎，无需注册。">
+<title>免费 eCPM' 打分器 · AppLink</title>
+<meta name="description" content="免费在线测算 eCPM'：效果预测 × LTV × 折算出价 × 服务承诺。与 AppLink 生产竞价同款引擎，无需注册。">
 <style>
   :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399;--warn:#fbbf24}
   *{box-sizing:border-box}
@@ -38,7 +38,7 @@
 <body>
 <div class="wrap">
   <h1>免费 eCPM' 打分器</h1>
-  <p class="sub">用 LinkOS 生产竞价同款引擎，算出你的素材在这个广告位的"价值排序分"。无需注册、不收费。同一套引擎跑在 <code>/openrtb2/bid</code> 里。</p>
+  <p class="sub">用 AppLink 生产竞价同款引擎，算出你的素材在这个广告位的"价值排序分"。无需注册、不收费。同一套引擎跑在 <code>/openrtb2/bid</code> 里。</p>
 
   <div class="card">
     <h2>① 你的素材与出价</h2>
@@ -166,7 +166,7 @@
       + '<p class="small">要放大胜出率：① 抬 pEffect（补 L2 效果评测、攒归因）；② 抬 LTV 系数（提供复购/留存数据）；③ 抬服务承诺（SLA 赔付）。'
       + '出价只是其中一项——<b>效果差的服务商出价再高也排不上</b>。</p>'
       + '<div class="note">完整对比报告（同品类分位、出价建议、预估胜出率）已加入你的邮箱：<b>' + (email.value||'未填') + '</b>。'
-      + '需要实际参拍请 <a href="/register.html#advertiser">申请开户</a>。</div>';
+      + '需要实际参拍请 <a href="/register.html">申请开户</a>。</div>';
     var el=document.getElementById('detail');
     if(email.value){ el.innerHTML=html; el.classList.remove('lock'); }
     else { el.innerHTML=html; el.classList.add('lock'); }

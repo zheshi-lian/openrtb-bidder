@@ -2,7 +2,7 @@
 <html lang="zh-CN"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>结算报表 · LinkOS</title>
+<title>结算报表 · AppLink</title>
 <style>
   :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee}
   *{box-sizing:border-box}
@@ -43,7 +43,7 @@
       <li>平台赚<b>差价（spread）</b>：广告主侧按二价清算计费，媒体侧按约定分成比例 payout，二者之差即平台毛利。</li>
       <li>所有赢价/计费通过 S2S 回调落地 <code>bid_win_log</code>，带 HMAC 签名防伪造、可双端对账。</li>
       <li>实时账本在 <a href="/console.html">运营控制台</a> 展示（赢价次数 / 消耗 / 点击 / 转化 / 平台毛利），5 秒刷新。</li>
-      <li>媒体侧收益历史见 <a href="/publisher_report.html">媒体收益报表</a>；广告主侧消耗见 <a href="/advertiser.html">投放工作台</a>。</li>
+      <li>媒体侧收益历史见 <a href="/publisher_report.html">媒体收益报表</a>；广告主侧消耗见 <a href="/campaigns.html">广告系列</a>。</li>
     </ul>
   </div>
 
@@ -63,11 +63,11 @@
   (function () {
     fetch('/api/reports/settlement', { credentials: 'include' }).then(function (r) { return r.json(); }).then(function (d) {
       var sum = document.getElementById('settle-summary');
-      if (!d.ok) { sum.textContent = '加载失败：' + (d.error || d.message || '需管理员权限'); return; }
-      var t = d.totals || {};
-      sum.textContent = '总赢价 ' + (t.wins || 0) + ' 次 · 广告主总消费(CNY) ' + (t.gross_cny || 0).toFixed(2) +
-        ' · 媒体总分成(CNY) ' + (t.payout_cny || 0).toFixed(2) + ' · 平台毛利(CNY) ' + (t.margin_cny || 0).toFixed(2);
-      var rows = (d.rows || []).map(function (r) {
+      if (!d || d.error) { sum.textContent = '加载失败：' + (d && d.error ? d.error : '需管理员权限（请先用管理员登录）'); return; }
+      var s = d.ssp || {};
+      sum.textContent = '总赢价 ' + (s.wins || 0) + ' 次 · 广告主总消费(CNY) ' + (s.gross_cny || 0).toFixed(2) +
+        ' · 媒体总分成(CNY) ' + (s.payout_cny || 0).toFixed(2) + ' · 平台毛利(CNY) ' + (s.ssp_margin_cny || 0).toFixed(2);
+      var rows = (d.publishers || []).map(function (r) {
         return '<tr><td>' + r.publisher + '</td><td>' + r.wins + '</td><td>' + (r.gross_cny || 0).toFixed(2) +
           '</td><td>' + (r.payout_cny || 0).toFixed(2) + '</td><td>' + (r.ssp_margin_cny || 0).toFixed(2) + '</td></tr>';
       }).join('');
@@ -75,4 +75,4 @@
     }).catch(function (e) { document.getElementById('settle-summary').textContent = '加载失败：' + e.message; });
   })();
 </script>
-</body></html>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a454f8b0b8977666',t:'MTc5MTEyNTEzOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>

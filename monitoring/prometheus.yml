@@ -1,0 +1,19 @@
+# Prometheus 抓取配置（与 cluster.js 的 worker 端口对齐）
+# 默认 WORKERS=CPU核数(最多8)、WORKER_PORT=8090 → 抓取 127.0.0.1:8090..8090+N-1 的 /metrics
+# 若你改了 WORKERS / WORKER_PORT，请同步修改下方 targets。
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'openrtb-workers'
+    metrics_path: /metrics
+    static_configs:
+      # 注意：每个 worker 进程独立计数；本机多核时按实例分别抓取后再在 Grafana 里 sum() 聚合
+      - targets:
+          - 127.0.0.1:8090
+          - 127.0.0.1:8091
+          - 127.0.0.1:8092
+          - 127.0.0.1:8093
+        labels:
+          service: openrtb-bidder

@@ -25,8 +25,10 @@
       <div><label>广告单元 ad_unit_id</label><select id="au"><option value="">（不指定，按媒体整体检查）</option></select></div>
       <div><label>媒体域名</label><input id="dom" readonly></div>
       <div><button onclick="run()">开始自检</button></div>
+      <div><button onclick="loadTestAd()">加载一支测试广告</button></div>
     </div>
     <div id="out"></div>
+    <div id="test-ad" style="margin-top:12px"></div>
   </div>
   <div class="card">
     <h3>填充率</h3>
@@ -65,8 +67,26 @@
       document.getElementById('out').innerHTML = h;
       document.getElementById('fr').innerHTML = '竞价请求 <b>' + d.requests + '</b> 次 · 胜出 <b>' + d.wins + '</b> 次 · 填充率 <b>' + (d.fill_rate === null ? '—（暂无请求）' : (d.fill_rate * 100).toFixed(1) + '%') + '</b>';
     }
+    // 主动触发：发一次竞价请求 + 写一条测试胜出，把「收到请求 / 有胜出」从被动等待变成可主动触发；
+    // 胜出写入 bid_win_log，与报表/结算口径统一（都读 bid_win_log）。
+    async function loadTestAd(){
+      var m = me(); if (!m) return;
+      var auid = document.getElementById('au').value;
+      var dom = m.scope;
+      try {
+        await fetch('/openrtb2/bid', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: 'test-' + Date.now(), imp: [{ id: 'imp1', banner: { w: 300, h: 250 }, bidfloor: 1.0, ext: { ad_unit_id: auid } }],
+            site: { domain: dom }, device: { ua: navigator.userAgent, ip: '127.0.0.1' }, at: 2, tmax: 200 }) }).catch(function(){});
+      } catch (e) {}
+      try { await fetch('/api/publisher/test-win', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ad_unit_id: auid }) }); } catch (e) {}
+      document.getElementById('test-ad').innerHTML = '<div style="width:300px;height:250px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a8a,#0ea5e9);color:#fff;border-radius:6px;font-family:system-ui">' +
+        '<div style="font-size:12px;opacity:.9">测试广告（示例填充）</div>' +
+        '<div style="font-size:15px;font-weight:700;margin-top:4px">Demo Ad · ' + (auid || dom) + '</div>' +
+        '<div style="font-size:11px;opacity:.8;margin-top:4px">已触发「收到请求 / 有胜出」，刷新自检即可见 ✓</div></div>';
+      run();
+    }
     init();
   </script>
-<script src="/console_nav.js"></script>
+
 <script src="/console_top.js"></script>
 </body></html>

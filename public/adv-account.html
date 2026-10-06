@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>账户 Account · 广告主投放</title>
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--line:#26355c;--accent:#3b82f6;--ok:#34d399;--warn:#fbbf24;--bad:#f87171;--txt:#e8eefc;--muted:#93a3c4}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 Microsoft YaHei,system-ui,sans-serif}
+  header{padding:14px 22px;border-bottom:1px solid var(--line);background:#101830;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  header b{font-size:15px}
+  .wrap{padding:18px 22px;max-width:900px;margin:0 auto}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  h3{margin:0 0 10px;font-size:14px;color:#cdd8f2}
+  .hint{font-size:12px;color:var(--muted)}
+  label{font-size:12px;color:var(--muted);display:block;margin:6px 0 2px}
+  input,select{width:100%;background:#0d1730;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 9px;font-size:13px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;margin-top:10px}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px} th,td{border:1px solid var(--line);padding:6px 8px;text-align:left}
+  th{background:#132043;color:#93a3c4}
+  .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#15203a;color:#7fd1ff}
+  .tag.ok{background:#16321f;color:#34d399}
+  .stat{background:#0d1730;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+  .stat .val{font-size:22px;font-weight:700;color:#7fd1ff}
+  .stat .lbl{font-size:11px;color:var(--muted);margin-top:4px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+</style>
+</head>
+<body>
+<div id="ctop"></div>
+  <div id="acct-tabs" class="panel" style="padding:10px 14px">
+    <div style="font-size:12.5px;color:#93a3c4;margin-bottom:7px">账户设置分区（<b>非流程</b>，按需填写；角标标注必填 / 建议 / 可选。投放流程见首页「上手引导」）</div>
+    <!-- 分区标签条由 adv-account-tabs.js 动态生成（一次仅显示一个分区），避免与下方内容重复 -->
+  </div>
+
+<header><b>账户 Account</b><span class="hint">广告主自助设置 · 区别于运营「账号与权限」</span></header>
+<div class="wrap">
+  <div class="panel"><h3 id="sec-profile" style="scroll-margin-top:76px">① 账户信息</h3>
+  <p class="hint">开户时仅需邮箱+密码+品牌名。以下信息在需要时按需补全，不阻塞建计划与投放。</p>
+  <div class="row"><div><label>公司名称</label><input id="p_company"></div><div><label>统一社会信用代码</label><input id="p_tax"></div></div>
+  <div class="row"><div><label>应用品类</label><select id="p_cat"><option value="">待定</option><option value="tools">工具</option><option value="puzzle">益智</option><option value="casual">休闲</option><option value="game">游戏</option><option value="social">社交</option><option value="ecommerce">电商</option><option value="finance">金融</option></select></div><div><label>默认落地页</label><input id="p_land" placeholder="https://..."></div></div>
+  <div class="row"><div><label>目标 CPM（元）</label><input id="p_cpm" type="number" step="0.1" value="6"></div><div><label>公司官网</label><input id="p_website" placeholder="https://yourcompany.com"></div></div>
+  <button onclick="saveProfile()">保存账户信息</button><span class="hint" id="p_msg"></span>
+  </div>
+
+  <div class="panel"><h3 id="sec-billing" style="scroll-margin-top:76px">② 计费与支付</h3>
+  <div style="background:#1e2a44;border:1px solid #2f4170;border-radius:8px;padding:10px 12px;margin:8px 0;font-size:12.5px;color:#cdd8f2;line-height:1.7"><b>💡 两套账的区别（极易混淆）</b><br>• <b>账户余额（钱包）</b>：决定你<b>能否参拍</b>。余额为 0 时，计划不会参与竞价、不会产生任何曝光。<br>• <b>计划预算</b>：决定<b>这条计划最多花多少</b>，是单条计划的花费上限。<br><span style="color:#93a3c4">排查口诀：计划已充值但仍无曝光 → 先看账户余额是否为 0。</span></div>
+  <div class="grid3" id="pay_stats"><div class="stat"><div class="val" id="pay_balance">¥0</div><div class="lbl">账户余额</div></div><div class="stat"><div class="val" id="pay_threshold">¥100</div><div class="lbl">低余额提醒阈值</div></div><div class="stat"><div class="val" id="pay_auto">未开启</div><div class="lbl">自动充值</div></div></div>
+  <div class="row" style="margin-top:12px;align-items:end">
+    <div><label>低余额提醒阈值(元)</label><input id="pm_threshold" type="number" min="0" value="100"></div>
+    <div><label>自动充值</label><select id="pm_auto"><option value="0">未开启</option><option value="1">开启</option></select></div>
+    <div><label>&nbsp;</label><button onclick="savePayConfig()">保存支付设置</button></div>
+  </div>
+  <div style="margin-top:14px"><h3 style="font-size:13px">支付方式</h3>
+  <table><thead><tr><th>方式</th><th>状态</th><th>尾号</th><th>操作</th></tr></thead><tbody id="pay_methods"><tr><td colspan="4" class="hint">加载中...</td></tr></tbody></table>
+  <div class="row" style="margin-top:8px">
+    <div><select id="pm_type"><option>支付宝</option><option>微信支付</option><option>Visa</option><option>Mastercard</option></select></div>
+    <div><input id="pm_last4" placeholder="卡号尾号后4位"></div>
+    <div><button onclick="addPaymentMethod()">添加</button></div>
+  </div>
+  <button onclick="requestRecharge()" style="margin-top:8px;background:#34d399">申请充值</button></div>
+  <div style="margin-top:14px"><h3 style="font-size:13px">我的充值申请</h3>
+  <div id="pay_requests" class="hint">加载中…</div></div>
+  </div>
+
+  <div class="panel"><h3 id="sec-team" style="scroll-margin-top:76px">③ 团队与权限</h3>
+  <p class="hint">邀请团队成员，分配角色与权限</p>
+  <table><thead><tr><th>成员</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead><tbody id="team_list"><tr><td colspan="4" class="hint">暂无团队成员</td></tr></tbody></table>
+  <div class="row" style="margin-top:8px"><input id="team_email" placeholder="输入邮箱邀请成员"><select id="team_role"><option>管理员</option><option>编辑</option><option>只读</option></select></div>
+  <button onclick="inviteMember()" style="margin-top:8px">邀请成员</button>
+  </div>
+
+  <div class="panel"><h3 id="sec-keys" style="scroll-margin-top:76px">④ API 密钥</h3>
+  <table id="key_tbl"><thead><tr><th>类型</th><th>密钥</th><th>操作</th></tr></thead><tbody><tr><td colspan="3" class="hint">加载中...</td></tr></tbody></table>
+  </div>
+
+  <div class="panel"><h3 id="sec-notif" style="scroll-margin-top:76px">⑤ 通知偏好</h3>
+  <div id="notif_prefs">
+  <label style="display:block"><input type="checkbox" id="n_balance" checked> 余额低于阈值时邮件提醒</label>
+  <label style="display:block"><input type="checkbox" id="n_review" checked> 计划审核通过/驳回时通知</label>
+  <label style="display:block"><input type="checkbox" id="n_daily" checked> 每日投放数据摘要（邮件）</label>
+  <label style="display:block"><input type="checkbox" id="n_weekly"> 每周投放报告（邮件）</label>
+  <label style="display:block;margin-top:8px"><b>异常告警 Anomaly Alerts</b></label>
+  <label style="display:block"><input type="checkbox" id="n_over_budget" checked> 单计划超预算 50% 告警</label>
+  <label style="display:block"><input type="checkbox" id="n_cpa_spike" checked> CPA 突增 &gt; 50% 告警</label>
+  <label style="display:block"><input type="checkbox" id="n_spending_surge" checked> 消耗速度异常（1 小时 &gt; 日预算 25%）</label>
+  <label style="display:block"><input type="checkbox" id="n_ctr_crash" checked> CTR 骤降 &gt; 60% 告警</label>
+  </div>
+  <button onclick="saveNotif()" style="margin-top:10px">保存通知偏好</button><span class="hint" id="n_msg"></span>
+  </div>
+
+  <!-- ⑥ 归因 & 事件（复用 /api/mmp/config，  <div class="panel" style="border-color:#4a3f1a;background:#20283d">
+  <h3 id="sec-attribution" style="scroll-margin-top:76px">⑥ 归因 & 事件 Attribution & Events <span class="hint"></span></h3>
+  <p class="hint">配置第三方归因合作方，实现 SKAN 匿名归因、Conversion Sync、事件回传。未配置时 ROAS/CPA 目标将回退到平台内部统计。</p>
+  <div class="row">
+    <div><label>归因合作方</label><select id="mmp_partner">
+      <option value="">未配置</option>
+      <option value="appsflyer">AppsFlyer</option>
+      <option value="adjust">Adjust</option>
+      <option value="singular">Singular</option>
+      <option value="branch">Branch</option>
+      <option value="skan">Apple SKAN 4.0</option>
+      <option value="none">无第三方</option>
+    </select></div>
+    <div><label>App ID / Bundle ID</label><input id="mmp_app_id" placeholder="如 com.example.app"></div>
+  </div>
+  <div class="row">
+    <div><label>MMP API 密钥</label><input id="mmp_key" type="password" placeholder="SKAN4 / AppsFlyer Dev Key / Adjust API 均支持"></div>
+    <div><label>SKAN Source ID (1-16)</label><input id="mmp_source_id" type="number" min="1" max="16" value="1"></div>
+  </div>
+  <div class="row">
+    <div><label>⭐ Conversion Sync 窗口</label><select id="mmp_conv_window">
+      <option value="7">7 天（推荐）</option><option value="14">14 天</option><option value="30">30 天</option>
+    </select></div>
+    <div><label>SKAN 分箱</label><select id="mmp_skan_bucket">
+      <option value="14">14 分箱（SKAN 4.0）</option><option value="16">16 分箱（实验）</option>
+    </select></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+  <div class="row" style="margin-top:8px">
+    <div style="flex:1"><label>⭐ SKAN 4.0 转化值建模 Conversion Value Schema（JSON 数组）</label>
+      <textarea id="mmp_cv_schema" rows="5" style="width:100%;background:#0d1730;color:#e8eefc;border:1px solid #26355c;border-radius:8px;padding:8px;font-size:12.5px" placeholder='[{"event":"install","coarse":"low","fine":0,"locked":false},{"event":"purchase","coarse":"high","fine":42,"locked":true}]'></textarea>
+      <div class="hint" style="margin-top:4px">把转化事件映射到 SKAN 的 coarse（low / medium / high）与 fine（0-63）值；locked=true 表示收到后不再更新该值。留空则用平台默认单值建模。</div>
+    </div>
+  </div>
+    <button onclick="saveMmp()">保存归因配置</button>
+    <button onclick="testMmp()" class="ghost" style="background:#1f2942;color:#e8eefc;border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px">发送测试事件</button>
+    <a href="/adv-attribution.html" style="color:#7fd1ff;text-decoration:underline;font-size:13px;padding:8px 4px;align-self:center">→ 完整归因分析看板</a>
+  </div>
+  <div class="hint" id="mmp_hint" style="margin-top:8px">状态：<span id="mmp_state">未配置</span></div>
+  </div>
+
+  <!-- ⑦ 合规 & 隐私-->
+  <div class="panel">
+  <h3 id="sec-compliance" style="scroll-margin-top:76px">⑦ 合规 & 隐私 Compliance <span class="hint">（GDPR / CCPA / COPPA）</span></h3>
+  <div class="row">
+    <div><label>隐私政策 URL</label><input id="compliance_privacy" placeholder="https://yourcompany.com/privacy"></div>
+    <div><label>Terms of Service URL</label><input id="compliance_terms" placeholder="https://yourcompany.com/terms"></div>
+  </div>
+  <div class="row">
+    <div><label>数据处理协议 DPA</label><input id="compliance_dpa" placeholder="上传或填 URL"></div>
+    <div><label>未成年人保护</label><select id="compliance_coppa">
+      <option value="0">不适用</option><option value="1">启用 COPPA 保护（面向儿童）</option>
+      <option value="2">启用 GDPR 同意机制</option>
+    </select></div>
+  </div>
+  <div class="row">
+    <div><label>告警通知邮箱</label><input id="compliance_alert_email" placeholder="ops@yourcompany.com"></div>
+    <div><label>异常告警（超预算 / 效果异常波动通知）</label>
+      <div style="display:flex;gap:16px;padding-top:8px;flex-wrap:wrap">
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="compliance_alert_over" value="1"> 超预算告警</label>
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="compliance_alert_anom" value="1"> 效果异常波动告警</label>
+      </div>
+    </div>
+  </div>
+  <button onclick="saveCompliance()" style="margin-top:8px">保存合规信息</button><span class="hint" id="compliance_msg"></span>
+  </div>
+</div>
+<script>window.AUTH_TITLE='广告主后台';</script>
+<script src="/admin.js"></script><script src="/ui.js"></script>
+<script>
+async function loadProfile(){try{const r=await Auth.api("/api/advertiser/profile");const p=await r.json();if(!p)return;
+if(p.company)document.getElementById("p_company").value=p.company;
+if(p.tax_id)document.getElementById("p_tax").value=p.tax_id;
+if(p.app_category)document.getElementById("p_cat").value=p.app_category;
+if(p.landing_url)document.getElementById("p_land").value=p.landing_url;
+if(p.target_cpm_cny)document.getElementById("p_cpm").value=p.target_cpm_cny;}catch(e){}}
+async function saveProfile(){
+const btn=document.querySelector("button[onclick=\"saveProfile()\"]");
+UI.withLoading(btn,async()=>{
+const r=await Auth.api("/api/advertiser/profile",{company:document.getElementById("p_company").value,tax_id:document.getElementById("p_tax").value,app_category:document.getElementById("p_cat").value,landing_url:document.getElementById("p_land").value,target_cpm_cny:Number(document.getElementById("p_cpm").value)||6},"PUT");
+const d=await r.json();UI.toast(d.ok?"账户信息已保存":"保存失败: "+(d.error||""),d.ok?"ok":"err");});}
+
+// 计费与支付：余额/阈值/自动充值/支付方式 统一走落库接口 /api/advertiser/settings
+async function loadSettings(){
+  try{ const r=await Auth.api("/api/advertiser/settings"); const d=await r.json();
+    document.getElementById("pay_balance").textContent="¥"+(d.balance_cny||0).toFixed(2);
+    document.getElementById("pay_threshold").textContent="¥"+(d.low_balance_threshold_cny||100);
+    document.getElementById("pay_auto").textContent=d.auto_recharge?"已开启":"未开启";
+    document.getElementById("pm_threshold").value=d.low_balance_threshold_cny||100;
+    document.getElementById("pm_auto").value=d.auto_recharge?1:0;
+    const tb=document.getElementById("pay_methods");
+    tb.innerHTML=(d.payment_methods||[]).length?d.payment_methods.map(m=>"<tr><td>"+m.type+"</td><td><span class=\"tag ok\">已绑定</span></td><td>"+(m.last4||"")+"</td><td><button onclick=\"delPayment('"+(m.type||"")+"','"+(m.last4||"")+"')\">删</button></td></tr>").join(""):"<tr><td colspan=\"4\" class=\"hint\">暂未绑定支付方式</td></tr>";
+    const np=d.notification_prefs||{}; n_balance.checked=!!np.balance; n_review.checked=!!np.review; n_daily.checked=!!np.daily; n_weekly.checked=!!np.weekly;
+  }catch(e){ const tb=document.getElementById('pay_methods'); if(tb) tb.innerHTML='<tr><td colspan="4" class="hint">加载失败：'+(e&&e.message||e)+'</td></tr>'; }
+}
+async function savePayConfig(){
+  try{ const r=await Auth.api("/api/advertiser/settings",{low_balance_threshold_cny:Number(document.getElementById("pm_threshold").value)||0,auto_recharge:Number(document.getElementById("pm_auto").value)||0},"PUT"); const d=await r.json();
+    UI.toast(d.ok?"支付设置已保存":"保存失败",d.ok?"ok":"err"); loadSettings();
+  }catch(e){ UI.toast(e.message,"err"); }
+}
+async function addPaymentMethod(){
+  const type=document.getElementById("pm_type").value; const last4=document.getElementById("pm_last4").value.trim();
+  if(!last4){UI.toast("请填写卡号尾号后4位","warn");return;}
+  try{ const cur=await (await Auth.api("/api/advertiser/settings")).json();
+    const methods=Array.isArray(cur.payment_methods)?cur.payment_methods:[];
+    methods.push({type,last4});
+    const r=await Auth.api("/api/advertiser/settings",{payment_methods:methods},"PUT"); const d=await r.json();
+    UI.toast(d.ok?"已添加支付方式":"添加失败",d.ok?"ok":"err"); loadSettings();
+  }catch(e){UI.toast(e.message,"err");}
+}
+async function delPayment(type,last4){
+  try{ const cur=await (await Auth.api("/api/advertiser/settings")).json();
+    const methods=(Array.isArray(cur.payment_methods)?cur.payment_methods:[]).filter(m=>!(m.type===type&&(m.last4||"")===last4));
+    await Auth.api("/api/advertiser/settings",{payment_methods:methods},"PUT"); loadSettings();
+  }catch(e){UI.toast(e.message,"err");}
+}
+async function requestRecharge(){const amt=await UI.prompt("请输入充值金额（元）","1000");if(amt===null||amt===undefined||!amt||isNaN(amt)||Number(amt)<=0)return;
+try{const r=await Auth.api("/api/advertiser/recharge-request",{amount_cny:Number(amt)});const d=await r.json();
+UI.toast(d.ok?"充值申请已提交，等待核验":"申请失败: "+(d.error||""),d.ok?"ok":"err");if(d.ok)loadSettings();}catch(e){UI.toast(e.message,"err");}}
+async function loadKeys(){try{const r=await Auth.api("/api/advertiser/key");const d=await r.json();
+const tb=document.querySelector("#key_tbl tbody");
+tb.innerHTML=d.api_key?"<tr><td>API Key</td><td style=\"word-break:break-all;font-family:monospace\">"+d.api_key+"</td><td><button onclick=\"rotateKey()\">重新生成</button></td></tr>":"<tr><td colspan=\"3\" class=\"hint\">未配置 API 密钥</td></tr>";}catch(e){}}
+async function rotateKey(){if(!confirm("重新生成后旧密钥立即失效，确认？"))return;
+try{const r=await Auth.api("/api/advertiser/key/rotate");const d=await r.json();
+UI.toast(d.api_key?"密钥已重新生成，请妥善保存":"生成失败",d.api_key?"ok":"err");loadKeys();}catch(e){UI.toast(e.message,"err");}}
+function inviteMember(){UI.toast("团队管理功能即将上线","info",4000);}
+async function saveNotif(){
+  const prefs={balance:n_balance.checked,review:n_review.checked,daily:n_daily.checked,weekly:n_weekly.checked,
+    over_budget:document.getElementById('n_over_budget').checked,
+    cpa_spike:document.getElementById('n_cpa_spike').checked,
+    spending_surge:document.getElementById('n_spending_surge').checked,
+    ctr_crash:document.getElementById('n_ctr_crash').checked};
+  try{ const r=await Auth.api("/api/advertiser/settings",{notification_prefs:prefs},"PUT"); const d=await r.json();
+    UI.toast(d.ok?"通知偏好已保存（含异常告警）":"保存失败",d.ok?"ok":"err");
+  }catch(e){ UI.toast(e.message,"err"); }
+}
+async function loadRechargeRequests(){
+  const el=document.getElementById('pay_requests'); if(!el) return;
+  try{
+    const rows=await (await Auth.api('/api/advertiser/recharge-requests')).json().catch(()=>[]);
+    if(!Array.isArray(rows)||!rows.length){ el.textContent='暂无充值申请'; return; }
+    var ST={pending:'待核验',approved:'已入账',rejected:'已驳回'};
+    el.innerHTML=rows.map(function(x){
+      return '#'+x.id+' · '+x.amount_cny+' 元 · <b>'+(ST[x.status]||x.status)+'</b>' +
+        (x.handle_note?('（'+(x.status==='rejected'?'驳回原因：':'')+x.handle_note+'）'):'') +
+        ' · '+String(x.created_at||'').slice(0,16);
+    }).join('<br>');
+  }catch(e){ el.textContent='加载失败'; }
+}
+
+// ── ⑥ 归因 & 事件（复用 advanced.html 的 /api/mmp/config 接口）──
+async function saveMmp(){
+  const cfg = {
+    partner: document.getElementById('mmp_partner').value,
+    app_id: document.getElementById('mmp_app_id').value.trim(),
+    key: document.getElementById('mmp_key').value.trim(),
+    skan_source_id: Number(document.getElementById('mmp_source_id').value) || 1,
+    conversion_window_days: Number(document.getElementById('mmp_conv_window').value) || 7,
+    skan_bucket: Number(document.getElementById('mmp_skan_bucket').value) || 14
+  };
+  try {
+    const r = await Auth.api('/api/mmp/config', cfg);
+    const d = await r.json();
+    if (r.ok) {
+      document.getElementById('mmp_state').textContent = '已配置：' + (cfg.partner||'none') + ' · SKAN Source #' + cfg.skan_source_id + ' · Window ' + cfg.conversion_window_days + 'd';
+      UI.toast('归因配置已保存（SKAN4 / AppsFlyer / Adjust 均兼容）','ok');
+      // SKAN 转化值建模落到 /api/advertiser/compliance（/api/mmp/config 不接收该字段）
+      try { await Auth.api('/api/advertiser/compliance', { skan_cv_schema: document.getElementById('mmp_cv_schema').value.trim() }, 'PUT'); } catch(e) {}
+    } else {
+      UI.toast('保存失败：' + (d.error||''),'err');
+    }
+  } catch(e) { UI.toast(e.message,'err'); }
+}
+async function testMmp(){
+  try {
+    const r = await Auth.api('/api/mmp/test-event', { event: 'test', ts: Date.now() });
+    const d = await r.json();
+    UI.toast(r.ok ? ('测试事件已发送：' + JSON.stringify(d).slice(0,80)) : ('测试失败：' + (d.error||'')), r.ok?'ok':'err');
+  } catch(e) { UI.toast(e.message,'err'); }
+}
+async function loadMmp(){
+  try {
+    const r = await Auth.api('/api/mmp/config');
+    const d = await r.json();
+    if (!d || !d.partner) return;
+    document.getElementById('mmp_partner').value = d.partner || '';
+    document.getElementById('mmp_app_id').value = d.app_id || '';
+    document.getElementById('mmp_key').value = ''; // 密钥仅显示一次
+    document.getElementById('mmp_source_id').value = d.skan_source_id || 1;
+    document.getElementById('mmp_conv_window').value = d.conversion_window_days || 7;
+    document.getElementById('mmp_skan_bucket').value = d.skan_bucket || 14;
+    document.getElementById('mmp_state').textContent = '已配置：' + d.partner + ' · SKAN Source #' + (d.skan_source_id||1) + ' · Window ' + (d.conversion_window_days||7) + 'd';
+    try {
+      const rc = await Auth.api('/api/advertiser/compliance'); const dc = await rc.json();
+      document.getElementById('mmp_cv_schema').value = (dc && dc.skan_cv_schema) || '';
+    } catch(e) {}
+  } catch(e) {}
+}
+
+// ── ⑦ 合规 & 隐私 ──
+async function saveCompliance(){
+  const data = {
+    privacy_policy_url: document.getElementById('compliance_privacy').value.trim(),
+    terms_url: document.getElementById('compliance_terms').value.trim(),
+    dpa_url: document.getElementById('compliance_dpa').value.trim(),
+    coppa_mode: Number(document.getElementById('compliance_coppa').value) || 0,
+    alert_email: (document.getElementById('compliance_alert_email')||{}).value || '',
+    alert_over_budget: (document.getElementById('compliance_alert_over')||{}).checked ? 1 : 0,
+    alert_anomaly: (document.getElementById('compliance_alert_anom')||{}).checked ? 1 : 0
+  };
+  try {
+    const r = await Auth.api('/api/advertiser/compliance', data);
+    const d = await r.json();
+    UI.toast(r.ok ? '合规信息已保存' : ('保存失败：' + (d.error||'')), r.ok?'ok':'err');
+  } catch(e) { UI.toast(e.message,'err'); }
+}
+async function loadCompliance(){
+  try {
+    const r = await Auth.api('/api/advertiser/compliance');
+    const d = await r.json();
+    if (!d) return;
+    document.getElementById('compliance_privacy').value = d.privacy_policy_url || '';
+    document.getElementById('compliance_terms').value = d.terms_url || '';
+    document.getElementById('compliance_dpa').value = d.dpa_url || '';
+    document.getElementById('compliance_coppa').value = String(d.coppa_mode || 0);
+    document.getElementById('compliance_alert_email').value = d.alert_email || '';
+    document.getElementById('compliance_alert_over').checked = d.alert_over_budget !== 0;
+    document.getElementById('compliance_alert_anom').checked = d.alert_anomaly !== 0;
+  } catch(e) {}
+}
+loadProfile();loadSettings();loadKeys();loadRechargeRequests();loadMmp();loadCompliance();
+</script>
+<script src="/console_top.js"></script>
+<script src="/adv-account-tabs.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a454f8a70b91d7dd',t:'MTc5MTEyNTEzNg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>

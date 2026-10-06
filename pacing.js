@@ -193,7 +193,7 @@ function paceEval(campaign, spentMicros, opts = {}) {
 
 // 竞价热路径一次性判定：时段 → 频控 → 预算节奏
 async function gate(campaign, spentMicros, ids = {}, opts = {}) {
-  const cfg = await delivery(campaign.id);
+  const cfg = (opts && opts.delivery) || (await delivery(campaign.id));
   if (!inDaypart(cfg.daypart, opts.now || new Date())) return { ok: false, reason: 'OUT_OF_DAYPART', skip: true };
   const f = await freqAllow(campaign.id, cfg, ids);
   if (!f.ok) return { ok: false, reason: f.reason, skip: true, seen: f.seen };

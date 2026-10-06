@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>5 分钟看完 AppLink 全链路 · AppLink</title>
+<meta name="description" content="5 分钟走完 AppLink 核心链路：实时报价响应 → 广告主开户 → 建计划 → eCPM' 打分 → 媒体入驻 → 集成自检。">
+<meta name="theme-color" content="#0b1020">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EZ%3C/text%3E%3C/svg%3E">
+<style>
+  :root{--bg:#0b1020;--card:#16203a;--fg:#e8eefc;--mut:#93a3c4;--acc:#3b82f6;--acc2:#22d3ee;--ok:#34d399}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1000px 520px at 70% -10%,#1b2a52 0%,var(--bg) 55%);color:var(--fg);font:15px/1.8 system-ui,"Microsoft YaHei",sans-serif}
+  a{color:var(--acc2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:860px;margin:0 auto;padding:0 20px}
+  .hero{padding:56px 0 20px}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.14em;color:var(--acc2);border:1px solid #2b3c66;background:#132043;padding:5px 14px;border-radius:99px;margin-bottom:18px}
+  h1{font-size:32px;line-height:1.3;margin:0 0 12px}
+  .sub{font-size:16px;color:var(--mut);margin:0 0 10px}
+  ol{padding:0;margin:24px 0 0;list-style:none;counter-reset:step}
+  li{counter-increment:step;position:relative;margin:0 0 12px;padding:16px 18px 16px 54px;background:var(--card);border:1px solid #26355c;border-radius:12px}
+  li::before{content:counter(step);position:absolute;left:16px;top:16px;width:26px;height:26px;border-radius:50%;
+    background:linear-gradient(92deg,var(--acc),var(--acc2));color:#04122a;font-weight:800;font-size:14px;
+    display:flex;align-items:center;justify-content:center}
+  li b{font-size:15.5px}
+  li p{margin:6px 0 0;color:var(--mut);font-size:13.5px}
+  li a.go{display:inline-block;margin-top:8px;font-size:13px;font-weight:700}
+  code{background:#0d1730;border:1px solid #223358;padding:1px 6px;border-radius:5px;font-size:12px}
+  .note{margin-top:26px;font-size:12.5px;color:var(--mut);background:#101a33;border:1px solid #24345c;border-radius:10px;padding:12px 14px}
+  .back{margin:26px 0 60px;font-size:13.5px}
+  .done{margin-top:18px;font-size:13.5px;color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <span class="tag">5 MINUTE WALKTHROUGH</span>
+    <h1>5 分钟看完 AppLink 全链路</h1>
+    <p class="sub">从「一次真实报价响应」到「媒体看到自己的收益」，6 步走完。每一步都是可当场验证的真实端点，不是截图。</p>
+  </div>
+
+  <ol>
+    <li>
+      <b>1 · 看一次真实报价响应（30 秒）</b>
+      <p>向 <code>/openrtb2/bid</code> 发一个 OpenRTB 2.6 请求，看返回的 CPM、意图分、品牌安全等级，以及本次几家需求方参拍。<b>该请求不代表已赢价、不触发扣费。</b></p>
+      <a class="go" href="/home.html#live">→ 打开实时出价响应检查</a>
+    </li>
+    <li>
+      <b>2 · Prebid.js 端到端竞价（1 分钟）</b>
+      <p>浏览器里跑完整 Prebid 流程：广告位注册 → 多家需求方并发询价 → 二价清算 → 胜出创意渲染。页面会打印每一步的耗时与出价。</p>
+      <a class="go" href="/index.html">→ 打开 Prebid 端到端演示</a>
+    </li>
+    <li>
+      <b>3 · 广告主开户（1 分钟）</b>
+      <p>邮箱 + 密码 + 公司名 3 个字段即可开通，自动获得账号唯一码、API Key 与一套示例素材（可直接绑定参拍）。</p>
+      <a class="go" href="/register.html">→ 广告主自助开户</a>
+    </li>
+    <li>
+      <b>4 · 建计划 → 传素材 → 参拍（1 分钟）</b>
+      <p>填目标 + 品类 + 预算即可建计划；上传素材后进入审核队列，通过后自动参拍。品类需与媒体侧<b>精确等同匹配</b>。</p>
+      <a class="go" href="/campaigns.html">→ 打开广告系列</a>
+    </li>
+    <li>
+      <b>5 · 媒体入驻：域名 + 一行 SDK（1 分钟）</b>
+      <p>提交域名即可拿到 <code>api_key</code> 与 SDK 接入代码；再在「应用与版位」里建广告单元，收益报表就能按广告单元拆。</p>
+      <a class="go" href="/register.html#publisher">→ 开发者 / 媒体入驻</a>
+    </li>
+    <li>
+      <b>6 · 集成自检：为什么我的广告位没广告？（30 秒）</b>
+      <p>5 项一键诊断（媒体入驻 / 收款信息 / 广告单元 / 竞价请求 / 胜出），直接告诉你卡在哪一步、该怎么修。</p>
+      <a class="go" href="/integrity.html">→ 打开集成自检</a>
+    </li>
+  </ol>
+
+  <div class="note">
+    <b>顺带可以看</b>：<a href="/ecpm_demo.html">eCPM' 价值排序演示</a>（效果 × LTV × 出价 × 服务承诺）
+    · <a href="/media-demo.html">6 种广告形态</a>
+    · <a href="/docs.html">OpenRTB 接入文档</a>
+    · <a href="/reports.html">结算与对账报表</a>（需管理员）
+  </div>
+
+  <p class="done">走完这 6 步，你就完整看过了「广告主预算 × 媒体库存 → 可结算交易」的闭环。</p>
+
+  <div class="back"><a href="/home.html">← 返回首页</a></div>
+</div>
+</body></html>

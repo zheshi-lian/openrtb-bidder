@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>广告系列 Campaigns · 广告主投放</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:30px;background:#0b1020;color:#e8eefc}
+ h2{font-size:18px;color:#e8eefc} input,textarea,select{width:100%;padding:6px;margin:4px 0 10px;box-sizing:border-box;background:#0d1730;color:#e8eefc;border:1px solid #2f4170}
+ .row{display:flex;gap:10px}.row>div{flex:1} button{padding:8px 16px;cursor:pointer;background:#3b82f6;color:#fff;border:0;border-radius:6px}
+ button:disabled{opacity:.55;cursor:not-allowed}
+ table{width:100%;border-collapse:collapse;margin-top:14px;background:#16203a} td,th{border:1px solid #26355c;padding:8px;font-size:13px;text-align:left}
+ .hint{font-size:12px;color:#93a3c4}
+ #profile-banner{display:none;background:#1e3a1e;border:1px solid #234a35;color:#34d399;padding:10px 16px;border-radius:8px;margin:10px 0;font-size:13px}
+ #profile-banner a{color:#34d399;text-decoration:underline;font-weight:600}
+ .camp-new{background:#1a2744!important}
+</style></head>
+<body>
+<div id="ctop"></div>
+  <h2>广告系列 Campaigns（建计划 / 预算出价 / 定向 / 创意组）</h2>
+  <!-- 上手引导：开通清单（充值 → 归因接入 → 素材 → 建计划 → 审核） -->
+  <div id="onb"></div>
+  <!-- 补全资料横幅：开户后引导到「账户」页按需补全 -->
+  <div id="profile-banner">
+    <b>📋 完善账户资料</b>：您尚未填写公司名称、统一社会信用代码、落地页等业务信息。<a href="/adv-account.html">立即补全 →</a>（不阻塞建计划与投放）
+  </div>
+  <div class="hint" style="margin:10px 0">📍 你正在：<b>③ 建计划</b>。完整开通清单（充值 → 归因接入 → 素材 → 建计划 → 审核）见上方「上手引导」，本页不再重复维护一条流程。</div>
+  <div class="row">
+    <div><label>活动名称</label><input id="name" value="新客-工具类App"></div>
+    <div><label>广告主</label><input id="adv" value="MyBrand"></div>
+  </div>
+  <div class="row">
+    <div><label>⭐ App ID / Bundle ID（SKAN 归因必需）</label><input id="appid" placeholder="Google: com.example.app / Apple: 1234567890"></div>
+    <div><label>应用品类</label><select id="cat">
+      <option value="">不限 / 待定</option><option>tools</option>
+      <option>puzzle</option><option>casual</option><option selected>game</option>
+      <option>social</option><option>ecommerce</option><option>finance</option>
+      <option>education</option><option>virtual_goods</option><option>health</option>
+      <option>auto</option><option>travel</option><option>real_estate</option>
+    </select></div>
+  </div>
+  <div class="row">
+    <div><label>预算(元)</label><input id="budget" type="number" value="2000"></div>
+    <div><label>日预算(元, 0=不限)</label><input id="dailylimit" type="number" value="0" min="0"></div>
+  </div>
+  <div class="row">
+    <div><label>⭐ 开始日期</label><input id="start_date" type="date"></div>
+    <div><label>⭐ 结束日期（留空=不限）</label><input id="end_date" type="date"></div>
+  </div>
+  <div class="row">
+    <div><label>⭐ 转化事件（Conversion Event）</label><select id="event_type">
+      <option value="">未配置（仅 CPM 目标可用）</option>
+      <option value="install">Install / 激活</option>
+      <option value="purchase">Purchase / 付费</option>
+      <option value="registration">Registration / 注册</option>
+      <option value="lead">Lead / 留资（虚拟商品）</option>
+      <option value="ROE">ROE / 次日留存</option>
+      <option value="LTV7">LTV-7D</option>
+    </select></div>
+    <div><label>⭐ 归因合作方（Attribution Partner）</label><select id="attribution_partner">
+      <option value="">未配置</option>
+      <option value="appsflyer">AppsFlyer</option>
+      <option value="adjust">Adjust</option>
+      <option value="singular">Singular</option>
+      <option value="skan">SKAN 4.0</option>
+      <option value="none">无第三方</option>
+    </select></div>
+  </div>
+  <div class="row">
+    <div><label>营销目标</label><select id="goal" onchange="onGoalChange()">
+      <option value="CPM">曝光 CPM</option><option value="CPA">转化 CPA</option><option value="OCPI">安装 oCPI（目标单次安装成本）</option><option value="ROAS">回收 ROAS（Target ROAS）</option>
+    </select></div>
+    <div><label id="bidlabel">目标 CPM(元)</label><input id="bidvalue" type="number" value="7"></div>
+  </div>
+  <div class="row">
+    <div><label>国家(留空=不限)</label><input id="country" value=""></div>
+    <div><label>定向国家</label><select id="geo">
+      <option value="">不限</option><option>CN</option><option>US</option><option>JP</option><option>KR</option><option>BR</option><option>IN</option>
+    </select></div>
+  </div>
+  <div class="row">
+    <div><label>投放时段（预设）</label><select id="sched">
+      <option value="">全天</option><option value="工作日 9-22">工作日 9-22</option><option value="白天 8-22">白天 8-22</option><option value="周末 10-22">周末 10-22</option>
+    </select></div>
+    <div><label>出价底价(元/千次, 0=不限)</label><input id="bidfloor" type="number" min="0" step="0.1" placeholder="低于此价不参拍"></div>
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>定向设备类型（可多选，留空 = 不限）</label>
+      <div style="display:flex;gap:16px;padding-top:6px">
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="dt1" value="1"> 移动 / 平板</label>
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="dt2" value="2"> 桌面</label>
+      </div>
+      <div class="hint" style="margin-top:2px">竞价侧按请求设备类型过滤：勾选后仅该类设备能参竞</div>
+    </div>
+    <div style="flex:1"><label>定向 OS（可多选，留空 = 不限）</label>
+      <div style="display:flex;gap:16px;padding-top:6px">
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="os_ios" value="ios"> iOS</label>
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="os_android" value="android"> Android</label>
+      </div>
+      <div class="hint" style="margin-top:2px">OS 由服务端自动采集（UA/OpenRTB），广告主只做勾选、零额外填写</div>
+    </div>
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>再营销（只投「见过本广告主广告」的设备）</label>
+      <div style="display:flex;gap:10px;align-items:center;padding-top:6px;flex-wrap:wrap">
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="rt" value="1"> 开启再营销</label>
+        <span style="font-size:12px;color:#93a3c4">窗口(天)</span><input id="rtwin" type="number" min="1" max="90" value="7" style="width:70px">
+      </div>
+      <div class="hint" style="margin-top:2px">再营销受众池由平台自动采集（设备级，零用户打扰），广告主无需上传任何名单</div>
+    </div>
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>兴趣定向（逗号分隔，匹配自动采集的 app 类目 / 关键词）</label>
+      <input id="interest" placeholder="例如 puzzle,casual,racing">
+      <div class="hint" style="margin-top:2px">留空=不限。服务端自动从请求上下文提取兴趣，广告主只填标签、无需上传人群包</div>
+    </div>
+    <div style="flex:1"><label>Lookalike 相似人群</label>
+      <div style="display:flex;gap:10px;align-items:center;padding-top:6px">
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="la" value="1"> 开启 Lookalike</label>
+      </div>
+      <div class="hint" style="margin-top:2px">自动投放给「与见过本广告主广告的设备画像相似」的新设备（基于 OS/地域种子画像）</div>
+    </div>
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>⭐ 排除受众（Exclusion Audience）</label>
+      <div style="display:flex;gap:16px;padding-top:6px;flex-wrap:wrap">
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="excl_installed"> 排除已安装本 App 设备</label>
+        <label style="margin:0;font-weight:400;cursor:pointer"><input type="checkbox" id="excl_converted"> 排除已转化设备（窗口天数）</label>
+        <input id="excl_conv_win" type="number" min="1" max="90" value="30" style="width:70px">
+        <span style="font-size:12px;color:#93a3c4">天</span>
+      </div>
+      <div class="hint" style="margin-top:2px">减少无效曝光、提升 CPA/ROAS；受众池由平台自动采集</div>
+    </div>
+    <div style="flex:1"><label>频控（同一设备 N 小时内最多 M 次；M=0 不限）</label>
+      <div style="display:flex;gap:10px;align-items:center;padding-top:6px;flex-wrap:wrap">
+        <span style="font-size:12px;color:#93a3c4">每</span><input id="fcCount" type="number" min="0" value="0" style="width:70px">
+        <span style="font-size:12px;color:#93a3c4">小时最多</span><input id="fcWin" type="number" min="1" value="24" style="width:70px">
+        <span style="font-size:12px;color:#93a3c4">次 · 维度</span>
+        <select id="fcScope" style="width:auto"><option value="device">按设备</option><option value="user">按用户</option><option value="campaign">全 campaign</option><option value="creative">按创意</option></select>
+      </div>
+      <div class="hint" style="margin-top:2px">频控在竞价侧生效：超限则该设备本次不参竞（保护用户体验，也省预算）</div>
+    </div>
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>⭐ 投放节奏 Pacing</label><select id="pacing_mode">
+      <option value="SMOOTH">SMOOTH - 匀速投放</option>
+      <option value="ASAP">ASAP - 尽快花完预算</option>
+      <option value="EVEN">EVEN - 均匀分配</option>
+    </select></div>
+    <div style="flex:1"><label>⭐ 精细时段（自定义，逗号分隔）</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12px;color:#93a3c4">星期</span><input id="daypart_days" placeholder="1,2,3,4,5" style="width:150px">
+      <span style="font-size:12px;color:#93a3c4">小时</span><input id="daypart_hours" placeholder="9,10,11,12,13,14,15,16,17,18" style="width:200px">
+    </div></div>
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>多素材 A/B（选中多个自动做 Thompson 优选 + 疲劳度降权；留空=用上方单选）</label>
+      <select id="crmulti" multiple size="4"></select>
+    </div>
+  </div>
+  <label>素材库创意（推荐：先在「素材库」上传/生成并存入素材库）</label>
+  <select id="creative_id"><option value="0">— 未选（将回退到下方兜底 HTML）—</option></select>
+  <label>意图标签(逗号分隔, 用于意图Agent匹配提升eCPM)</label>
+  <input id="tags" value="tools,utility,app,install">
+  <label>落地页</label><input id="url" value="https://example.com">
+  <label>创意HTML（兜底，可选）</label><textarea id="creative" rows="3">&lt;div style="padding:10px;background:#9b59b6;color:#fff;border-radius:6px"&gt;下载即领福利&lt;/div&gt;</textarea>
+  <div class="hint" style="margin:-4px 0 10px">bidder 只从素材库取创意：选了「素材库创意」则优先下发并绑定到本计划；未选则回退上方兜底 HTML。</div>
+  <button onclick="createCampaign()">创建 Campaign</button>
+  <div class="hint" id="msg"></div>
+
+  <div class="hint" id="llmhint"></div>
+
+  <h2 style="margin-top:24px">已有 Campaign</h2>
+  <table id="tbl"><thead><tr><th>ID</th><th>名称</th><th>广告主</th><th>剩余预算(元)</th><th>目标CPM</th><th>国家</th><th>品类</th><th>意图标签</th><th>目标</th><th>定向</th><th>投放配置</th><th>素材</th><th>LLM意图画像</th><th>审核状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+<!-- Inline 编辑 modal -->
+<div id="editModal" class="modal" style="display:none">
+  <div class="modal-content" style="max-width:820px;max-height:88vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="font-size:16px;font-weight:600" id="editTitle">编辑 Campaign</h2>
+      <button type="button" class="btn btn-ghost" onclick="closeEdit()">✕</button>
+    </div>
+    <input type="hidden" id="editId">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font-size:12px">
+      <div><label style="display:block;margin-bottom:3px">计划名</label><input id="e_name" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">广告主</label><input id="e_adv" disabled style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">总预算(元)</label><input id="e_budget" type="number" step="0.01" min="0" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">日预算(元)</label><input id="e_dcap" type="number" step="0.01" min="0" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">投放目标</label><select id="e_goal" style="width:100%"><option value="CPM">CPM</option><option value="CPA">CPA</option><option value="OCPV">OCPV</option><option value="ROAS">ROAS</option></select></div>
+      <div><label style="display:block;margin-bottom:3px" id="e_bvl">目标 CPM(元)</label><input id="e_bv" type="number" step="0.1" min="0" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">底价(元)</label><input id="e_bf" type="number" step="0.01" min="0" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">竞价策略</label><select id="e_bs" style="width:100%"><option value="MAX">最大化消耗</option><option value="TARGET_CPM">目标 CPM</option><option value="TARGET_CPA">目标 CPA</option><option value="AUTO">自动</option></select></div>
+      <div><label style="display:block;margin-bottom:3px">国家</label><input id="e_country" placeholder="CN" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">投放地域</label><input id="e_geoc" placeholder="* / CN" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">App 类目</label><input id="e_appcat" placeholder="* / game" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">App ID</label><input id="e_appid" placeholder="com.xxx.app" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">开始日期</label><input id="e_start" type="date" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">结束日期</label><input id="e_end" type="date" style="width:100%"></div>
+      <div style="grid-column:1 / -1"><label style="display:block;margin-bottom:3px">意图关键词</label><input id="e_intent" placeholder="逗号分隔" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">排除已安装 App</label><select id="e_excl_inst" style="width:100%"><option value="0">不排除</option><option value="1">排除</option></select></div>
+      <div><label style="display:block;margin-bottom:3px">排除已转化用户（天）</label><div style="display:flex;gap:6px"><select id="e_excl_conv" style="width:110px"><option value="0">不排除</option><option value="1">排除</option></select><input id="e_retarget_win" type="number" min="1" max="365" value="30" style="flex:1"></div></div>
+      <div><label style="display:block;margin-bottom:3px">设备</label><select id="e_device" style="width:100%"><option value="">不限</option><option value="1">移动/平板</option><option value="2">桌面</option><option value="1,2">全部</option></select></div>
+      <div><label style="display:block;margin-bottom:3px">操作系统</label><select id="e_os" style="width:100%"><option value="">不限</option><option value="ios">iOS</option><option value="android">Android</option><option value="ios,android">全部</option></select></div>
+      <div><label style="display:block;margin-bottom:3px">再营销</label><select id="e_retarget" style="width:100%"><option value="0">关闭</option><option value="1">启用</option></select></div>
+      <div><label style="display:block;margin-bottom:3px">Lookalike</label><select id="e_look" style="width:100%"><option value="0">关闭</option><option value="1">启用</option></select></div>
+      <div style="grid-column:1 / -1"><label style="display:block;margin-bottom:3px">兴趣定向</label><input id="e_interest" placeholder="如 game,edtech" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">MMP Partner</label><select id="e_mmp" style="width:100%"><option value="">—</option><option value="appsflyer">AppsFlyer</option><option value="adjust">Adjust</option><option value="skan">SKAN</option><option value="singular">Singular</option><option value="branch">Branch</option></select></div>
+      <div><label style="display:block;margin-bottom:3px">转化事件</label><input id="e_conv_event" placeholder="install / purchase" style="width:100%"></div>
+      <div><label style="display:block;margin-bottom:3px">Pacing 节奏</label><select id="e_pacing" style="width:100%"><option value="SMOOTH">匀速</option><option value="ASAP">尽快</option><option value="EVEN">均速</option></select></div>
+      <div><label style="display:block;margin-bottom:3px">频控（次/窗口小时）</label><div style="display:flex;gap:6px"><input id="e_fc_count" type="number" min="0" placeholder="0=关闭" style="width:80px"><span>次 /</span><input id="e_fc_hours" type="number" min="1" placeholder="24" style="width:80px"><span>小时</span></div></div>
+    </div>
+    <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:600">Dayparting · 7×24 时段 <span style="color:#7f8c8d;font-weight:400">（点击切换，黑色=启用）</span></div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="daypartPreset('all')">全天</button>
+          <button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="daypartPreset('weekdays')">工作日</button>
+          <button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="daypartPreset('peaks')">高峰</button>
+          <button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="daypartPreset('prime')">黄金18-23</button>
+          <button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 8px" onclick="daypartPreset('none')">全关</button>
+        </div>
+      </div>
+      <div id="daypartGrid" style="display:grid;font-family:ui-monospace,Consolas,monospace;font-size:9px"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;border-top:1px solid #eee;padding-top:12px">
+      <button type="button" class="btn btn-ghost" onclick="closeEdit()">取消</button>
+      <button type="button" class="btn btn-primary" id="editSaveBtn" onclick="submitEdit()">保存修改</button>
+    </div>
+  </div>
+</div>
+  <script>window.AUTH_TITLE='广告主后台';</script>
+  <script src="/admin.js"></script>
+<script src="/ui.js"></script>
+<script>
+  var lastCreatedId = 0;
+  // ── 修复原工作台隐性 bug：device_type/os/retarget/freq_cap/interest/lookalike 原引用未定义全局变量
+  //    → 改为直接从表单取值计算，保证建计划真正生效。
+  function getDeviceType(){ return Array.from(document.querySelectorAll('#dt1,#dt2')).filter(c=>c.checked).map(c=>c.value).join(','); }
+  function getOs(){ return Array.from(document.querySelectorAll('#os_ios,#os_android')).filter(c=>c.checked).map(c=>c.value).join(','); }
+  function freqCapObj(){
+    const count = Number(document.getElementById('fcCount').value)||0;
+    const winH = Number(document.getElementById('fcWin').value)||24;
+    const scope = document.getElementById('fcScope').value;
+    if(!count) return null; // M=0 关闭频控
+    return { count, windowSec: winH*3600, scope };
+  }
+  // 营销目标联动：选 CPM/CPA/ROAS 时只显示对应数值输入框
+  function onGoalChange(){
+    const g = document.getElementById('goal').value;
+    const lab = document.getElementById('bidlabel');
+    const inp = document.getElementById('bidvalue');
+    const bidfloor = document.getElementById('bidfloor');
+    if(!lab || !inp) return;
+    if(g === 'CPM'){
+      lab.textContent = '目标 CPM(元)';
+      inp.placeholder = '目标 CPM，如 7'; inp.min = 0; inp.step = 0.1;
+      if(!inp.value) inp.value = '7';
+    } else if(g === 'CPA'){
+      lab.textContent = '目标 CPA(元)';
+      inp.placeholder = '目标 CPA，如 3'; inp.min = 0; inp.step = 0.1;
+      if(!inp.value) inp.value = '3';
+    } else if(g === 'OCPI' || g === 'CPI'){
+      lab.textContent = '目标 oCPI(元/安装)';
+      inp.placeholder = '目标单次安装成本，如 5'; inp.min = 0; inp.step = 0.1;
+      if(!inp.value) inp.value = '5';
+    } else if(g === 'ROAS'){
+      lab.textContent = '目标 ROAS(倍)';
+      inp.placeholder = '目标 ROAS，如 1.5'; inp.min = 0; inp.step = 0.1;
+      if(!inp.value) inp.value = '1.5';
+    }
+    // 底价始终显示，仅按 CPM 目标生效
+    if(bidfloor) bidfloor.style.display = (g === 'CPM') ? '' : 'none';
+  }
+  function bidValueObj(){
+    const g = document.getElementById('goal').value;
+    const v = Number(document.getElementById('bidvalue').value)||0;
+    return {
+      goal_type: g,
+      bid_value: v,
+      target_cpm_cny: g === 'CPM' ? v : (v || 0),
+      target_cpa_cny: (g === 'CPA' || g === 'OCPI' || g === 'CPI') ? v : 0,
+      target_roas:    g === 'ROAS' ? v : 0
+    };
+  }
+  function parseCsvInts(s){ return (s||'').split(',').map(x=>parseInt(x.trim(),10)).filter(x=>!isNaN(x)); }
+  async function createCampaign(){
+    var btn = document.querySelector("button[onclick=\"createCampaign()\"]");
+    if (btn && btn.disabled) return;
+    const name = document.getElementById("name").value.trim();
+    if (!name) { UI.toast("请填写计划名称","err"); return; }
+    const cid = +document.getElementById("creative_id").value || 0;
+    const cids = Array.from(document.getElementById("crmulti").selectedOptions).map(o=>+o.value).filter(x=>x>0);
+    if (!cids.length && !cid && !document.getElementById('creative').value.trim()) { UI.toast("请选择素材或填写兜底创意","err"); return; }
+    const bid = bidValueObj();
+    if(btn) { btn.disabled = true; btn.textContent = "创建中…"; }
+    try {
+      const r = await admApi("/api/campaign", {
+        name, advertiser: document.getElementById('adv').value,
+        budget_cny: Number(document.getElementById('budget').value)||1000, country: document.getElementById('country').value,
+        app_category: document.getElementById('cat').value,
+        creative_html: document.getElementById('creative').value.trim(),
+        landing_url: document.getElementById('url').value,
+        target_cpm_cny: bid.target_cpm_cny, intent_tags: document.getElementById('tags').value,
+        goal_type: bid.goal_type, target_cpa_cny: bid.target_cpa_cny, target_roas: bid.target_roas,
+        daily_cap_cny: Number(document.getElementById('dailylimit').value)||0, geo_country: document.getElementById('geo').value,
+        schedule: document.getElementById('sched').value, creative_id: cid, creative_ids: cids,
+        device_type: getDeviceType(), os: getOs(),
+        bid_floor_cny: Number(document.getElementById('bidfloor').value)||0,
+        retarget: document.getElementById('rt').checked ? 1 : 0,
+        retarget_window_days: Number(document.getElementById('rtwin').value)||7,
+        freq_cap: freqCapObj(), interest_target: (document.getElementById('interest').value||'').trim(),
+        lookalike: document.getElementById('la').checked ? 1 : 0,
+        // ── 新增 P0 字段 ──
+        app_id: (document.getElementById('appid').value||'').trim(),
+        start_date: (document.getElementById('start_date').value||'').trim(),
+        end_date: (document.getElementById('end_date').value||'').trim(),
+        conversion_event: document.getElementById('event_type').value,
+        attribution_partner: document.getElementById('attribution_partner').value,
+        exclusion: {
+          exclude_installed: document.getElementById('excl_installed').checked ? 1 : 0,
+          exclude_converted: document.getElementById('excl_converted').checked ? 1 : 0,
+          exclude_converted_window_days: Number(document.getElementById('excl_conv_win').value)||30
+        },
+        pacing_mode: document.getElementById('pacing_mode').value,
+        daypart: {
+          days: parseCsvInts(document.getElementById('daypart_days').value),
+          hours: parseCsvInts(document.getElementById('daypart_hours').value)
+        }
+      });
+      const d = await r.json();
+      if (btn) btn.textContent = "创建 Campaign";
+      if (d.duplicate) { UI.toast("重复请求已拦截，已存在计划 #"+d.id,"info"); }
+      else if (d.ok) { lastCreatedId = d.id; UI.toast("计划创建成功！已提交审核（计划 #"+d.id+"）","ok"); }
+      else { UI.toast("创建失败: "+(d.error||"未知错误"),"err"); }
+      load(); loadCreatives();
+    } catch (e) {
+      UI.toast(e.message||"创建请求失败","err");
+      if (btn) btn.textContent = "创建 Campaign";
+    }
+  }
+  // ══════════════════════════════════════════════════════════════════════
+  //  Inline 编辑：预算/出价/受众/排除/Pacing/Daypart/频控
+  // ══════════════════════════════════════════════════════════════════════
+  let editCache = null;
+  let daypartState = new Array(7*24).fill(1);
+  const DAYS_ZH = ['一','二','三','四','五','六','日'];
+  const DP_PRESETS = {
+    all:        (d,h) => 1,
+    weekdays:   (d,h) => (d>=0 && d<=4) ? 1 : 0,
+    peaks:      (d,h) => (h>=7&&h<=10)||(h>=12&&h<=14)||(h>=19&&h<=23) ? 1 : 0,
+    prime:      (d,h) => (h>=18 && h<=23) ? 1 : 0,
+    none:       (d,h) => 0,
+  };
+  function daypartPreset(name){
+    const fn = DP_PRESETS[name]; if(!fn) return;
+    for(let d=0; d<7; d++) for(let h=0; h<24; h++) daypartState[d*24+h] = fn(d,h);
+    renderDaypart();
+  }
+  function renderDaypart(){
+    const g = document.getElementById('daypartGrid'); if(!g) return;
+    g.style.gridTemplateColumns = '18px repeat(24,1fr)';
+    g.style.gap = '1px';
+    let html = '<div></div>';
+    for(let h=0; h<24; h++) html += '<div style="text-align:center;color:#7f8c8d;font-size:8px;padding-bottom:2px">'+(h%3===0?(h+'h'):'')+'</div>';
+    for(let d=0; d<7; d++){
+      html += '<div style="text-align:center;color:#34495e;font-weight:600;font-size:9px;display:flex;align-items:center;justify-content:center">周'+DAYS_ZH[d]+'</div>';
+      for(let h=0; h<24; h++){
+        const on = daypartState[d*24+h] === 1;
+        html += '<div onclick="toggleDaypart('+d+','+h+')" style="cursor:pointer;height:12px;background:'+(on?'#2c3e50':'#ecf0f1')+';border-radius:1px" title="周'+DAYS_ZH[d]+' '+h+':00 ('+(on?'开':'关')+')"></div>';
+      }
+    }
+    g.innerHTML = html;
+  }
+  function toggleDaypart(d, h){
+    const i = d*24+h;
+    daypartState[i] = daypartState[i] === 1 ? 0 : 1;
+    renderDaypart();
+  }
+  function daypartFromMask(mask){
+    if(Array.isArray(mask) && mask.length >= 168){
+      for(let i=0; i<168; i++) daypartState[i] = mask[i] ? 1 : 0;
+    } else {
+      daypartState = new Array(7*24).fill(1);
+    }
+  }
+  function closeEdit(){ const m=document.getElementById('editModal'); if(m) m.style.display='none'; editCache=null; }
+  const $el = id => document.getElementById(id);
+  async function editCampaign(cid){
+    try{
+      const r = await fetch('/api/campaigns');
+      const all = await r.json().catch(()=>[]);
+      const c = all.find(x => x.id === cid);
+      if(!c){ UI.toast('找不到计划 #'+cid,'err'); return; }
+      editCache = c;
+      $('editId').value = c.id;
+      $('editTitle').textContent = '编辑 Campaign #'+c.id + (c.name ? ' · ' + c.name : '');
+      $('e_name').value = c.name || '';
+      $('e_adv').value = c.advertiser || '';
+      $('e_budget').value = (c.budget_cny || 0).toFixed(2);
+      $('e_dcap').value = (c.daily_cap_cny || 0).toFixed(2) || '';
+      const g = c.goal_type || 'CPM';
+      $('e_goal').value = g;
+      const bv = g==='CPA' ? (c.target_cpa_cny||0) : (g==='CPM' ? (c.target_cpm_cny||0) : (g==='ROAS' ? (c.target_roas||0) : (c.bid_value||0)));
+      $('e_bv').value = bv;
+      $('e_bf').value = (c.bid_floor_cny || 0).toFixed(2);
+      $('e_bs').value = c.bid_strategy || 'MAX';
+      $('e_country').value = c.country || '*';
+      $('e_geoc').value = c.geo_country || '*';
+      $('e_appcat').value = c.app_category || '*';
+      $('e_appid').value = c.app_id || '';
+      const iso = v => { if(!v) return ''; const d = new Date(v); return Number.isFinite(d.getTime()) ? d.toISOString().slice(0,10) : ''; };
+      $('e_start').value = iso(c.start_date);
+      $('e_end').value = iso(c.end_date);
+      $('e_intent').value = c.intent_tags || '';
+      const ex = c.exclude_audience || 'none';
+      $('e_excl_inst').value = (ex==='installed'||ex==='both') ? '1' : '0';
+      $('e_excl_conv').value = (ex==='converted'||ex==='both') ? '1' : '0';
+      $('e_retarget_win').value = c.retarget_window_days || 30;
+      $('e_device').value = c.device_type || '';
+      $('e_os').value = c.os || '';
+      $('e_retarget').value = c.retarget ? '1' : '0';
+      $('e_look').value = c.lookalike ? '1' : '0';
+      $('e_interest').value = c.interest_target || '';
+      $('e_mmp').value = c.attribution_partner || '';
+      $('e_conv_event').value = c.conversion_event || '';
+      const p = await fetch('/api/pacing/'+cid).then(r => r.json().catch(()=>null)).catch(()=>null);
+      $('e_pacing').value = (p && p.mode) || 'SMOOTH';
+      const fc = p && p.freqCap;
+      $('e_fc_count').value = fc ? (fc.count || 0) : '';
+      $('e_fc_hours').value = fc ? Math.max(1, Math.round((fc.windowSec||0)/3600)) : '';
+      daypartFromMask(p && p.daypart);
+      renderDaypart();
+      const m = $('editModal'); if(m) m.style.display = 'flex';
+    }catch(e){ UI.toast(e.message,'err'); }
+  }
+  async function editFreqCap(cid){ return editCampaign(cid); }
+
+  async function submitEdit(){
+    const id = Number($('editId').value); if(!id) return;
+    const btn = $('editSaveBtn'); btn.disabled = true; btn.textContent = '保存中…';
+    try{
+      const g = $('e_goal').value;
+      const body = {
+        name: $('e_name').value.trim(),
+        budget_cny: Number($('e_budget').value) || 0,
+        daily_cap_cny: Number($('e_dcap').value) || 0,
+        goal_type: g,
+        bid_strategy: $('e_bs').value,
+        bid_floor_cny: Number($('e_bf').value) || 0,
+        country: $('e_country').value.trim() || '*',
+        geo_country: $('e_geoc').value.trim() || '*',
+        app_category: $('e_appcat').value.trim() || '*',
+        app_id: $('e_appid').value.trim(),
+        start_date: $('e_start').value || null,
+        end_date: $('e_end').value || null,
+        intent_tags: $('e_intent').value.trim(),
+        device_type: $('e_device').value,
+        os: $('e_os').value,
+        retarget: Number($('e_retarget').value),
+        retarget_window_days: Number($('e_retarget_win').value) || 30,
+        lookalike: Number($('e_look').value),
+        interest_target: $('e_interest').value.trim().toLowerCase(),
+        attribution_partner: $('e_mmp').value,
+        conversion_event: $('e_conv_event').value.trim().toLowerCase(),
+        exclusion: { exclude_installed: Number($('e_excl_inst').value), exclude_converted: Number($('e_excl_conv').value) },
+        pacing_mode: $('e_pacing').value,
+        freq_cap: (() => {
+          const count = Number($('e_fc_count').value);
+          const hours = Number($('e_fc_hours').value);
+          if(!count || !hours) return null;
+          return { count, windowSec: hours * 3600, scope: 'device' };
+        })(),
+      };
+      const bv = Number($('e_bv').value) || 0;
+      if(g==='CPA') body.target_cpa_cny = bv;
+      else if(g==='CPM') body.target_cpm_cny = bv;
+      else if(g==='ROAS') body.target_roas = bv;
+      else body.bid_value = bv;
+      // Daypart mask → days/hours 数组（后端 daypartMaskFromDaysHours 消费）
+      const mask = daypartState.slice(0,168);
+      const allOn = mask.every(v => v === 1);
+      if(!allOn){
+        const hours = [], days = [];
+        for(let h=0; h<24; h++) if(mask.some((v,i)=>v===1 && (i%24)===h)) hours.push(h);
+        for(let d=0; d<7; d++) if(mask.some((v,i)=>v===1 && Math.floor(i/24)===d)) days.push(d+1);
+        body.daypart = { days, hours };
+      }
+      const r = await fetch('/api/campaign/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const j = await r.json().catch(()=>({}));
+      if(r.ok){
+        UI.toast('已保存修改' + (j.review_status === 'pending' ? ' · 已重新提交审核' : ''), 'ok');
+        closeEdit(); load();
+      } else {
+        UI.toast('保存失败：' + (j.error || ('HTTP ' + r.status)), 'err');
+      }
+    }catch(e){ UI.toast(e.message,'err'); }
+    finally{ btn.disabled = false; btn.textContent = '保存修改'; }
+  }
+  // LLM 意图画像重抽
+  function reExtract(id, btn){
+    btn.disabled=true; btn.textContent='抽取中…';
+    fetch('/api/intent-extract/'+id,{method:'POST'}).then(r=>r.json()).then(d=>{
+      btn.textContent='已重抽'; load();
+    }).catch(()=>{ btn.textContent='失败'; });
+  }
+  // 计划级素材绑定 / A-B（页内多选模态，修复原生 prompt 在无头/截图环境卡死；多选=自动 A/B）
+  async function manageCreatives(cid){
+    let d={creatives:[]}, mine=[];
+    try { d = await fetch('/api/campaign/'+cid+'/creatives').then(r=>r.json()); } catch(e){}
+    try { mine = await fetch('/api/creatives').then(r=>r.json()); } catch(e){ mine=[]; }
+    const curIds = new Set((d.creatives||[]).map(c=>c.id));
+    if(!mine.length) UI.toast('素材库暂无素材，请先到「素材库」上传/生成','warn');
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(3,8,20,.6);z-index:9999999;display:flex;align-items:center;justify-content:center';
+    const box=document.createElement('div');
+    box.style.cssText='background:#16203a;border:1px solid #26355c;border-radius:12px;padding:18px;width:540px;max-width:92vw;max-height:86vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)';
+    const items=(mine||[]).map(c=>{
+      const checked=curIds.has(c.id)?'checked':'';
+      return '<label style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #1d2b4d;cursor:pointer">'+
+        '<input type="checkbox" class="ccb" value="'+c.id+'" '+checked+'>'+
+        '<span style="font-size:13px;color:#e8eefc">#'+c.id+' '+(c.title||'')+' <span style="color:#7f8c8d">['+(c.format||'')+']</span>'+
+        ((c.impressions!=null)?' <span style="color:#7f8c8d">曝光'+(c.impressions||0)+' CTR'+(((c.ctr||0)*100).toFixed(1))+'%</span>':'')+'</span></label>';
+    }).join('') || '<div class="hint">素材库暂无素材，请先到「素材库」上传/生成</div>';
+    box.innerHTML='<div style="font-size:15px;font-weight:700;color:#e8eefc;margin-bottom:4px">计划 #'+cid+' · 绑定素材（多选 = A/B 自动优选）</div>'+
+      '<div class="hint" style="margin-bottom:10px">勾选多个即进入多素材 A/B（Thompson 优选 + 疲劳度降权）；不选 = 解绑全部。命中竞价需至少绑定 1 个「已通过」素材，否则 nbr=2 无法参拍。</div>'+
+      '<div id="cc-list" style="max-height:48vh;overflow:auto">'+items+'</div>'+
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'+
+      '<button id="cc-cancel" style="background:#1f2942;color:#e8eefc;border:0;border-radius:8px;padding:7px 14px;cursor:pointer;font:inherit">取消</button>'+
+      '<button id="cc-ok" style="background:#34d399;color:#04122a;border:0;border-radius:8px;padding:7px 14px;cursor:pointer;font:inherit;font-weight:700">保存绑定</button></div>';
+    overlay.appendChild(box); document.body.appendChild(overlay);
+    function close(){ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+    box.querySelector('#cc-cancel').onclick=close;
+    overlay.onclick=function(e){ if(e.target===overlay) close(); };
+    box.querySelector('#cc-ok').onclick=async function(){
+      const ids=Array.from(box.querySelectorAll('.ccb:checked')).map(x=>+x.value);
+      try{
+        const r=await fetch('/api/campaign/'+cid+'/creatives',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({creative_ids:ids})});
+        const j=await r.json().catch(()=>({}));
+        close();
+        UI.toast(r.ok?('已保存绑定：'+(j.creatives? j.creatives.length: ids.length)+' 个素材'):('失败：'+(j.error||('HTTP '+r.status))), r.ok?'ok':'err');
+        load();
+      }catch(e){ UI.toast(e.message,'err'); }
+    };
+  }
+  // 驳回后「重提审核」：清零驳回原因并回到 pending（与编辑自动送审等价，独立入口便于一键操作）
+  async function resubmitCampaign(id){
+    if(!id) return;
+    try{
+      const r = await fetch('/api/campaign/'+id+'/resubmit',{method:'PUT'});
+      const j = await r.json().catch(()=>({}));
+      UI.toast(r.ok? '已重新提交审核（pending）':('重提失败：'+(j.error||('HTTP '+r.status))), r.ok?'ok':'err');
+      load();
+    }catch(e){ UI.toast(e.message,'err'); }
+  }
+  // 拉取本广告主素材库，填充「素材库创意」下拉
+  async function loadCreatives(){
+    try{
+      const list = await fetch('/api/creatives').then(r=>r.json());
+      const sel = document.getElementById('creative_id'); const cur = sel.value;
+      sel.innerHTML = '<option value="0">— 未选（将回退到下方兜底 HTML）—</option>';
+      (list||[]).forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent='#'+c.id+' '+c.title+' ['+c.format+']'; sel.appendChild(o);
+        const m=document.createElement('option'); m.value=c.id; m.textContent='#'+c.id+' '+c.title+' ['+c.format+']'; document.getElementById('crmulti').appendChild(m); });
+      sel.value = cur;
+    }catch(e){}
+  }
+  async function load(){
+    loadCreatives();
+    const meta = await fetch('/api/intent-match',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json()).catch(()=>({}));
+    llmhint.textContent = '意图Agent LLM：' + (meta.llm_enabled ? '已接入真实LLM，出价按意图相关性上浮→eCPM更高' : '未配置Key(启发式回落)');
+    const list = await fetch('/api/campaigns').then(r=>r.json());
+    const tb=document.querySelector('#tbl tbody'); tb.innerHTML='';
+    list.forEach(c=>{ const tr=document.createElement('tr');
+      const prof = c.intent_summary ? `[${c.intent_source==='llm'?'LLM':'手动'}] ${c.intent_summary}` : '—';
+      const rv = c.review_status || 'approved';
+      const rvCell = rv==='approved' ? '<span style="color:#16a085">已通过</span>' : (rv==='rejected' ? ('<span style="color:#e74c3c">已拒绝' + (c.review_note ? ('：'+c.review_note) : '') + '</span>') : '<span style="color:#e67e22">待审核</span>');
+      const dtLabel = (c.device_type ? c.device_type.split(',') : []).map(x => x==='1' ? '移动/平板' : (x==='2' ? '桌面' : x)).join('/') || '不限';
+      const osLabel = (c.os ? c.os.split(',') : []).map(x => x==='ios' ? 'iOS' : (x==='android' ? 'Android' : x)).join('/') || '不限';
+      const bound = c.creative_id>0 || c.has_creative;
+      var hl = (c.id === lastCreatedId) ? " class=\"camp-new\"" : "";
+            const exclLabel = { installed: "排除已装", converted: "排除已转化", both: "排除已装+已转化", none: "" }[c.exclude_audience] || "";
+            const cfgBits = [];
+            if (c.bid_strategy) cfgBits.push("策略:" + c.bid_strategy);
+            if (exclLabel) cfgBits.push(exclLabel);
+            if (c.start_date) cfgBits.push(new Date(c.start_date).toISOString().slice(5,10) + " → " + (c.end_date ? new Date(c.end_date).toISOString().slice(5,10) : "∞"));
+            if (c.conversion_event) cfgBits.push("转化:" + c.conversion_event);
+            if (c.attribution_partner) cfgBits.push("归因:" + c.attribution_partner);
+            const cfgCell = cfgBits.length ? cfgBits.join(" · ") : '<span style="color:#7f8c8d">默认（匀速/不限）</span>';
+            tr.innerHTML=`<td>${c.id}</td><td>${c.name}</td><td>${c.advertiser}</td><td>${c.budget_cny.toFixed(2)}</td><td>${c.target_cpm_cny.toFixed(2)}<br><span style="color:#7f8c8d">底价:${(c.bid_floor_cny||0).toFixed(2)}</span></td><td>${c.country||"*"}</td><td>${c.app_category||"*"}</td><td>${c.intent_tags}</td><td>${c.goal_type||"CPM"}</td><td>${c.geo_country||"*"}<br><span style="color:#7f8c8d">设备:${dtLabel}</span><br><span style="color:#7f8c8d">OS:${osLabel}</span><br><span style="color:#7f8c8d">${c.retarget?("再营销:"+c.retarget_window_days+"天"):"拉新"}${c.lookalike?" +Lookalike":""}</span>${c.interest_target?("<br><span style=\"color:#7f8c8d\">兴趣:"+c.interest_target+"</span>"):""}</td><td style="font-size:11px">${cfgCell}</td><td>${c.creative_id?("#"+c.creative_id):(bound?'已绑多素材':'<span style="color:#e67e22">⚠ 未绑定素材</span>')}</td><td>${prof}</td><td>${rvCell}</td><td><a href="/analytics.html?dim=campaign&days=30" style="color:#7fd1ff;text-decoration:none" title="看该计划的报表">📊报表</a> <button onclick="reExtract(${c.id},this)">LLM重抽</button> <button onclick="editCampaign(${c.id})" style="background:#f5a623;color:#fff;border-color:#f5a623">✎编辑</button> <button onclick="manageCreatives(${c.id})">素材</button>${rv==='rejected'?' <button onclick="resubmitCampaign('+c.id+')">重提审核</button>':''}</td>`; tr.className = hl ? "camp-new" : "";
+      tb.appendChild(tr); });
+    lastCreatedId = 0; // 高亮一次后重置
+  }
+  // 开户资料补全：把广告主账户资料回填到建计划表单（不重复录入）
+  function applyAdvertiserAccount(){
+    var a = Auth.get();
+    if (a && a.type === 'advertiser'){ adv.value = a.scope; adv.disabled = true; prefillFromAccount(); }
+  }
+  async function prefillFromAccount(){
+    try{
+      const me = await fetch('/api/advertiser/me').then(r=>r.json());
+      const p = me && me.profile;
+      // 检查资料完整性：未填公司名 → 显示补全资料横幅
+      if (p && !p.company) {
+        document.getElementById('profile-banner').style.display = 'block';
+      }
+      if(!p) return;
+      const setEl=(id,v)=>{ const el=document.getElementById(id); if(el && v) el.value=v; };
+      if (p.app_category) setEl('cat', p.app_category);
+      // 修复：cpm 字段已改为 bidvalue，按 CPM 目标预填
+      if (Number(p.target_cpm_cny) > 0) {
+        const bEl = document.getElementById('bidvalue');
+        if (bEl && !bEl.value) bEl.value = String(p.target_cpm_cny);
+      }
+      if (p.landing_url) setEl('url', p.landing_url);
+      const nameEl = document.getElementById('name');
+      if (nameEl && me.advertiser && (!nameEl.value || nameEl.value === '新客-工具类App')) nameEl.value = me.advertiser;
+    }catch(e){}
+  }
+  if (Auth.ready()) { applyAdvertiserAccount(); load(); onGoalChange(); }
+  Auth.onAuth(function (d) { applyAdvertiserAccount(); load(); onGoalChange(); });
+  // 首次加载即同步 bidlabel 与 goal 状态
+  // Esc 关闭 inline edit modal
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && editCache) closeEdit(); });
+  onGoalChange();
+</script>
+
+<script src="/onboarding.js"></script>
+<script>Onboarding.mount('advertiser','onb');</script>
+<script src="/console_top.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a454f883beb8a33b',t:'MTc5MTEyNTEzMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>
+
+

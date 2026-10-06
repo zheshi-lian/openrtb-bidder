@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh">
-<head><meta charset="utf-8" /><title>广告单元 · 开发者变现</title>
+<head><meta charset="utf-8" /><title>应用与版位 · 运营区 · 开发者变现</title>
 <style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
  .wrap{max-width:1100px;margin:0 auto;padding:18px 22px}
  h2{font-size:18px;margin:0 0 4px;color:#e8eefc} h3{margin:0 0 10px;font-size:14px;color:#cdd8f2}
@@ -12,19 +12,50 @@
  button{padding:8px 16px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;margin-top:10px}
  button.ghost{background:#1f2942} button.bad{background:#c0392b}
  pre{background:#0a0f1d;color:#7ee787;padding:10px;border-radius:6px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-all;margin-top:10px}
- table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left;vertical-align:top;color:#e8eefc}
  th{background:#132043;color:#93a3c4}
  .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#15203a;color:#7fd1ff}
+ .tag.ok{background:#16321f;color:#34d399;border-color:#234a35}
+ .ok{color:#34d399;font-weight:700}.bad{color:#f87171;font-weight:700}
  code{background:#0d1730;padding:1px 5px;border-radius:4px;color:#9fb3d1}
+ .steps{display:flex;gap:8px;flex-wrap:wrap}
+ .st{font-size:12px;padding:6px 10px;border:1px solid #26355c;border-radius:999px;color:#93a3c4;background:#0d1730;white-space:nowrap}
+ .st.on{color:#86efac;border-color:#234a35;background:#16321f;font-weight:700}
+ .st a{color:inherit;text-decoration:none}
 </style></head>
 <body>
 <div id="ctop"></div>
 <div class="wrap">
-  <h2>广告单元（Ad Unit）</h2>
+  <h2>应用与版位（运营区）</h2>
   <div class="hint" id="who">—</div>
 
   <div class="card">
-    <h3>① 新建广告单元（先建 Ad Unit 拿 ID，再埋进页面）</h3>
+    <h3>当前接入进度（完整 6 步接入清单见 <a href="/publisher_report.html" style="color:#7fd1ff">媒体对账看板 · 上手引导</a>）</h3>
+    <div class="steps">
+      <span class="st"><a href="/publisher.html">① 入驻信息 / 密钥</a></span>
+      <span class="st on">② 添加应用（本页）</span>
+      <span class="st on">③ 创建广告单元（本页）</span>
+      <span class="st"><a href="/sdk-guide.html">④ 埋 SDK</a></span>
+      <span class="st"><a href="/integrity.html">⑤ 集成自检</a></span>
+      <span class="st"><a href="/publisher_report.html">⑥ 看收益</a></span>
+    </div>
+    <div class="hint">顺序即心智：先有应用、再为应用建广告单元、埋码后自检、最后看收益。本卡片只作「当前进度」提示，完整接入清单以媒体对账看板的上手引导为准，避免两处重复维护。</div>
+  </div>
+
+  <div class="card">
+    <h3>① 应用（App / 站点）</h3>
+    <div class="row">
+      <div><label>平台</label><select id="ap-plat"><option>android</option><option>ios</option><option>web</option></select></div>
+      <div><label>包名 / 站点标识 bundle</label><input id="ap-bundle" placeholder="如 com.example.app"></div>
+      <div><label>应用名</label><input id="ap-name" placeholder="如 我的 App"></div>
+    </div>
+    <button onclick="createApp()">添加应用</button>
+    <div class="hint" id="ap-msg"></div>
+    <table id="aptbl"><thead><tr><th>id</th><th>平台</th><th>bundle</th><th>名称</th><th>广告单元数</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>② 新建广告单元（先选 / 建应用，再建广告位拿 ID）</h3>
     <div class="row">
       <div><label>名称</label><input id="au-name" placeholder="如 首页-激励视频"></div>
       <div><label>广告格式 format</label><select id="au-format">
@@ -37,17 +68,39 @@
       <div><label>窗口（小时）</label><input id="au-win" type="number" value="24" min="1"></div>
       <div><label>自动刷新（秒，0=不刷新，仅 banner/MREC）</label><input id="au-ri" type="number" value="0" min="0"></div>
       <div><label>尺寸（MREC 填 300x250）</label><input id="au-size" placeholder="如 300x250"></div>
+      <div><label>⭐ 出价策略 bid_strategy</label><select id="au-strat">
+        <option value="bidding">bidding（实时竞价，推荐）</option>
+        <option value="header_bidding">header bidding（头部竞价）</option>
+        <option value="waterfall">waterfall（瀑布流）</option>
+      </select></div>
+      <div><label>⭐ 需求源 network</label><select id="au-net">
+        <option value="bidding">bidding（默认）</option>
+        <option value="waterfall">waterfall</option>
+        <option value="header_bidding">header_bidding</option>
+        <option value="all">all（全接）</option>
+      </select></div>
+      <div><label>⭐ 国家定向 geo（ISO 2 位，逗号分隔，空=不限）</label><input id="au-geo" placeholder="如 CN,US,JP 或留空"></div>
+      <div><label>⭐ Waterfall 优先级（1-N，越小越先）</label><input id="au-wp" type="number" value="1" min="1"></div>
     </div>
-    <button onclick="createUnit()">创建并生成埋点代码</button>
+    <button id="au-create" onclick="createUnit()">创建并生成埋点代码</button>
     <pre id="au-snippet" style="display:none"></pre>
     <div class="hint" id="au-msg"></div>
-    <div class="hint">应用请到「应用」模块添加（变现链路：先添加应用，再为应用建广告位）。</div>
+    <div class="hint">需要埋码或调试？ <a href="/sdk-guide.html">原生 SDK 接入文档</a> · <a href="/integrity.html">集成自检（工具）</a></div>
   </div>
 
   <div class="card">
-    <h3>② 我的广告单元</h3>
-    <table id="tbl"><thead><tr><th>ad_unit_id</th><th>名称</th><th>格式</th><th>底价</th><th>应用</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
-    <div class="hint">把 <code>data-ad-unit</code> 埋进页面后，曝光与收益会归到对应单元；报表在「收益报表」按单元拆解。</div>
+    <h3>③ 我的广告单元</h3>
+    <table id="tbl"><thead><tr><th>ad_unit_id</th><th>名称</th><th>格式</th><th>底价</th><th>应用</th><th>⭐ 策略/需求源</th><th>⭐ Geo</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+    <div class="hint">把 <code>data-ad-unit</code> 埋进页面后，曝光与收益会归到对应单元；报表在「概览/报表」按单元拆解。<br>
+    ⭐ 新字段：<code>bid_strategy</code>（bidding/header_bidding/waterfall）决定竞价机制；<code>network</code> 决定接哪些需求源；<code>geo</code> 国家定向（空=不限）；<code>waterfall_priority</code> 瀑布流优先级。</div>
+  </div>
+
+  <div class="card">
+    <h3>④ 集成自检（运营区内工具，    <div class="row">
+      <div><label>广告单元（可选，留空查全部）</label><select id="ck-au"><option value="">（全部）</option></select></div>
+      <div><button onclick="runCheck()">运行自检</button></div>
+    </div>
+    <div id="ck-out" class="hint">点「运行自检」检查入驻 / 收款 / 单元 / 是否收到请求 / 是否有胜出；也可打开 <a href="/integrity.html">集成自检专页</a> 主动「加载一支测试广告」触发胜出。</div>
   </div>
 </div>
 
@@ -62,33 +115,78 @@
       w.innerHTML = '尚未登录开发者账号 · <a href="/login.html">去登录</a> 或 <a href="/register.html#publisher">去入驻</a>';
       return false;
     }
-    // 只加载应用下拉（应用的新增/删除归「应用」模块，避免一个实体两处维护）
-    async function loadAppOptions(){
+    async function loadApps(){
       if (!whoami()) return;
-      var rows = await (await fetch('/api/apps')).json().catch(function(){ return []; });
-      var sel = document.getElementById('au-app');
-      sel.innerHTML = '<option value="0">（不绑定）</option>';
-      (rows || []).forEach(function (a) {
-        appNames[a.id] = a.name || a.bundle;
-        var o = document.createElement('option'); o.value = a.id;
-        o.textContent = (a.name || a.bundle) + '（' + a.platform + '）';
-        sel.appendChild(o);
+      const apps = await (await fetch('/api/apps')).json().catch(function(){ return []; });
+      const units = await (await fetch('/api/ad-units')).json().catch(function(){ return []; });
+      appNames = {};
+      (apps || []).forEach(function (a) { appNames[a.id] = a.name || a.bundle; });
+      var asel = document.getElementById('au-app');
+      asel.innerHTML = '';
+      if (!(apps || []).length) {
+        asel.innerHTML = '<option value="0">请先添加应用</option>';
+        var cb = document.getElementById('au-create'); if (cb) cb.disabled = true;
+      } else {
+        var cb2 = document.getElementById('au-create'); if (cb2) cb2.disabled = false;
+        (apps || []).forEach(function (a) {
+          var o = document.createElement('option'); o.value = a.id;
+          o.textContent = (a.name || a.bundle) + '（' + a.platform + '）';
+          asel.appendChild(o);
+        });
+      }
+      var ck = document.getElementById('ck-au'); if (ck) {
+        ck.innerHTML = '<option value="">（全部）</option>';
+        (units || []).forEach(function (u) {
+          var o = document.createElement('option'); o.value = u.ad_unit_id;
+          o.textContent = u.ad_unit_id + ' · ' + (u.name || '') + '（' + u.format + '）';
+          ck.appendChild(o);
+        });
+      }
+      var tb = document.querySelector('#aptbl tbody'); tb.innerHTML = '';
+      (apps || []).forEach(function (a) {
+        var n = (units || []).filter(function (u) { return Number(u.app_id) === Number(a.id); }).length;
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + a.id + '</td><td><span class="tag">' + a.platform + '</span></td><td><code>' + a.bundle + '</code></td><td>' + (a.name || '') + '</td><td>' + n + '</td><td><button class="bad" onclick="delApp(' + a.id + ')">删</button></td>';
+        tb.appendChild(tr);
       });
+      if (!(apps || []).length) tb.innerHTML = '<tr><td colspan="6">还没有应用，请先添加</td></tr>';
+    }
+    async function createApp(){
+      var m = document.getElementById('ap-msg');
+      if (!whoami()) { m.textContent = '请先登录开发者账号'; return; }
+      var bundle = document.getElementById('ap-bundle').value.trim();
+      if (!bundle) { m.textContent = '请填写 bundle（包名 / 站点标识）'; return; }
+      var r = await fetch('/api/apps', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: document.getElementById('ap-plat').value, bundle: bundle, name: document.getElementById('ap-name').value.trim() }) });
+      var d = await r.json().catch(function(){ return {}; });
+      m.textContent = r.ok ? ('已添加应用 #' + d.id + ' ✓ 接着在下方为它建广告单元') : ('失败：' + (d.error || JSON.stringify(d)));
+      if (r.ok) loadApps();
+    }
+    async function delApp(id){
+      if (!confirm('删除该应用？（已建的广告单元不会删除，仅解除归属）')) return;
+      await fetch('/api/apps/' + id, { method: 'DELETE' });
+      loadApps();
     }
     async function createUnit(){
       var m = document.getElementById('au-msg'), sn = document.getElementById('au-snippet');
       m.textContent = '创建中…'; sn.style.display = 'none';
       if (!whoami()) { m.textContent = '请先登录开发者账号'; return; }
+      var appId = Number(document.getElementById('au-app').value);
+      if (!appId) { m.textContent = '请先选择「归属应用」（广告单元必须绑定应用，避免孤儿单元）'; return; }
       try {
         var r = await fetch('/api/ad-units', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: document.getElementById('au-name').value.trim(),
             format: document.getElementById('au-format').value,
             floor_cny: Number(document.getElementById('au-floor').value) || 1,
-            app_id: Number(document.getElementById('au-app').value) || 0,
+            app_id: appId,
             freq_cap: Number(document.getElementById('au-cap').value) || 0,
             freq_window_hours: Number(document.getElementById('au-win').value) || 24,
             refresh_interval: Number(document.getElementById('au-ri').value) || 0,
-            size: document.getElementById('au-size').value.trim() }) });
+            size: document.getElementById('au-size').value.trim(),
+            network: document.getElementById('au-net').value,
+            geo: document.getElementById('au-geo').value.trim().toUpperCase(),
+            bid_strategy: document.getElementById('au-strat').value,
+            waterfall_priority: Number(document.getElementById('au-wp').value) || 1 }) });
         var d = await r.json().catch(function(){ return {}; });
         if (!r.ok || !d.ok) { m.textContent = '创建失败：' + (d.error || JSON.stringify(d)); return; }
         sn.style.display = 'block'; sn.textContent = d.snippet;
@@ -105,6 +203,8 @@
         tr.innerHTML = '<td><code>' + u.ad_unit_id + '</code></td><td>' + (u.name || '') + '</td>' +
           '<td><span class="tag">' + u.format + '</span></td><td>' + u.floor_cny + '</td>' +
           '<td>' + (u.app_id ? (appNames[u.app_id] || ('#' + u.app_id)) : '—') + '</td>' +
+          '<td><span class="tag">' + (u.bid_strategy || 'bidding') + '</span> · ' + (u.network || 'bidding') + (u.waterfall_priority ? ' · P' + u.waterfall_priority : '') + '</td>' +
+          '<td>' + (u.geo ? (u.geo.length > 12 ? u.geo.slice(0,12)+'…' : u.geo) : '<span class="hint">不限</span>') + '</td>' +
           '<td>' + (Number(u.status) === 1 ? '启用' : '暂停') + '</td>' +
           '<td><button class="ghost" onclick="toggle(' + u.id + ',' + Number(u.status) + ')">' + (Number(u.status) === 1 ? '暂停' : '启用') + '</button> ' +
           '<button class="bad" onclick="del(' + u.id + ')">删</button></td>';
@@ -120,8 +220,20 @@
       await fetch('/api/ad-units/' + id, { method: 'DELETE' });
       load();
     }
-    whoami(); loadAppOptions(); load();
+    async function runCheck(){
+      var auid = document.getElementById('ck-au').value;
+      var url = '/api/publisher/integrity' + (auid ? ('?ad_unit_id=' + encodeURIComponent(auid)) : '');
+      var d = await (await fetch(url)).json().catch(function(){ return {}; });
+      var el = document.getElementById('ck-out');
+      if (d.error) { el.innerHTML = '<span style="color:#f87171">' + d.error + '</span>'; return; }
+      var h = '<table style="margin-top:8px"><thead><tr><th>结果</th><th>检查项</th><th>说明</th></tr></thead><tbody>';
+      (d.checks || []).forEach(function (c) { h += '<tr><td class="' + (c.ok ? 'ok' : 'bad') + '">' + (c.ok ? '✓' : '✗') + '</td><td>' + c.item + '</td><td>' + (c.hint || '') + '</td></tr>'; });
+      h += '</tbody></table><div class="hint" style="margin-top:8px">请求 <b>' + d.requests + '</b> · 胜出 <b>' + d.wins + '</b> · 填充率 <b>' + (d.fill_rate == null ? '—' : (d.fill_rate * 100).toFixed(1) + '%') + '</b></div>';
+      el.innerHTML = h;
+    }
+    whoami(); loadApps(); load();
   </script>
-<script src="/console_nav.js"></script>
+
 <script src="/console_top.js"></script>
-</body></html>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"ce55610ec9ce4a0da4e9dfc2657616c8","r":1,"spa":2}' crossorigin="anonymous"></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a45525692a142805',t:'MTc5MTEyNjk2OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>

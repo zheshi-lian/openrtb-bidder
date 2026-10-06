@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8" /><title>合同 / 电子签 · 平台运营</title>
+<style> body{font-family:system-ui,"Microsoft YaHei",sans-serif;margin:0;background:#0b1020;color:#e8eefc}
+ .wrap{max-width:1100px;margin:0 auto;padding:18px 22px}
+ h2{font-size:18px;margin:0 0 4px} h3{margin:0 0 10px;font-size:14px;color:#e8eefc}
+ .hint{font-size:12px;color:#93a3c4;margin:6px 0 0}
+ .card{background:#16203a;padding:14px;border-radius:8px;margin:14px 0;border:1px solid #26355c}
+ input,select,textarea{padding:6px 9px;border:1px solid #26355c;border-radius:6px;background:#0d1730;color:#e8eefc;width:100%;box-sizing:border-box}
+ textarea{height:80px;resize:vertical} button{padding:5px 12px;cursor:pointer;background:#27ae60;color:#fff;border:0;border-radius:6px;font-size:12px}
+ button.ghost{background:#5b6b82} button.bad{background:#c0392b}
+ table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px} td,th{border:1px solid #26355c;padding:6px 8px;text-align:left;vertical-align:top;color:#e8eefc}
+ th{background:#0d1730;color:#93a3c4}
+ .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:#16203a;color:#7fd1ff;border:1px solid #26355c}
+ .tag.ok{background:#16321f;color:#34d399;border-color:#234a35}
+ .doc{background:#0f172a;padding:14px;border-radius:8px;white-space:pre-wrap;word-break:break-word;line-height:1.7;max-height:360px;overflow:auto}
+ #ctop{margin-bottom:10px}
+</style></head>
+<body>
+<div id="ctop"></div>
+<div class="wrap">
+  <h2>合同 / 协议 & 电子签</h2>
+  <div class="hint">运营维护模板（广告主服务协议 / 开发者分成协议 / 发票），生成合同后由对方一键电子签（记录签署人与 HMAC 签名，可验真）。</div>
+
+  <div class="card">
+    <h3>① 合同模板（运营）</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <select id="t-type" style="width:200px"><option value="advertiser_service">广告主服务协议</option><option value="publisher_revenue">开发者分成协议</option><option value="invoice">发票</option></select>
+      <input id="t-title" placeholder="模板标题" style="width:220px">
+      <button onclick="addTpl()">保存模板</button>
+    </div>
+    <textarea id="t-content" placeholder="正文，用 {{变量名}} 作为占位符，例如：甲方 {{advertiser}} 投放预算 {{budget}} 元"></textarea>
+    <table id="ttbl"><thead><tr><th>id</th><th>类型</th><th>标题</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>② 生成合同（填变量 → 待签署）</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="g-tpl" style="width:240px"></select>
+      <input id="g-vars" placeholder='变量JSON，如 {"advertiser":"XX科技","budget":"100000"}' style="flex:1;min-width:280px">
+      <button onclick="genContract()">生成</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>③ 我的合同 / 电子签</h3>
+    <table id="ctbl"><thead><tr><th>id</th><th>类型</th><th>标题</th><th>状态</th><th>操作</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card" id="doc-card" style="display:none">
+    <h3>合同正文 · <span id="doc-title"></span></h3>
+    <div class="doc" id="doc-body"></div>
+    <div id="doc-sign" style="margin-top:10px;display:none">
+      <input id="s-name" placeholder="签署人姓名" style="width:180px;display:inline-block">
+      <input id="s-email" placeholder="签署人邮箱" style="width:220px;display:inline-block">
+      <button onclick="signContract()">电子签署</button>
+      <span id="s-out" class="hint"></span>
+    </div>
+    <button class="ghost" onclick="document.getElementById('doc-card').style.display='none'">关闭</button>
+  </div>
+</div>
+
+  <script>window.AUTH_TITLE='平台运营';</script>
+  <script src="/admin.js"></script>
+  <script src="/ui.js"></script>
+  <script>
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    async function loadTpl(){
+      const rows=await (await fetch('/api/admin/contract-templates')).json().catch(()=>[]);
+      const tb=document.querySelector('#ttbl tbody'); tb.innerHTML='';
+      const g=document.getElementById('g-tpl'); g.innerHTML='';
+      (rows||[]).forEach(r=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML='<td>'+r.id+'</td><td>'+r.type+'</td><td>'+esc(r.title)+'</td><td><button class="bad" onclick="delTpl('+r.id+')">删</button></td>';
+        tb.appendChild(tr);
+        const o=document.createElement('option'); o.value=r.id; o.textContent=r.type+' · '+r.title; g.appendChild(o);
+      });
+      if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="4">暂无模板</td></tr>';
+    }
+    async function addTpl(){
+      const title=document.getElementById('t-title').value.trim(), content=document.getElementById('t-content').value.trim();
+      if(!title||!content) return UI.toast('标题与正文必填','err');
+      const r=await fetch('/api/admin/contract-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('t-type').value,title,content})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) return UI.toast('失败：'+(d.error||''),'err');
+      document.getElementById('t-title').value=''; document.getElementById('t-content').value=''; loadTpl();
+    }
+    async function delTpl(id){ if(!confirm('删除模板？')) return; await fetch('/api/admin/contract-templates/'+id,{method:'DELETE'}); loadTpl(); }
+    async function genContract(){
+      const tplId=+document.getElementById('g-tpl').value; if(!tplId) return UI.toast('先选模板','err');
+      let vars={}; try{ vars=JSON.parse(document.getElementById('g-vars').value||'{}'); }catch{ return UI.toast('变量必须是合法 JSON','err'); }
+      const r=await fetch('/api/contracts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({template_id:tplId,variables:vars})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) return UI.toast('失败：'+(d.error||''),'err');
+      UI.toast('已生成合同 #'+d.id); loadContracts();
+    }
+    async function loadContracts(){
+      const rows=await (await fetch('/api/contracts')).json().catch(()=>[]);
+      const tb=document.querySelector('#ctbl tbody'); tb.innerHTML='';
+      (rows||[]).forEach(c=>{
+        const tr=document.createElement('tr');
+        const signed=c.status==='signed';
+        tr.innerHTML='<td>'+c.id+'</td><td><span class="tag">'+c.type+'</span></td><td>'+esc(c.title)+'</td>'+
+          '<td><span class="tag '+(signed?'ok':'')+'">'+(signed?'已签署':'待签署')+'</span></td>'+
+          '<td><button onclick="viewContract('+c.id+',\''+c.status+'\')">查看</button></td>';
+        tb.appendChild(tr);
+      });
+      if(!(rows||[]).length) tb.innerHTML='<tr><td colspan="5">暂无合同</td></tr>';
+    }
+    async function viewContract(id,status){
+      const c=await (await fetch('/api/contracts/'+id)).json().catch(()=>({}));
+      if(!c||c.error) return UI.toast('加载失败','err');
+      document.getElementById('doc-title').textContent=c.title+'（'+(c.status==='signed'?('已签署 '+c.signer_name):'待签署')+'）';
+      document.getElementById('doc-body').textContent=c.rendered||'（空）';
+      document.getElementById('doc-sign').style.display = status==='signed' ? 'none' : 'block';
+      document.getElementById('s-out').textContent='';
+      document.getElementById('doc-card').style.display='block';
+      window._curCid=id;
+    }
+    async function signContract(){
+      const id=window._curCid; const name=document.getElementById('s-name').value.trim(), email=document.getElementById('s-email').value.trim();
+      if(!name) return UI.toast('请填签署人姓名','err');
+      const r=await fetch('/api/contracts/'+id+'/sign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signer_name:name,signer_email:email})});
+      const d=await r.json().catch(()=>({})); if(!r.ok) return UI.toast('失败：'+(d.error||''),'err');
+      document.getElementById('s-out').textContent='✓ 已签署，签名：'+d.signature.slice(0,16)+'…';
+      document.getElementById('doc-sign').style.display='none';
+      loadContracts();
+    }
+    loadTpl(); loadContracts();
+  </script>
+<script src="/console_top.js"></script>
+</body></html>
