@@ -40,13 +40,16 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          export ANDROID_HOME=$SDK
+          export ANDROID_SDK_ROOT=$SDK
+          export PATH="$SDK/cmdline-tools/latest/bin:$PATH"
           yes | sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       # Build ONLY the library module (root project = 'applink-adsdk'); the :app demo module is
       # skipped so we never hit its release-signing requirement. Uses the committed Gradle wrapper
       # (pinned to the Gradle version this AGP 8.5.2 project requires).
       - name: Build release AAR (library)
-        run: sh gradlew :assembleRelease --no-daemon
+        run: bash gradlew :assembleRelease --no-daemon
         working-directory: ${{ steps.sdk.outputs.dir }}
 
       - name: Upload AAR artifact
